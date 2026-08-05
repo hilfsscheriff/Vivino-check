@@ -1,0 +1,243 @@
+"""Gemeinsame Grundlage aller Händler-Adapter."""
+
+from __future__ import annotations
+
+import re
+import time
+from dataclasses import dataclass, field
+from functools import lru_cache
+
+from ..config import SourceConfig
+from ..fetching import Blocked, Fetcher
+from ..models import Offer, PriceConfidence
+from ..names import extract_vintage, looks_like_private_label
+from ..prices import discount_percent, normalize_price, rate_discount
+
+#: Wörter, an denen ein Wein von anderen Sortimenten unterschieden wird.
+WINE_HINTS = (
+    "wein", "vin", "vino", "wine", "rotwein", "weisswein", "rosé", "rose",
+    "schaumwein", "champagne", "prosecco", "crémant", "cremant", "sekt", "cava",
+    "merlot", "chardonnay", "pinot", "cabernet", "syrah", "riesling", "chasselas",
+    "fendant", "dôle", "dole", "amarone", "valpolicella", "chianti", "rioja",
+    "bordeaux", "bourgogne", "barolo", "primitivo", "sangiovese", "aoc", "docg",
+    "doc", "igt", "igp",
+)
+
+#: Sortimente, die trotz Wein-Stichwort nicht gemeint sind.
+NOT_WINE = (
+    "weinessig", "essig", "weinbrand", "glas", "gläser", "glaeser", "korkenzieher",
+    "kühler", "kuehler", "karaffe", "dekanter", "traubensaft", "weinstein",
+    "sauerkraut", "weingummi", "senf", "bratwurst", "fondue", "weinbergschnecke",
+)
+
+_RE_PRICE = re.compile(r"(\d{1,4}(?:['’]\d{3})*(?:[.,]\d{1,2})?)")
+
+
+def looks_like_wine(*texts: str) -> bool:
+    """Grobe Vorfilterung.
+
+    Auf Wortgrenzen geprüft, nicht als Teilstring: "Sch**wein**skoteletts" und
+    "Sch**wein**sfleisch" enthalten "wein", sind aber kein Wein. Genau daran sind in
+    der ersten Fassung Cervelas und Grillbrutzler durchgerutscht.
+    """
+    hay = " ".join(t for t in texts if t).lower()
+    if any(_word_re(bad).search(hay) for bad in NOT_WINE):
+        return False
+    return any(_word_re(hint).search(hay) for hint in WINE_HINTS)
+
+
+@lru_cache(maxsize=512)
+def _word_re(word: str) -> re.Pattern[str]:
+    return re.compile(rf"(?<![a-zäöüéèàç]){re.escape(word)}(?![a-zäöüéèàç])")
+
+
+def parse_price(text: str | None) -> float | None:
+    """Zieht einen CHF-Betrag aus Text wie ``"statt 4.50"`` oder ``"CHF 12'950.00"``."""
+    if not text:
+        return None
+    m = _RE_PRICE.search(str(text))
+    if not m:
+        return None
+    raw = m.group(1).replace("'", "").replace("’", "").replace(",", ".")
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+@dataclass
+class FetchReport:
+    """Was ein Adapter-Lauf ergeben hat — auch wenn er nichts ergeben hat.
+
+    Wird im Report und in ``diff.md`` ausgewiesen, damit eine blockierte Quelle nicht
+    stillschweigend als "keine Aktionen" durchgeht.
+    """
+
+    retailer: str
+    status: str = "ok"              # ok | blocked | empty | error | skipped
+    offers: list[Offer] = field(default_factory=list)
+    message: str = ""
+    resolved_url: str = ""
+    url_note: str = ""
+    retry_after: str | None = None
+
+    @property
+    def count(self) -> int:
+        return len(self.offers)
+
+
+class RetailerAdapter:
+    """Basisklasse. Unterklassen implementieren :meth:`parse`."""
+
+    def __init__(self, cfg: SourceConfig, fetcher: Fetcher):
+        self.cfg = cfg
+        self.fetcher = fetcher
+
+    # -- von Unterklassen zu implementieren -------------------------------
+    def parse(self, html: str, url: str) -> list[Offer]:
+        raise NotImplementedError
+
+    def urls(self) -> list[str]:
+        return list(self.cfg.urls)
+
+    # -- gemeinsamer Ablauf -----------------------------------------------
+    def fetch(self) -> FetchReport:
+        """Holt alle konfigurierten Seiten, löst veraltete Deep-Links auf und meldet
+        das Ergebnis — ohne bei einer Blockade den ganzen Lauf zu killen."""
+        report = FetchReport(retailer=self.cfg.key)
+        if not self.cfg.urls and not self.cfg.shop_root:
+            report.status = "skipped"
+            report.message = "keine URL konfiguriert"
+            return report
+
+        url, note = self.fetcher.resolve_url(
+            self.urls(), self.cfg.shop_root, self.cfg.promo_keywords or ["aktion"]
+        )
+        report.url_note = note
+        if not url:
+            report.status = "error"
+            report.message = f"keine erreichbare Aktionsseite ({note})"
+            return report
+        report.resolved_url = url
+
+        offers: list[Offer] = []
+        seen: set[str] = set()
+        for candidate in _dedupe([url, *self.urls()]):
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            try:
+                res = self.fetcher.get(candidate)
+            except Blocked as exc:
+                if not offers:
+                    report.status = "blocked"
+                    report.message = str(exc)
+                    report.retry_after = exc.retry_after
+                    return report
+                continue
+            if not res.ok:
+                continue
+            try:
+                offers.extend(self.parse(res.text, str(res.url)))
+            except Exception as exc:  # noqa: BLE001 — ein defektes Layout darf nicht alles reissen
+                report.message = _join(report.message, f"Parse-Fehler auf {candidate}: {exc}")
+
+        report.offers = _dedupe_offers(offers)
+        if not report.offers:
+            report.status = "empty"
+            report.message = _join(
+                report.message, "Seite erreichbar, aber keine Wein-Positionen erkannt"
+            )
+        return report
+
+    # -- Hilfen für Unterklassen ------------------------------------------
+    def make_offer(
+        self,
+        *,
+        name: str,
+        url: str = "",
+        price_text: str | float | None = None,
+        reference_text: str | float | None = None,
+        gebinde_text: str = "",
+        article_no: str | None = None,
+        vintage: int | None = None,
+        source_note: str = "",
+        price_basis: str | None = None,
+        vat_included: bool | None = None,
+    ) -> Offer:
+        """Baut ein :class:`Offer` mit normalisiertem Preis, Rabatt und
+        Eigenmarken-Kennzeichnung.
+
+        Args:
+            price_basis: Überschreibt die Einstellung des Händlers. Nötig z.B. beim
+                Prodega-Prospekt, wo über dem Preis die Bezugsgrösse angeschrieben ist
+                ("75 cl", "kg") — der Preis gilt dort pro Flasche, nicht pro Karton,
+                auch wenn darunter das Gebinde "15 × 50 cl" steht.
+        """
+        amount = price_text if isinstance(price_text, (int, float)) else parse_price(price_text)
+        reference = (
+            reference_text
+            if isinstance(reference_text, (int, float))
+            else parse_price(reference_text)
+        )
+        vat = self.cfg.vat_included if vat_included is None else vat_included
+        basis = " ".join(x for x in (gebinde_text, name) if x)
+        if not vat and "mwst" not in basis.lower():
+            basis += ", exkl. MwSt"
+
+        norm = normalize_price(
+            amount,
+            basis,
+            price_basis=price_basis or self.cfg.price_basis,
+            default_vat_included=vat,
+        )
+        private = looks_like_private_label(name, self.cfg.private_label_brands)
+
+        # Rabatt immer auf den *normalisierten* Aktionspreis bezogen, aber rein
+        # informativ — gerankt wird nie über den Rabatt.
+        ref_norm = None
+        if reference is not None and amount and amount > 0 and norm.price_per_bottle_incl_vat:
+            ref_norm = reference * (norm.price_per_bottle_incl_vat / amount)
+        pct = discount_percent(norm.price_per_bottle_incl_vat, ref_norm)
+
+        offer = Offer(
+            retailer=self.cfg.key,
+            name=name.strip(),
+            url=url,
+            vintage=vintage if vintage is not None else extract_vintage(f"{name} {gebinde_text}"),
+            reference_price=round(ref_norm, 2) if ref_norm else None,
+            discount_percent=pct,
+            discount_plausibility=rate_discount(pct, private),
+            is_private_label=private,
+            article_no=article_no,
+            fetched_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+            source_note=source_note,
+        )
+        offer.apply_price(norm)
+        return offer
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    return [x for x in items if x and not (x in seen or seen.add(x))]
+
+
+def _dedupe_offers(offers: list[Offer]) -> list[Offer]:
+    """Ein Wein kann auf einer Seite mehrfach stehen (Teaser + Liste)."""
+    best: dict[tuple[str, int | None], Offer] = {}
+    for o in offers:
+        key = (o.name.lower().strip(), o.vintage)
+        prev = best.get(key)
+        if prev is None:
+            best[key] = o
+            continue
+        # Den mit dem verlässlicheren Preis behalten.
+        if prev.price_confidence is PriceConfidence.LOW and o.price_confidence is not PriceConfidence.LOW:
+            best[key] = o
+        elif (o.price_per_bottle_incl_vat or 1e9) < (prev.price_per_bottle_incl_vat or 1e9):
+            best[key] = o
+    return list(best.values())
+
+
+def _join(a: str, b: str) -> str:
+    return "; ".join(x for x in (a, b) if x)

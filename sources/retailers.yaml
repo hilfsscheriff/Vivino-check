@@ -1,0 +1,304 @@
+# Quellen-Registry. Neue Händler können hier ohne Codeänderung ergänzt werden.
+#
+# status-Werte, gesetzt beim ersten verifizierten Lauf (05.08.2026):
+#   ok              Aktionsseite mit httpx erreichbar, Adapter vorhanden
+#   blocked         Bot-Schutz (Cloudflare/DataDome). Wird NICHT umgangen.
+#   url_unverified  Deep-Link antwortete 404, Promo-Kategorie muss vom Shop-Root
+#                   aus gesucht werden (resolve_url macht das und protokolliert es)
+#   login_required  Katalog liegt hinter Login, Zugangsdaten aus .env
+#   no_adapter      Quelle erreichbar, Adapter noch nicht gebaut
+version: 1
+
+defaults:
+  rate_limit_seconds: 2.0      # max 1 Anfrage pro 2 s pro Domain
+  respect_robots: true
+  vat_included: true           # Detailhandel schreibt inkl. MwSt an
+  price_basis: auto           # aus dem Text ableiten (Karton vs. Flasche); Prodega überschreibt mit "pack"
+  timeout_seconds: 30.0
+
+retailers:
+  # ---------------------------------------------------------------- Tier 1
+  - key: coop
+    name: Coop
+    tier: 1
+    domain: coop.ch
+    adapter: coop
+    enabled: false
+    status: blocked
+    urls:
+      - https://www.coop.ch/de/aktionen/aktuelle-aktionen/aktionen-weine/c/m_1808
+    verified_at: "2026-08-05"
+    blocked_by: datadome
+    notes: >
+      Marktführer, regelmässige 20%-Weinwochen. Die vom Auftrag genannte URL ist
+      korrekt und im Browser erreichbar, antwortet aber auf jede Anfrage ohne
+      Browser-Fingerprint mit HTTP 403 und einer DataDome-CAPTCHA-Seite — sogar
+      /robots.txt selbst. Ohne Browser-Automation nicht einlesbar. Der Adapter ist
+      vorhanden und meldet 'blocked' statt zu scheitern.
+    private_label_brands: [Coop, Prix Garantie, Qualité & Prix, Fine Food]
+
+  - key: denner
+    name: Denner
+    tier: 1
+    domain: denner.ch
+    adapter: denner
+    enabled: true
+    status: ok
+    urls:
+      - https://www.denner.ch/de/weinshop/wein-aktionen
+      - https://www.denner.ch/de/weinshop/wein-sortiment
+      - https://www.denner.ch/de/aktionen/aktuelle-aktionen
+      - https://www.denner.ch/de/aktionen/aktionen-ab-donnerstag
+    shop_root: https://www.denner.ch/de/
+    promo_keywords: [wein-aktionen, aktion, aktionen, angebot, sale, rabatt, weinshop]
+    verified_at: "2026-08-05"
+    notes: >
+      Nr. 2, Migros-Tochter. /de/shop/wein/ aus dem Auftrag leitet per 301 auf
+      /de/weinshop um, /de/aktionen auf /de/aktuelle-aktionen — beide aufgelöste
+      Adressen sind oben eingetragen. Nuxt-Anwendung, Daten liegen als
+      __NUXT_DATA__ im HTML.
+      Die allgemeine Aktionsseite führt meist nur einen einzelnen Wein; die
+      eigentliche Weinliste steht unter /de/weinshop/wein-aktionen. Beide werden
+      geholt, /de/weinshop selbst enthält nur Bannertexte ohne Preise.
+    private_label_brands:
+      [Carmelin, Domherrenwein, Heldenrosé, Heldenrose, Noirillon, Cépage Roi,
+       Sélection, Bergkristall]
+
+  - key: migros
+    name: Migros
+    tier: 1
+    domain: migros.ch
+    adapter: generic_html
+    enabled: false
+    status: blocked
+    urls:
+      - https://www.migros.ch/de/category/wein-schaumwein
+    verified_at: "2026-08-05"
+    blocked_by: cloudflare
+    notes: >
+      HTTP 403 hinter Cloudflare für jede Anfrage ohne Browser. Nicht umgangen.
+    private_label_brands: [M-Classic, Sélection, Migros Bio, Terra Vigneto]
+
+  - key: lidl
+    name: Lidl Schweiz
+    tier: 1
+    domain: lidl.ch
+    adapter: prospekt_pdf
+    enabled: false
+    status: url_unverified
+    urls: []
+    shop_root: https://www.lidl.ch/
+    promo_keywords: [prospekt, wochenprospekt, angebote, aktionen]
+    verified_at: "2026-08-05"
+    notes: >
+      Nur Prospekt-PDF. Der geratene Deep-Link antwortete 404; die Prospekt-URL
+      wechselt wöchentlich und muss vom Shop-Root aus gesucht werden. Im ersten
+      Release nicht enthalten — siehe README.
+
+  - key: aldi
+    name: Aldi Suisse
+    tier: 1
+    domain: aldi-suisse.ch
+    adapter: prospekt_pdf
+    enabled: false
+    status: url_unverified
+    urls: []
+    shop_root: https://www.aldi-suisse.ch/de/
+    promo_keywords: [prospekt, aktionen, angebote, wochenaktionen]
+    verified_at: "2026-08-05"
+    notes: >
+      Nur Prospekt-PDF, gleiche Lage wie Lidl. Im ersten Release nicht enthalten.
+
+  - key: ottos
+    name: Otto's
+    tier: 1
+    domain: ottos.ch
+    adapter: generic_html
+    enabled: false
+    status: url_unverified
+    urls:
+      - https://www.ottos.ch/de/wein
+    shop_root: https://www.ottos.ch/de/
+    promo_keywords: [wein, aktion, angebote, restposten]
+    verified_at: "2026-08-05"
+    notes: >
+      Antwortet mit HTTP 200, liefert aber nur ~2 KB — reine JavaScript-Hülle ohne
+      Produktdaten im HTML. Restposten wechseln schnell. Adapter noch nicht gebaut.
+
+  - key: landi
+    name: Landi
+    tier: 1
+    domain: landi.ch
+    adapter: generic_html
+    enabled: false
+    status: url_unverified
+    urls: []
+    shop_root: https://www.landi.ch/
+    promo_keywords: [wein, getraenke, aktion, angebote]
+    verified_at: "2026-08-05"
+    notes: Geratener Deep-Link antwortete 404. Kategorie muss aufgelöst werden.
+
+  # ---------------------------------------------------------------- Tier 2
+  - key: flaschenpost
+    name: Flaschenpost
+    tier: 2
+    domain: flaschenpost.ch
+    adapter: generic_html
+    enabled: false
+    status: blocked
+    urls:
+      - https://www.flaschenpost.ch/aktionen
+    verified_at: "2026-08-05"
+    blocked_by: cloudflare
+    notes: >
+      Grösster Online-Weinhändler CH. Die URL ist korrekt, liefert aber eine
+      Cloudflare-JS-Challenge ("Just a moment..."). robots.txt erlaubt /aktionen
+      ausdrücklich — die Challenge ist trotzdem eine Schutzmassnahme und wird nicht
+      umgangen.
+
+  - key: moevenpick
+    name: Mövenpick Wein
+    tier: 2
+    domain: moevenpick-wein.com
+    adapter: moevenpick
+    enabled: true
+    status: ok
+    urls:
+      - https://www.moevenpick-wein.com/de/aktuelle-angebote.html
+      - https://www.moevenpick-wein.com/de/aktuelle-angebote/outlet.html
+    shop_root: https://www.moevenpick-wein.com/de/
+    promo_keywords: [angebote, outlet, aktion, sale]
+    verified_at: "2026-08-05"
+    notes: >
+      Beide URLs aus dem Auftrag bestätigt, serverseitig gerendertes Magento.
+      robots.txt verbietet Query-Strings (Disallow /*?*) mit Ausnahme von p=/page=
+      — Paginierung nur über ?p=, keine Suchqueries.
+    private_label_brands: []
+
+  - key: schuler
+    name: Schuler St. Jakobskellerei
+    tier: 2
+    domain: schuler.ch
+    adapter: generic_html
+    enabled: false
+    status: url_unverified
+    urls: []
+    shop_root: https://www.schuler.ch/
+    promo_keywords: [aktion, angebote, sale, wein]
+    verified_at: "2026-08-05"
+    notes: >
+      /de/aktionen antwortete 404. Alternativen laut Auftrag sind Schubi, Gerstl
+      und Denz.
+
+  # ---------------------------------------------------------------- Tier 3
+  - key: prodega
+    name: Prodega (Transgourmet)
+    tier: 3
+    domain: transgourmet.ch
+    adapter: prodega
+    enabled: true
+    status: login_required
+    urls:
+      - https://www.transgourmet.ch/de
+    shop_root: https://www.transgourmet.ch/de
+    promo_keywords: [aktion, aktionen, angebote, neuheiten, sortiment]
+    verified_at: "2026-08-05"
+    login:
+      env_user: PRODEGA_USER
+      env_pass: PRODEGA_PASS
+      env_cookie: PRODEGA_COOKIE
+    market: null                 # prodega_market — Heimmarkt hier eintragen
+    # Prodega quotiert exkl. MwSt und meist pro Karton. Beides muss gesetzt sein,
+    # sonst ist der Vergleich mit Coop/Denner falsch.
+    vat_included: false
+    price_basis: pack
+    notes: >
+      31 Märkte, grösster Cash+Carry der Schweiz, Teil der Coop-Gruppe. Nicht
+      prodega.ch, sondern transgourmet.ch. Produktekatalog hinter Login.
+      Sortiment ist marktspezifisch — 'market' setzen.
+      robots.txt der Domain verbietet /login und /search/ für Crawler; der Adapter
+      behandelt den Login als Nutzeraktion mit eigenen Zugangsdaten, nicht als
+      Crawling, und hält auch dort das Rate-Limit ein. Details im README.
+    private_label_brands: [Economy, Quality, Premium, Natura, Origine, Transgourmet]
+
+  - key: aligro
+    name: Aligro
+    tier: 3
+    domain: aligro.ch
+    adapter: generic_html
+    enabled: false
+    status: no_adapter
+    urls:
+      - https://www.aligro.ch/de/
+    shop_root: https://www.aligro.ch/de/
+    promo_keywords: [aktion, angebote, wein, promotion]
+    verified_at: "2026-08-05"
+    notes: >
+      Erreichbar (HTTP 200, kein Bot-Schutz erkannt). Prodega-Konkurrent, ohne
+      Kundenkarte aber ohne Nutzen. Als Tier 3 vorgemerkt, Adapter nicht gebaut.
+
+  - key: topcc
+    name: TopCC
+    tier: 3
+    domain: topcc.ch
+    adapter: generic_html
+    enabled: false
+    status: url_unverified
+    urls: []
+    shop_root: https://www.topcc.ch/
+    verified_at: "2026-08-05"
+    notes: /de/ antwortete 404. Wie Aligro ohne Karte ohne Nutzen.
+
+# Bataillard ist nach Importvolumen die Nummer 3 der Schweiz, aber Grosshandel ohne
+# Endkunden-Aktionen — bewusst nicht aufgenommen.
+
+# ------------------------------------------------------------------ Bewertungsquellen
+rating_sources:
+  - key: falstaff
+    name: Falstaff
+    role: leitquelle
+    scale_max: 100
+    domain: falstaff.com
+    enabled: false
+    status: blocked
+    blocked_by: cloudflare
+    urls:
+      - https://www.falstaff.com/de
+    verified_at: "2026-08-05"
+    notes: >
+      Als Leitquelle fürs Ranking vorgesehen, aber die gesamte Domain antwortet auf
+      Anfragen ohne Browser-Fingerprint mit HTTP 403 ("Attention Required |
+      Cloudflare") — Startseite, Wine-Guide und sogar die in robots.txt selbst
+      angekündigte sitemap.xml. Das ist eine Firewall-Regel, keine JS-Challenge;
+      andere Header helfen nicht. falstaff.ch leitet per 301 auf falstaff.com.
+      Der Adapter ist gebaut und liefert Status 'blocked' mit Retry-Zeitpunkt,
+      sodass er ohne Codeänderung wieder greift, sobald Zugang besteht.
+
+  - key: vivino
+    name: Vivino
+    role: pflichtspalte
+    scale_max: 5
+    domain: vivino.com
+    enabled: true
+    status: ok
+    api: https://www.vivino.com/api/explore/explore
+    search_url: https://www.vivino.com/de/explore?search_term=
+    verified_at: "2026-08-05"
+    notes: >
+      Wird für JEDEN Wein abgefragt, unabhängig von Falstaff, und erscheint immer im
+      Output. Die Weinseiten-HTML lädt die Note per JavaScript nach (daher der
+      Status rating_not_readable), der JSON-Endpunkt /api/explore/explore liefert sie
+      dagegen strukturiert: Jahrgangs- und Weinschnitt getrennt, mit Anzahl
+      Bewertungen. robots.txt verbietet /ajax/, /prices/ und /reviews/ — /api/ und
+      die Weinseiten selbst sind erlaubt. Pflichtparameter: search_term plus
+      mindestens ein Filter.
+
+  - key: winesearcher
+    name: Wine-Searcher
+    role: fallback
+    scale_max: 100
+    domain: wine-searcher.com
+    enabled: false
+    status: no_adapter
+    verified_at: "2026-08-05"
+    notes: Nur bei Bedarf. Adapter im ersten Release nicht gebaut.

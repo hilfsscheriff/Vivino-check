@@ -1,0 +1,298 @@
+"""Namens-Normalisierung.
+
+Getrennt von :mod:`winecheck.matching`, weil hier nur *Vokabular* steht — die
+Entscheidungslogik liegt im Matcher. Wer eine Rebsorte oder ein Produzentenwort
+ergänzen will, ändert nur diese Datei.
+"""
+
+from __future__ import annotations
+
+import re
+import unicodedata
+
+#: Rechtliche Herkunftsbezeichnungen. Händler und Bewertungsquellen schreiben die
+#: völlig inkonsistent ("Sicilia DOC" vs. gar nicht), darum raus aus dem Vergleich.
+#: Die Unterscheidung DOC/DOCG wird nicht über diese Kürzel getroffen, sondern über
+#: die Qualitätsstufen in DISCRIMINATING (Classico, Riserva, ...).
+LEGAL_DESIGNATIONS = {
+    "doc", "docg", "dop", "igt", "igp", "aoc", "aop", "ao", "do", "doca", "dso",
+    "vdp", "vdt", "qba", "ava", "pdo", "pgi", "vino", "vin", "wein", "weine",
+    "wines", "vini", "controllata", "denominazione", "origine", "garantita",
+    "appellation", "controlee", "protegee", "qualitatswein", "landwein", "tafelwein",
+}
+
+#: Betriebsformen und Höflichkeitsformeln vor dem eigentlichen Produzentennamen.
+#: "Tenute Rossetti Linda" und "Rossetti Linda" sind derselbe Wein.
+PRODUCER_WORDS = {
+    "tenuta", "tenute", "azienda", "aziende", "agricola", "agricole", "cantina",
+    "cantine", "societa", "soc", "fattoria", "podere", "poderi", "castello",
+    "marchesi", "marchese", "barone", "baron", "conte", "contessa", "principe",
+    "weingut", "weinkellerei", "kellerei", "winzer", "domaine", "domaines",
+    "chateau", "clos", "maison", "cave", "caves", "celler", "cellers", "cellier",
+    "bodega", "bodegas", "vinicola", "vinicole", "vignobles", "vignoble", "vigneti",
+    "vigneto", "famille", "family", "fils", "freres", "gebruder", "winery",
+    "wineries", "estate", "estates", "company", "co", "srl", "spa", "sa", "ag",
+    "gmbh", "ltd", "inc", "sarl", "scarl", "eredi", "casa", "quinta", "herdade",
+}
+
+#: Füllwörter. Werden beidseitig entfernt; "Il Bruciato" verliert dabei nur das "Il",
+#: "Bruciato" bleibt stehen und schlägt als Fremd-Token an.
+#: ``an`` und ``am`` fehlen hier absichtlich: sonst verliert "Ànima Negra ÀN/2" seinen
+#: Namensbestandteil.
+STOPWORDS = {
+    "de", "di", "del", "della", "dello", "delle", "dei", "degli", "da", "dal",
+    "das", "der", "die", "den", "dem", "le", "la", "les", "el", "il", "lo", "los",
+    "las", "the", "of", "and", "e", "y", "et", "und", "a", "al", "alla", "au",
+    "aux", "in", "im", "von", "vom", "zu", "zum", "d", "l", "su", "con",
+    # Ergänzt, nachdem "Domherrenwein Fendant du Valais" wegen des fehlenden "du"
+    # nur 75 % Abdeckung erreichte und damit fälschlich abgelehnt wurde.
+    "du", "des", "dos", "ai", "agli", "alle", "allo", "sul", "sui", "aus", "ein",
+    "eine", "einer", "sowie", "od", "oder", "or",
+}
+
+#: Verpackung, Volumen, Marketing. Kein Teil der Wein-Identität.
+PACKAGING_NOISE = {
+    "flasche", "flaschen", "bouteille", "bouteilles", "bottle", "bottles",
+    "karton", "kartons", "harass", "kiste", "caisse", "tray", "pack", "gebinde",
+    "cl", "ml", "dl", "lt", "liter", "litre", "magnumflasche", "stk", "stuck",
+    "neu", "aktion", "angebot", "sale", "rabatt", "statt", "nur", "jetzt",
+    "trinkreif", "jahrgang", "vintage", "millesime",
+}
+
+#: Tokens, die einen Wein von einem anderen unterscheiden. Fehlt eines auf genau einer
+#: Seite, ist es ein *anderer* Wein — keine Schreibvariante. Das ist die Regel, die
+#: "Valpolicella Ripasso Superiore" von "Valpolicella Ripasso Classico Superiore"
+#: trennt und verhindert, dass ein 13-Franken-Wein die Bewertung eines
+#: 130-Franken-Weins bekommt.
+DISCRIMINATING = {
+    # Lagen- und Qualitätsstufen
+    "classico", "classica", "riserva", "riserve", "reserva", "reserve", "gran",
+    "grande", "selezione", "superiore", "supérieur", "superieur", "cru", "premier",
+    "grand", "1er", "bourgeois", "villages", "vieilles", "vignes", "alte", "reben",
+    "vecchio", "vecchie", "antico", "sur", "lie", "lies",
+    # Deutsche Prädikate
+    "kabinett", "spatlese", "auslese", "beerenauslese", "trockenbeerenauslese",
+    "eiswein", "strohwein", "hochgewachs", "grosses", "erstes", "gewachs",
+    # Schaumwein-Dosage und Stil
+    "brut", "extra", "sec", "demi", "dolce", "amabile", "dulce", "trocken",
+    "halbtrocken", "lieblich", "sussreserve", "millesimato", "satèn", "saten",
+    # Rosé ist ein eigenes Produkt und steht praktisch nie in einem Appellationsnamen —
+    # anders als "Rosso"/"Bianco", die unten als reine Farbtokens behandelt werden.
+    "rose", "rosato", "rosado", "blush", "novello", "nouveau",
+    # Ausbau
+    "barrique", "barricato", "oak", "unfiltered", "unfiltriert", "naturale",
+    "passito", "appassimento", "ripasso", "amarone", "recioto", "solera",
+    "sinusoidal",
+}
+
+#: Regionen, Appellationen und Länder. Diese Tokens dürfen auf *einer* Seite fehlen,
+#: ohne dass der Match kippt: eine Quelle, die "Toscana" dazuschreibt, meint denselben
+#: Wein. Sie taugen aber nicht zur Unterscheidung von Erst- und Zweitwein — dafür sind
+#: DISCRIMINATING und die Fremd-Token-Regel im Matcher zuständig.
+REGION_HINTS = {
+    "italia", "italien", "italy", "france", "frankreich", "spanien", "spain",
+    "espana", "portugal", "deutschland", "germany", "osterreich", "austria",
+    "schweiz", "suisse", "svizzera", "switzerland", "chile", "argentina",
+    "argentinien", "australia", "australien", "sudafrika", "africa", "california",
+    "kalifornien", "usa", "neuseeland", "zealand", "griechenland", "greece",
+    "toscana", "tuscany", "toskana", "piemonte", "piedmont", "veneto", "sicilia",
+    "sizilien", "sicily", "puglia", "apulien", "umbria", "umbrien", "abruzzo",
+    "marche", "lazio", "campania", "sardegna", "sardinien", "trentino", "alto",
+    "adige", "sudtirol", "friuli", "lombardia", "liguria", "emilia", "romagna",
+    "molise", "basilicata", "calabria", "bolgheri", "maremma", "chianti",
+    "montalcino", "montepulciano", "valpolicella", "soave", "prosecco", "asti",
+    "langhe", "roero", "monferrato", "gavi", "bordeaux", "bourgogne", "burgund",
+    "burgundy", "rhone", "loire", "alsace", "elsass", "champagne", "provence",
+    "languedoc", "roussillon", "beaujolais", "chablis", "medoc", "graves",
+    "sauternes", "pomerol", "saint", "emilion", "margaux", "pauillac", "julien",
+    "estephe", "rioja", "ribera", "duero", "priorat", "navarra", "rueda",
+    "penedes", "somontano", "toro", "jumilla", "carinena", "valencia", "mancha",
+    "douro", "alentejo", "dao", "vinho", "verde", "mosel", "rheingau", "pfalz",
+    "rheinhessen", "baden", "franken", "nahe", "wachau", "burgenland", "wagram",
+    "kamptal", "kremstal", "steiermark", "valais", "wallis", "vaud", "waadt",
+    "geneve", "genf", "ticino", "tessin", "neuchatel", "bundner", "herrschaft",
+    "graubunden", "aargau", "zurich", "schaffhausen", "thurgau", "illes",
+    "balears", "baleares", "mallorca", "katalonien", "catalunya", "valdobbiadene",
+    "conegliano", "treviso", "verona", "sicilia", "etna", "vesuvio", "colli",
+    "castelli", "romani", "salento", "manduria", "primitivo", "salice",
+    "mendoza", "maipo", "colchagua", "casablanca", "rapel", "barossa",
+    "coonawarra", "mclaren", "hunter", "marlborough", "stellenbosch", "paarl",
+    "napa", "sonoma", "paso", "robles", "willamette",
+}
+
+#: Farbtokens. Die dürfen *einseitig* fehlen, ohne den Match zu kippen: "Rosso" und
+#: "Bianco" sind regelmässig Teil des Appellationsnamens (Rosso del Veronese, Rosso di
+#: Montalcino, Bianco di Custoza) und werden von Händlern beliebig weggelassen oder
+#: ergänzt. "Blanc" ist zusätzlich Bestandteil von Rebsortennamen (Chenin Blanc,
+#: Pinot Blanc). Ein Veto gibt es nur beim *Widerspruch* — rot gegen weiss.
+#: ``nero``, ``negra``, ``noir`` fehlen hier absichtlich: das sind Rebsorten- und
+#: Produzentenbestandteile (Nero d'Avola, Anima Negra, Pinot Noir), keine Farbangaben.
+COLOUR_TOKENS = {
+    "rosso", "rouge", "tinto", "red", "rot", "roter",
+    "bianco", "blanco", "blanc", "white", "weiss", "weisser", "branco",
+}
+
+#: Welche Farbtokens sich gegenseitig ausschliessen.
+COLOUR_GROUPS = {
+    "rot": {"rosso", "rouge", "tinto", "red", "rot", "roter"},
+    "weiss": {"bianco", "blanco", "blanc", "white", "weiss", "weisser", "branco"},
+}
+
+
+def colour_group(token: str) -> str | None:
+    for group, members in COLOUR_GROUPS.items():
+        if token in members:
+            return group
+    return None
+
+
+#: Rebsorten. Wie Regionen sind das *generische* Tokens: "Rosé de Gamay" und
+#: "Rosé di Gamay" teilen Farbe und Rebsorte, sind aber von zwei verschiedenen
+#: Produzenten. Ein Match darf sich nie allein auf Rebsorte, Region, Farbe oder
+#: Qualitätsstufe stützen — siehe die Anker-Regel in :mod:`winecheck.matching`.
+GRAPE_NAMES = {
+    "cabernet", "sauvignon", "merlot", "syrah", "shiraz", "grenache", "garnacha",
+    "tempranillo", "sangiovese", "nebbiolo", "barbera", "dolcetto", "montepulciano",
+    "primitivo", "zinfandel", "aglianico", "nerello", "mascalese", "corvina",
+    "rondinella", "molinara", "lagrein", "teroldego", "refosco", "schiava",
+    "pinot", "noir", "nero", "gris", "grigio", "bianco", "meunier", "chardonnay",
+    "riesling", "silvaner", "sylvaner", "gewurztraminer", "traminer", "muller",
+    "thurgau", "kerner", "scheurebe", "elbling", "chasselas", "fendant", "gutedel",
+    "viognier", "marsanne", "roussanne", "vermentino", "verdicchio", "vernaccia",
+    "trebbiano", "garganega", "glera", "cortese", "arneis", "falanghina", "fiano",
+    "greco", "grillo", "catarratto", "inzolia", "carricante", "malvasia",
+    "moscato", "muscat", "muskateller", "albarino", "verdejo", "godello",
+    "mencia", "monastrell", "mourvedre", "carignan", "cinsault", "carmenere",
+    "malbec", "bonarda", "torrontes", "tannat", "petit", "verdot", "franc",
+    "blaufrankisch", "lemberger", "zweigelt", "portugieser", "trollinger",
+    "spatburgunder", "dornfelder", "regent", "gamay", "gamaret", "garanoir",
+    "humagne", "cornalin", "petite", "arvine", "amigne", "heida", "paien",
+    "completer", "raeuschling", "rauschling", "riesling", "steen", "chenin",
+    "colombard", "semillon", "palomino", "pedro", "ximenez", "airen", "macabeo",
+    "parellada", "xarello", "godello", "loureiro", "alvarinho", "touriga",
+    "nacional", "franca", "roriz", "barroca", "castelao", "baga", "encruzado",
+    "assyrtiko", "agiorgitiko", "xinomavro", "moschofilero", "savatiano",
+    "furmint", "harslevelu", "feteasca", "saperavi", "rkatsiteli", "cariñena",
+    "graciano", "mazuelo", "bobal", "prieto", "picudo", "trepat", "sumoll",
+    "nerodavola", "perricone", "frappato", "nascetta", "timorasso", "ruche",
+    "brachetto", "freisa", "grignolino", "pelaverga", "erbaluce", "favorita",
+}
+
+_RE_VINTAGE = re.compile(r"(?<!\d)(19[5-9]\d|20[0-3]\d)(?!\d)")
+_RE_VOLUME_CHUNK = re.compile(r"\d+(?:[.,]\d+)?\s*(?:cl|ml|dl|l|lt|liter|litre)\b", re.I)
+_RE_PACK_CHUNK = re.compile(r"\b\d{1,3}\s*(?:er|[x×*])\b", re.I)
+_RE_PCT = re.compile(r"\d+(?:[.,]\d+)?\s*(?:%|vol\.?)", re.I)
+_RE_NONWORD = re.compile(r"[^a-z0-9]+")
+_RE_WS = re.compile(r"\s+")
+
+
+def strip_accents(text: str) -> str:
+    """Unaccent inkl. ß→ss. ``Ànima`` und ``Anima`` müssen dasselbe Token ergeben."""
+    text = text.replace("ß", "ss").replace("ẛ", "ss")
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def extract_vintage(text: str) -> int | None:
+    """Erster plausibler Jahrgang im Text. Volumenangaben wie 750 fallen durchs Raster."""
+    cleaned = _RE_VOLUME_CHUNK.sub(" ", text or "")
+    m = _RE_VINTAGE.search(cleaned)
+    return int(m.group(1)) if m else None
+
+
+def tokenize(text: str, *, keep_discriminating: bool = True) -> list[str]:
+    """Zerlegt einen Weinnamen in identitätstragende Tokens.
+
+    Entfernt Akzente, Jahrgang, Volumen, Gebinde, rechtliche Bezeichnungen,
+    Betriebsformen, Füll- und Verpackungswörter. Behält Rebsorten, Produzentennamen,
+    Lagennamen und — sofern ``keep_discriminating`` — die Qualitätsstufen.
+    """
+    t = strip_accents((text or "").lower())
+    t = _RE_VOLUME_CHUNK.sub(" ", t)
+    t = _RE_PACK_CHUNK.sub(" ", t)
+    t = _RE_PCT.sub(" ", t)
+    t = _RE_VINTAGE.sub(" ", t)
+    t = _RE_NONWORD.sub(" ", t)
+    t = _RE_WS.sub(" ", t).strip()
+
+    out: list[str] = []
+    for tok in t.split():
+        if not tok or tok.isdigit() and len(tok) > 3:
+            continue
+        if tok in LEGAL_DESIGNATIONS or tok in PRODUCER_WORDS:
+            continue
+        if tok in STOPWORDS or tok in PACKAGING_NOISE:
+            continue
+        if not keep_discriminating and tok in DISCRIMINATING:
+            continue
+        out.append(tok)
+    return out
+
+
+def tokenize_keep_producer(text: str) -> list[str]:
+    """Wie :func:`tokenize`, behält aber die Betriebsformen *an ihrer Position*.
+
+    Nötig für die Zweitwein-Erkennung nach französischem Muster: in
+    ``Pavillon Rouge du Château Margaux`` steht der Cuvée-Name **vor** dem
+    ``Château``. Nur an der Position der Betriebsform lässt sich ein Cuvée-Name von
+    einem Produzentenpräfix unterscheiden.
+    """
+    t = strip_accents((text or "").lower())
+    t = _RE_VOLUME_CHUNK.sub(" ", t)
+    t = _RE_PACK_CHUNK.sub(" ", t)
+    t = _RE_PCT.sub(" ", t)
+    t = _RE_VINTAGE.sub(" ", t)
+    t = _RE_NONWORD.sub(" ", t)
+    t = _RE_WS.sub(" ", t).strip()
+
+    out: list[str] = []
+    for tok in t.split():
+        if not tok or (tok.isdigit() and len(tok) > 3):
+            continue
+        if tok in LEGAL_DESIGNATIONS or tok in STOPWORDS or tok in PACKAGING_NOISE:
+            continue
+        out.append(tok)
+    return out
+
+
+def normalized_name(text: str) -> str:
+    """Kanonische Form für Cache-Key und Dedup."""
+    return " ".join(tokenize(text))
+
+
+def dedup_key(name: str, vintage: int | None) -> str:
+    """Dedup über normalisierten Namen + Jahrgang, nicht über Artikelnummer —
+    Artikelnummern sind händlerspezifisch und taugen nicht für den Vergleich."""
+    core = " ".join(sorted(tokenize(name)))
+    return f"{core}|{vintage or ''}"
+
+
+def is_distinctive(token: str) -> bool:
+    """Trägt das Token Produzenten-, Marken- oder Lageninformation?
+
+    Rebsorten, Regionen, Farben und Qualitätsstufen tun das nicht — sie kommen in
+    hunderten Weinen vor und taugen darum weder als Match-Anker noch als Suchbegriff.
+    """
+    return (
+        len(token) > 2
+        and not token.isdigit()
+        and token not in GRAPE_NAMES
+        and token not in REGION_HINTS
+        and token not in COLOUR_TOKENS
+        and token not in DISCRIMINATING
+    )
+
+
+def distinctive_tokens(text: str) -> list[str]:
+    """Nur die unterscheidenden Tokens, in ursprünglicher Reihenfolge."""
+    return [t for t in tokenize(text) if is_distinctive(t)]
+
+
+def discriminating_tokens(tokens: list[str]) -> set[str]:
+    return {t for t in tokens if t in DISCRIMINATING}
+
+
+def looks_like_private_label(name: str, brands: list[str]) -> bool:
+    """Eigenmarken-Erkennung über die in retailers.yaml gepflegten Markennamen."""
+    hay = strip_accents((name or "").lower())
+    return any(strip_accents(b.lower()) in hay for b in brands if b)
