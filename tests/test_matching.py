@@ -203,6 +203,58 @@ def test_generic_tokens_alone_are_not_a_match(retailer, source):
     assert "generische" in d.reason or "zu wenig" in d.reason
 
 
+def test_bulk_wine_does_not_inherit_a_burgundy_rating():
+    """Regression aus dem ersten Live-Lauf: "Montagne Vin Rouge" (Prodega-Fasswein,
+    CHF 1.21/75cl) hing an "Marsannay 'La Montagne' Rouge" (Burgunder, 4.0 aus 382
+    Bewertungen). Nach Abzug von "Vin" und "Rouge" bleibt ein einziges, häufiges Wort —
+    zu wenig Identität, und die Quelle nennt zusätzlich den Produzenten."""
+    for retailer in (
+        "Montagne Vin Rouge",
+        "Montagne Vin Rouge PET",          # "PET" ist Verpackung, kein Namensbestandteil
+        "Montagne Vin Rouge Europa/Drittländer",
+    ):
+        d = match_wine(retailer, "Marsannay 'La Montagne' Rouge")
+        assert not d.matched, f"{retailer!r} matchte fälschlich: {d.reason}"
+
+
+def test_short_name_still_matches_when_source_adds_nothing():
+    """Gegenprobe: sind beide Namen gleich spezifisch, gibt es nichts zu verwechseln."""
+    for retailer, source in [
+        ("Argiano Rosso di Montalcino DOC", "Argiano Rosso di Montalcino"),
+        ("Domaine Weinbach Riesling", "Domaine Weinbach Riesling"),
+    ]:
+        d = match_wine(retailer, source)
+        assert d.matched, f"{retailer!r} wurde fälschlich abgelehnt: {d.reason}"
+
+
+def test_long_brand_name_carries_a_match_on_its_own():
+    """"Domherrenwein" ist lang und kollidiert kaum — ein einzelnes solches Wort
+    genügt, anders als "Montagne"."""
+    d = match_wine(
+        "Domherrenwein Fendant du Valais AOC",
+        "Provins Valais Les Grands Dignitaires Domherrenwein Fendant",
+    )
+    assert d.matched, d.reason
+
+
+def test_parent_company_prefix_is_not_a_second_wine():
+    """Regression: "Il Bruciato Bolgheri DOC Tenuta Guado al Tasso" ist derselbe Wein
+    wie "Antinori Tenuta Guado al Tasso Il Bruciato Bolgheri" — "Antinori" ist das
+    Haus, nicht eine andere Cuvée. Der Händlername ist hier spezifisch genug und
+    vollständig abgedeckt, anders als bei "Château Margaux"."""
+    d = match_wine(
+        "Il Bruciato Bolgheri DOC Tenuta Guado al Tasso",
+        "Antinori Tenuta Guado al Tasso Il Bruciato Bolgheri",
+    )
+    assert d.matched, f"wurde fälschlich abgelehnt: {d.reason}"
+    # Die Gegenrichtung bleibt ein Nicht-Treffer.
+    reverse = match_wine(
+        "Guado al Tasso Bolgheri DOC Superiore",
+        "Antinori Tenuta Guado al Tasso Il Bruciato Bolgheri",
+    )
+    assert not reverse.matched, reverse.reason
+
+
 def test_unrelated_wines_do_not_match():
     d = match_wine("Denner Carmelin Blanc", "Château d'Yquem Sauternes")
     assert not d.matched

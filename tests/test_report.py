@@ -75,7 +75,7 @@ def rows():
             url="https://www.vivino.com/de/domherrenwein/w/2076752",
             note="Jahrgang 2022 mit 42 Bewertungen", rating=3.6, rating_count=42,
             matched_name="Provins Les Grands Dignitaires Domherrenwein Fendant",
-            match_confidence="fuzzy",
+            match_confidence="exact",
         ),
     )
     miss = _row(
@@ -207,12 +207,12 @@ def test_diff_reports_new_expired_and_price_changes(tmp_path, rows):
              vivino=VivinoResult(
                  status=VivinoStatus.EXACT, query="q",
                  url="https://www.vivino.com/de/x/w/1", note="ok",
-                 rating=3.6, rating_count=42)),
+                 rating=3.6, rating_count=42, match_confidence="exact")),
         _row("Ganz neuer Wein", 11.0,
              vivino=VivinoResult(
                  status=VivinoStatus.EXACT, query="neu",
                  url="https://www.vivino.com/de/n/w/2", note="ok",
-                 rating=4.2, rating_count=80)),
+                 rating=4.2, rating_count=80, match_confidence="exact")),
     ])
     path = write_diff(changed, before, tmp_path / "diff.md")
     text = path.read_text(encoding="utf-8")
@@ -236,6 +236,7 @@ def test_diff_highlights_newly_appeared_vivino_ratings(tmp_path):
             status=VivinoStatus.EXACT, query="heldenrose rose gamay",
             url="https://www.vivino.com/de/heldenrose/w/4242",
             note="Jahrgang 2022 mit 7 Bewertungen", rating=3.4, rating_count=7,
+            match_confidence="exact",
         ),
     )
     path = write_diff(compute_scores([after_row]), before, tmp_path / "diff.md")

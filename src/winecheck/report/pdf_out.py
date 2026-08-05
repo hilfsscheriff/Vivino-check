@@ -26,9 +26,13 @@ from reportlab.platypus import (
 )
 
 from ..models import VIVINO_LABELS, PriceConfidence, VivinoStatus, WineRow
+from ..prices import PRICE_BANDS
 from .formatting import ch, chf, datetime_ch, rating_text, truncate
 
 TOP_N = 10
+
+#: Wie viele Weine je Preisklasse in der Preis-Leistungs-Rangliste stehen.
+PER_BAND = 4
 
 _BRAND = colors.HexColor("#6b1030")
 _GREY = colors.HexColor("#5a5a5a")
@@ -50,6 +54,8 @@ def _styles():
                                alignment=TA_LEFT),
         "cell_link": ParagraphStyle("cell_link", parent=ss["BodyText"], fontSize=7.5,
                                     leading=9.5, textColor=_LINK),
+        "band": ParagraphStyle("band", parent=ss["Heading3"], fontSize=9.5,
+                               textColor=_GREY, spaceBefore=3.5 * mm, spaceAfter=1.5 * mm),
     }
 
 
@@ -274,17 +280,34 @@ def write_pdf(
         story.append(_ranking_table(best_rating, st))
 
     if best_value:
-        story.append(Paragraph(ch(f"Bestes Preis-Leistungs-Verhältnis (Top {len(best_value)})"), st["h2"]))
+        story.append(Paragraph(ch("Bestes Preis-Leistungs-Verhältnis"), st["h2"]))
         story.append(
             Paragraph(
-                ch("Bewertung relativ zum Aktionspreis, verglichen innerhalb der Preisklasse "
-                   "(<10, 10–20, 20–40, 40–80, >80 CHF). Gerechnet wird immer auf den "
-                   "Aktionspreis, nie auf den Rabatt. Ein ! markiert einen fragwürdigen "
-                   "Referenzpreis bei einer Eigenmarke."),
+                ch("Bewertung relativ zum Aktionspreis, verglichen **innerhalb** der "
+                   "Preisklasse — und darum auch klassenweise ausgegeben. Ein globaler "
+                   "Rang wäre irreführend: er würde klassenrelative Werte über Klassen "
+                   "hinweg vergleichen und damit systematisch die teuren Weine nach oben "
+                   "spülen. Die günstigen Klassen stehen zuerst. Gerechnet wird immer auf "
+                   "den Aktionspreis, nie auf den Rabatt; ein ! markiert einen "
+                   "fragwürdigen Referenzpreis bei einer Eigenmarke."),
                 st["small"],
             )
         )
-        story.append(_ranking_table(best_value, st))
+        for label, _lo, _hi in PRICE_BANDS:
+            members = [r for r in best_value if r.price_band == label]
+            if not members:
+                continue
+            top = sorted(members, key=lambda r: -(r.value_score or 0))[:PER_BAND]
+            story.append(
+                KeepTogether([
+                    Paragraph(
+                        ch(f"Preisklasse {label} CHF — {len(members)} Weine, "
+                           f"beste {len(top)}"),
+                        st["band"],
+                    ),
+                    _ranking_table(top, st),
+                ])
+            )
 
     cross = [r for r in rows if r.retailer_count > 1]
     if cross:

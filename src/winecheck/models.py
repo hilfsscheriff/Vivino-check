@@ -321,17 +321,47 @@ class WineRow:
             return True
         return False
 
+    #: Nur diese Konfidenzstufen dürfen das Ranking treiben. Ein ``fuzzy``-Match ist
+    #: nicht falsch, aber unbestätigt — er wird angezeigt, mit Quell-Bezeichnung, und
+    #: kann von Hand übernommen werden. Er sortiert aber keine Rangliste.
+    RANKING_CONFIDENCES = (MatchConfidence.EXACT, MatchConfidence.WINE_LEVEL)
+
     def ranking_rating(self) -> tuple[float | None, str]:
         """Ranking läuft über Falstaff, wo vorhanden, mit Vivino als Zweitwert.
-        Gibt (normalisierter Wert, Quellenname) zurück — die Quelle wird immer
-        mitgeführt, damit im Report nie unklar ist, welche Skala gewonnen hat."""
-        if self.falstaff and self.falstaff.value is not None:
+
+        Gibt ``(normalisierter Wert, Quellenname)`` zurück — die Quelle wird immer
+        mitgeführt, damit im Report nie unklar ist, welche Skala gewonnen hat.
+
+        Nicht ins Ranking kommen:
+
+        * ``winery_level`` — ein Produzenten-Durchschnitt ist nicht die Note *dieses*
+          Weins. "Piccini" hat 4.2 aus 752 Bewertungen; das sagt über den Chianti
+          Classico Riserva von Piccini nichts Belastbares.
+        * ``fuzzy`` — Namenszuordnung unbestätigt. So hing "Montagne Vin Rouge"
+          (Fasswein, CHF 1.21) an "Marsannay 'La Montagne' Rouge" (Burgunder, 4.0).
+
+        Beides bleibt im Report sichtbar, nur eben nicht im Sortierschlüssel.
+        """
+        if (
+            self.falstaff
+            and self.falstaff.value is not None
+            and self.falstaff.confidence in self.RANKING_CONFIDENCES
+        ):
             return self.falstaff.normalized, "Falstaff"
-        if self.vivino and self.vivino.rating is not None:
+        if self.vivino and self.vivino.rating is not None and self._vivino_is_rankable():
             return round(self.vivino.rating / 5.0, 4), "Vivino"
         if self.winesearcher and self.winesearcher.value is not None:
             return self.winesearcher.normalized, "Wine-Searcher"
         return None, ""
+
+    def _vivino_is_rankable(self) -> bool:
+        v = self.vivino
+        if v is None:
+            return False
+        if v.status not in (VivinoStatus.EXACT, VivinoStatus.WINE_LEVEL):
+            return False
+        # Leere Konfidenz kommt aus älteren Cache-Einträgen — dann nicht ranken.
+        return v.match_confidence in ("exact", "wine_level")
 
     def no_rating_reason(self) -> str:
         """Begründung für die Tabelle 'ohne Bewertung'."""

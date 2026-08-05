@@ -57,6 +57,10 @@ PACKAGING_NOISE = {
     "cl", "ml", "dl", "lt", "liter", "litre", "magnumflasche", "stk", "stuck",
     "neu", "aktion", "angebot", "sale", "rabatt", "statt", "nur", "jetzt",
     "trinkreif", "jahrgang", "vintage", "millesime",
+    # Verpackungsmaterial. "Montagne Vin Rouge PET" wäre sonst über das Token "pet"
+    # spezifisch genug geworden und hätte die Note eines Burgunders geerbt.
+    "pet", "tetra", "dose", "bib", "beutel", "pouch", "glas", "schraubverschluss",
+    "kunststoff", "einweg", "mehrweg",
 }
 
 #: Tokens, die einen Wein von einem anderen unterscheiden. Fehlt eines auf genau einer

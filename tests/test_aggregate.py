@@ -85,7 +85,7 @@ def test_row_with_only_low_confidence_gets_no_score():
     rows = merge_offers([offer("prodega", "Wein X", 1.20, confidence=PriceConfidence.LOW)])
     rows[0].vivino = VivinoResult(
         status=VivinoStatus.EXACT, query="wein x", url="https://www.vivino.com/de/x/w/1",
-        note="ok", rating=4.5, rating_count=100,
+        note="ok", rating=4.5, rating_count=100, match_confidence="exact",
     )
     compute_scores(rows)
     assert rows[0].value_score is None
@@ -101,7 +101,7 @@ def _rated(name, price, rating, retailer="coop"):
     row.vivino = VivinoResult(
         status=VivinoStatus.EXACT, query=name.lower(),
         url="https://www.vivino.com/de/x/w/1", note="ok",
-        rating=rating, rating_count=100,
+        rating=rating, rating_count=100, match_confidence="exact",
     )
     return row
 

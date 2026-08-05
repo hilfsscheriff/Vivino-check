@@ -89,6 +89,27 @@ beschreibt, wie jahrgangsgenau die *Bewertung* ist, die Konfidenz, wie sicher di
 *Namenszuordnung* ist. `exact` auf einem `fuzzy`-Match heisst: Jahrgang stimmt, Wein
 bitte prüfen.
 
+## Was das Ranking treiben darf
+
+Angezeigt wird alles. Sortiert wird nur mit bestätigten Werten — `exact` und
+`wine_level`. Zwei Fälle sind ausdrücklich **nicht** ranking-fähig, beide aus dem
+ersten Live-Lauf gelernt:
+
+* **`winery_level`** — ein Produzenten-Durchschnitt ist nicht die Note dieses Weins.
+  „Piccini" hat 4.2 aus 752 Bewertungen; über den Chianti Classico Riserva von Piccini
+  sagt das nichts Belastbares. Er stand damit auf Platz 3 der Preis-Leistungs-Liste.
+* **`fuzzy`** — Namenszuordnung unbestätigt. So kam der Prodega-Fasswein
+  „Montagne Vin Rouge" (CHF 1.21 pro 75 cl) mit der Note von „Marsannay ‚La Montagne'
+  Rouge" (Burgunder, 4.0 aus 382 Bewertungen) in die Rangliste.
+
+Beide bleiben mit Note, Status und Link in der Vivino-Spalte sichtbar und lassen sich
+von Hand übernehmen — sie sortieren nur keine Rangliste.
+
+Die Preis-Leistungs-Rangliste wird **klassenweise** ausgegeben, günstigste Klasse
+zuerst. Ein globaler Rang über klassenrelative Werte wäre irreführend und würde
+systematisch die teuren Weine nach oben spülen — beim ersten Lauf standen dort
+Champagner zu CHF 108 und Pomerol zu CHF 118 an der Spitze.
+
 ## Output
 
 | Datei | Inhalt |

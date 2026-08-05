@@ -56,6 +56,18 @@ AMBIGUITY_MARGIN = 4.0
 #: der Match kippt (Produktlinien wie "Les Grands Dignitaires" haben zwei).
 MAX_TOLERATED_EXTRA = 2
 
+#: So viele eigenständige Namensbestandteile braucht der Händlername mindestens.
+MIN_IDENTITY_TOKENS = 2
+
+#: Ein einzelnes Wort genügt, wenn es lang genug ist, um kaum zu kollidieren
+#: ("Domherrenwein" ja, "Montagne" nein).
+STRONG_TOKEN_LENGTH = 10
+
+#: Ab so vielen eigenständigen Bestandteilen im Händlernamen gilt ein Treffer, bei dem
+#: die Quelle einen Konzern- oder Gutsnamen davorstellt, als ``fuzzy`` statt als
+#: Zweitwein-Veto — siehe :func:`_leading_cuvee_veto`.
+SPECIFIC_ENOUGH_FOR_PARENT_NAME = 3
+
 
 @dataclass
 class _Prepared:
@@ -201,12 +213,30 @@ def _leading_cuvee_veto(retailer: _Prepared, source: _Prepared) -> str | None:
         and t not in COLOUR_TOKENS
         and len(t) > 2
     ]
-    if leading:
-        return (
-            f"{_pretty(set(leading))} steht vor der Betriebsform in der Quell-Bezeichnung "
-            f"— eigener Cuvée-Name (Zweitwein-Muster)"
-        )
-    return None
+    if not leading or _looks_like_parent_company(retailer, source):
+        return None
+
+    return (
+        f"{_pretty(set(leading))} steht vor der Betriebsform in der Quell-Bezeichnung "
+        f"— eigener Cuvée-Name (Zweitwein-Muster)"
+    )
+
+
+def _looks_like_parent_company(retailer: _Prepared, source: _Prepared) -> bool:
+    """Ist das führende Fremdwort der Quelle eher Konzern- als Cuvée-Name?
+
+    ``Il Bruciato Bolgheri DOC Tenuta Guado al Tasso`` gegen ``Antinori Tenuta Guado
+    al Tasso Il Bruciato Bolgheri`` ist derselbe Wein — "Antinori" ist bloss das Haus.
+    ``Château Margaux`` gegen ``Pavillon Rouge du Château Margaux`` ist es nicht.
+
+    Der Unterschied ist die Spezifität des Händlernamens: im ersten Fall nennt er vier
+    eigenständige Bestandteile (Bruciato, Guado, Tasso, …) und wird von der Quelle
+    vollständig abgedeckt, im zweiten einen einzigen. Wer den Cuvée-Namen schon selbst
+    führt, bekommt nicht den falschen Wein zugeordnet.
+    """
+    covered = all(t in source.token_set for t in retailer.token_set)
+    identity = [t for t in retailer.token_set if is_distinctive(t)]
+    return covered and len(identity) >= SPECIFIC_ENOUGH_FOR_PARENT_NAME
 
 
 def _cuvee_before_producer_name_veto(retailer: _Prepared, source: _Prepared) -> str | None:
@@ -239,7 +269,7 @@ def _cuvee_before_producer_name_veto(retailer: _Prepared, source: _Prepared) -> 
         and t not in COLOUR_TOKENS
         and len(t) > 2
     ]
-    if leading:
+    if leading and not _looks_like_parent_company(retailer, source):
         return (
             f"{_pretty(set(leading))} steht in der Quelle vor dem Produzentennamen "
             f"'{anchor.capitalize()}' — eigener Cuvée-Name (Zweitwein-Muster)"
@@ -330,6 +360,40 @@ def match_wine(
             confidence=MatchConfidence.NONE,
             score=score,
             reason="zu wenig gemeinsame Namensbestandteile",
+            source_name=source_name,
+        )
+
+    # -- Händlername zu unspezifisch? --------------------------------------
+    # "Montagne Vin Rouge" ist ein Fassweinname: nach Abzug von "Vin" (rechtliche
+    # Bezeichnung) und "Rouge" (Farbe) bleibt ein einziges, dazu noch häufiges Wort.
+    # Damit liess sich der Wein an "Marsannay 'La Montagne' Rouge" hängen — ein
+    # Burgunder mit 382 Bewertungen. Ein einzelnes kurzes Wort trägt zu wenig
+    # Identität; ein langer Markenname wie "Domherrenwein" dagegen kollidiert kaum.
+    r_identity = [t for t in r.token_set if is_distinctive(t)]
+    s_identity = [t for t in s.token_set if is_distinctive(t)]
+    unexplained_source = [t for t in s_identity if t not in r.token_set]
+    if (
+        len(r_identity) < MIN_IDENTITY_TOKENS
+        and unexplained_source                      # nur wenn die Quelle reicher ist
+        and not any(len(t) >= STRONG_TOKEN_LENGTH for t in anchors)
+    ):
+        # "Argiano Rosso di Montalcino" gegen denselben Namen ist unproblematisch —
+        # da gibt es nichts zu verwechseln. Kritisch ist erst, wenn die Quelle einen
+        # eigenen Namensbestandteil mitbringt, den der Händler nicht nennt.
+        return MatchDecision(
+            matched=False,
+            confidence=MatchConfidence.NONE,
+            score=score,
+            reason=(
+                "Händlername zu unspezifisch ("
+                + (
+                    f"nur {_pretty(set(r_identity))}"
+                    if r_identity
+                    else "kein eigenständiger Namensbestandteil"
+                )
+                + f"), Quelle nennt zusätzlich {_pretty(set(unexplained_source))}"
+                " — nicht eindeutig zuordenbar"
+            ),
             source_name=source_name,
         )
 
