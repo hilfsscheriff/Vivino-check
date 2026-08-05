@@ -239,10 +239,11 @@ def write_pdf(
     best_rating = sorted(
         rated, key=lambda r: -(r.ranking_rating()[0] or 0)
     )[:TOP_N]
-    best_value = sorted(
-        [r for r in rated if r.value_score is not None],
-        key=lambda r: -(r.value_score or 0),
-    )[:TOP_N]
+    # Bewusst NICHT global auf TOP_N gekürzt: die Preis-Leistungs-Liste wird
+    # klassenweise ausgegeben, und ein globaler Vorschnitt würde die günstigen Klassen
+    # ganz herauswerfen — beim ersten Lauf fiel die Klasse <10 CHF komplett weg, weil
+    # die zehn höchsten klassenrelativen Werte alle aus den teuren Klassen kamen.
+    scored = [r for r in rated if r.value_score is not None]
 
     story: list = [
         Paragraph(ch("wine-check — Aktionen der Schweizer Weinhändler"), st["h1"]),
@@ -279,11 +280,11 @@ def write_pdf(
         )
         story.append(_ranking_table(best_rating, st))
 
-    if best_value:
+    if scored:
         story.append(Paragraph(ch("Bestes Preis-Leistungs-Verhältnis"), st["h2"]))
         story.append(
             Paragraph(
-                ch("Bewertung relativ zum Aktionspreis, verglichen **innerhalb** der "
+                ch("Bewertung relativ zum Aktionspreis, verglichen <b>innerhalb</b> der "
                    "Preisklasse — und darum auch klassenweise ausgegeben. Ein globaler "
                    "Rang wäre irreführend: er würde klassenrelative Werte über Klassen "
                    "hinweg vergleichen und damit systematisch die teuren Weine nach oben "
@@ -294,7 +295,7 @@ def write_pdf(
             )
         )
         for label, _lo, _hi in PRICE_BANDS:
-            members = [r for r in best_value if r.price_band == label]
+            members = [r for r in scored if r.price_band == label]
             if not members:
                 continue
             top = sorted(members, key=lambda r: -(r.value_score or 0))[:PER_BAND]

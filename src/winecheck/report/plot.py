@@ -6,6 +6,7 @@ denn das ist die Ecke, um die es beim ganzen Werkzeug geht.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import matplotlib
@@ -18,6 +19,12 @@ from .formatting import date, truncate  # noqa: E402
 
 #: Wie viele Ausreisser beschriftet werden.
 LABEL_COUNT = 8
+
+#: Mindestabstand zwischen zwei Beschriftungen. Der x-Wert ist grosszügig, weil der
+#: Text nach rechts über seinen Ankerpunkt hinausragt — mit 0.16 Dekaden überschrieben
+#: sich die Namen in der dicht besetzten Ecke unten links noch.
+LABEL_MIN_DX = 0.5
+LABEL_MIN_DY = 0.015
 
 _PALETTE = [
     "#6b1030", "#1a4f8a", "#2e7d32", "#ef6c00", "#6a1b9a",
@@ -52,14 +59,24 @@ def write_scatter(rows: list[WineRow], path: Path | str) -> Path | None:
         ax.scatter(xs, ys, s=46, alpha=0.82, label=retailer,
                    color=colour[retailer], edgecolors="white", linewidths=0.6)
 
-    # Ausreisser oben links: hohe Bewertung, tiefer Preis.
+    # Ausreisser oben links: hohe Bewertung, tiefer Preis. Beschriftet wird nur, was
+    # sich nicht überlappt — mehrere Weine teilen oft dieselbe gerundete Note, und
+    # übereinandergedruckte Namen sind unbrauchbar.
     ranked = sorted(points, key=lambda t: -(t[1] / (t[0] ** 0.5)))
-    for x, y, _r, name in ranked[:LABEL_COUNT]:
+    placed: list[tuple[float, float]] = []
+    for x, y, _r, name in ranked:
+        if len(placed) >= LABEL_COUNT:
+            break
+        lx = math.log10(x)
+        if any(abs(lx - px) < LABEL_MIN_DX and abs(y - py) < LABEL_MIN_DY
+               for px, py in placed):
+            continue
+        placed.append((lx, y))
         ax.annotate(
-            truncate(name, 34),
+            truncate(name, 26),
             (x, y),
             textcoords="offset points",
-            xytext=(7, 5),
+            xytext=(8, 4),
             fontsize=7.2,
             color="#333333",
         )

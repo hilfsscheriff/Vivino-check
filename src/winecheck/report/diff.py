@@ -106,8 +106,7 @@ def write_diff(
             price = chf(d.get("best_price"))
             retailers = ", ".join(d.get("retailers") or [])
             lines.append(
-                f"- {ch(d.get('name') or '')}"
-                + (f" {d['vintage']}" if d.get("vintage") else "")
+                f"- {_label(d.get('name') or '', d.get('vintage'))}"
                 + (f" — war {price}" if price else "")
                 + (f" bei {ch(retailers)}" if retailers else "")
             )
@@ -129,8 +128,7 @@ def write_diff(
         pct = (delta / old_price * 100) if old_price else 0
         changes.append((
             delta,
-            f"- {arrow} {ch(row.name)}"
-            + (f" {row.vintage}" if row.vintage else "")
+            f"- {arrow} {_label(row.name, row.vintage)}"
             + f" — {chf(old_price)} → **{chf(new_price)}** ({pct:+.0f} %)"
             + f", günstigster Händler {ch(row.cheapest_retailer)}",
         ))
@@ -152,8 +150,7 @@ def write_diff(
             continue
         old_status = old.get("vivino_status") or "unbekannt"
         appeared.append(
-            f"- {ch(row.name)}"
-            + (f" {row.vintage}" if row.vintage else "")
+            f"- {_label(row.name, row.vintage)}"
             + f" — vorher `{old_status}`, jetzt **{row.vivino.rating:.1f}/5**"
             + (f" aus {row.vivino.rating_count} Bewertungen" if row.vivino.rating_count else "")
             + f" · [Vivino]({row.vivino.url})"
@@ -187,11 +184,17 @@ def write_diff(
     return p
 
 
+def _label(name: str, vintage: int | None) -> str:
+    """Name mit Jahrgang — aber nur, wenn er nicht schon drinsteht. Mövenpick führt
+    den Jahrgang mitten im Namen ("Valais AOC 2023 Cuvée de l'Orpailleur")."""
+    text = ch(name or "")
+    if vintage and str(vintage) not in text:
+        text = f"{text} {vintage}"
+    return text
+
+
 def _describe(row: WineRow) -> str:
-    bits = [ch(row.name)]
-    if row.vintage:
-        bits.append(str(row.vintage))
-    text = " ".join(bits)
+    text = _label(row.name, row.vintage)
     price = chf(row.best_price)
     if price:
         text += f" — **{price}**/75cl"
