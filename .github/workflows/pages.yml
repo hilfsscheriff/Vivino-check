@@ -1,0 +1,51 @@
+# Auslieferung der Webseite auf GitHub Pages.
+#
+# Warum ein eigener Workflow statt der eingebauten Branch-Auslieferung: der alte Weg
+# ("Deploy from a branch", build_type "legacy") lief am 6.8.2026 viermal in Folge in
+# denselben Fehler — der Build war jedes Mal erfolgreich, aber der Deploy-Schritt wartete
+# zehn Minuten in "deployment_queued" und brach dann ab. Ein Lauf blieb über eine halbe
+# Stunde in der Warteschlange stecken und liess sich weder abbrechen noch löschen (HTTP
+# 403), womit er alle folgenden Deployments blockierte. Dieser Weg nimmt die
+# Warteschlange nicht in Anspruch.
+#
+# Zurückstellen, falls gewünscht: diese Datei löschen und unter Settings -> Pages
+# wieder "Deploy from a branch", Branch main, Ordner /docs wählen.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    # Nur bauen, wenn sich die Seite tatsächlich geändert hat. Ein Commit, der nur
+    # Tests oder den Skill anfasst, braucht keine Auslieferung.
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Läuft ein Deploy noch, wird er nicht abgewürgt — sonst bleibt die Seite unter Umständen
+# in einem halb ausgelieferten Zustand stehen.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Seite als Artefakt packen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Ausliefern
+        id: deployment
+        uses: actions/deploy-pages@v4
