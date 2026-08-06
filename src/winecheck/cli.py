@@ -331,6 +331,7 @@ def _offer_payload(o: Offer) -> dict:
         "is_private_label": o.is_private_label, "bottle_ml": o.bottle_ml,
         "units": o.units, "article_no": o.article_no, "fetched_at": o.fetched_at,
         "source_note": o.source_note,
+        "critic_scores": o.critic_scores,
     }
 
 
@@ -350,6 +351,7 @@ def _offer_from_payload(d: dict) -> Offer:
         bottle_ml=d.get("bottle_ml"), units=d.get("units"),
         article_no=d.get("article_no"), fetched_at=d.get("fetched_at"),
         source_note=d.get("source_note") or "",
+        critic_scores=d.get("critic_scores") or {},
     )
 
 

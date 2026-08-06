@@ -14,7 +14,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from .models import Offer, PriceConfidence, RetailerPrice, WineRow
+from .models import (
+    MatchConfidence,
+    Offer,
+    PriceConfidence,
+    Rating,
+    RetailerPrice,
+    WineRow,
+)
 from .names import dedup_key, normalized_name
 from .prices import PRICE_BANDS, price_band
 
@@ -60,9 +67,58 @@ def merge_offers(offers: list[Offer]) -> list[WineRow]:
                     discount_plausibility=o.discount_plausibility,
                 )
             )
+        _attach_critic_scores(row, group)
         row.price_band = price_band(row.best_price)
         rows.append(row)
     return rows
+
+
+def _attach_critic_scores(row: WineRow, offers: list[Offer]) -> None:
+    """Vom Händler ausgewiesene Kritikernoten übernehmen.
+
+    Das ist der Ersatz für den blockierten Falstaff-Zugang. Der Vorteil gegenüber
+    einer eigenen Falstaff-Abfrage: die Note hängt am *exakten* Produkt, es gibt kein
+    Namens-Matching und damit kein Fehlzuordnungsrisiko — die Konfidenz ist per
+    Konstruktion ``exact``.
+
+    Der Nachteil steht in jeder Zeile: die Note ist vom Händler berichtet und nicht
+    bei der Quelle verifiziert. ``falstaff_reported_by`` nennt den Händler, im Report
+    steht "laut <Händler>".
+    """
+    collected: dict[str, list[tuple[float, str]]] = {}
+    for offer in offers:
+        for critic, value in (offer.critic_scores or {}).items():
+            collected.setdefault(critic, []).append((value, offer.retailer))
+    if not collected:
+        return
+
+    for critic, entries in collected.items():
+        value, who = max(entries, key=lambda e: e[0])
+        row.critics[critic] = (value, who)
+
+    falstaff = collected.get("falstaff")
+    if not falstaff:
+        return
+    value, who = max(falstaff, key=lambda e: e[0])
+    # Widersprechen sich zwei Händler, steht das in der Notiz statt still gemittelt.
+    spread = {round(v, 1) for v, _ in falstaff}
+    conflict = (
+        f" — Händler widersprechen sich: {', '.join(f'{v:.0f}' for v in sorted(spread))}"
+        if len(spread) > 1
+        else ""
+    )
+    row.falstaff = Rating(
+        source="falstaff",
+        value=value,
+        scale_max=100.0,
+        confidence=MatchConfidence.EXACT,
+        source_name=f"laut {who}",
+        status="retailer_reported",
+        note=(
+            f"{value:.0f} Falstaff-Punkte, von {who} am Produkt ausgewiesen "
+            f"(nicht bei Falstaff verifiziert — Domain blockiert){conflict}"
+        ),
+    )
 
 
 def _better_price(candidate: Offer, current: Offer) -> bool:

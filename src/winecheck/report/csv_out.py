@@ -32,6 +32,8 @@ LEAD_COLUMNS = [
     "falstaff_source_name",
     "falstaff_note",
     "falstaff_url",
+    "falstaff_reported_by",
+    "critics",
     "vivino_status",
     "vivino_rating",
     "vivino_rating_count",

@@ -62,6 +62,12 @@ class MoevenpickAdapter(RetailerAdapter):
         attrs_text = " ".join(
             _clean(n.text()) for n in tile.css(".cs-product-tile__attribute")
         )
+        # Kritikerpunkte: Mövenpick weist sie selbst aus ("Falstaff 92/100"). Das ist
+        # der Ersatz für den blockierten Falstaff-Zugang — 12 von 24 Kacheln tragen
+        # eine oder mehrere Noten.
+        critic_text = " · ".join(
+            _clean(n.text()) for n in tile.css(".cs-product-tile__attributes-item-value")
+        )
         # Ohne Wein-Indiz überspringen — Mövenpick verkauft auch Zubehör und Spirituosen.
         if not looks_like_wine(name, attrs_text) and not _RE_VINTAGE_ATTR.search(attrs_text):
             return None
@@ -79,6 +85,7 @@ class MoevenpickAdapter(RetailerAdapter):
             gebinde_text=attrs_text,
             vintage=int(vintage_match.group(1)) if vintage_match else None,
             source_note=_clean(attrs_text)[:160],
+            critic_text=critic_text,
         )
 
 

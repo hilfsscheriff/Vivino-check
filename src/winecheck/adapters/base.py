@@ -40,6 +40,75 @@ NOT_WINE = (
 
 _RE_PRICE = re.compile(r"(\d{1,4}(?:['’]\d{3})*(?:[.,]\d{1,2})?)")
 
+#: Kritiker, deren Punkte Händler mit ausweisen. Schlüssel ist der interne Name,
+#: der Wert die Schreibvarianten im Händler-HTML.
+#:
+#: Das ist der Ersatz für den blockierten Falstaff-Zugang: Mövenpick schreibt
+#: "Falstaff 92/100" in die Produktkachel. Die Note hängt damit am *exakten* Produkt
+#: — kein Namens-Matching, kein Fehlzuordnungsrisiko. Sie ist aber vom Händler
+#: berichtet und nicht bei Falstaff verifiziert; die Herkunft steht deshalb im Report.
+CRITIC_ALIASES: dict[str, tuple[str, ...]] = {
+    "falstaff": ("falstaff",),
+    "parker": ("parker", "robert parker", "wine advocate"),
+    "suckling": ("james suckling", "suckling"),
+    "decanter": ("decanter",),
+    "vinum": ("vinum",),
+    "spectator": ("wine spectator", "spectator"),
+    "gaultmillau": ("gault&millau", "gault millau", "gaultmillau"),
+    "penin": ("guía peñín", "guia penin", "peñín", "penin"),
+    "atkin": ("tim atkin", "atkin"),
+    "dunnuck": ("jeb dunnuck", "dunnuck"),
+    "galloni": ("antonio galloni", "vinous", "galloni"),
+    # Bekannter Kritiker, aber Mövenpick führt ihn als "Veronelli 3/100" — Sterne,
+    # nicht Punkte. Steht hier, damit die *Skalen*-Prüfung greift und nicht die
+    # Namensprüfung: die Begründung im Report soll stimmen.
+    "veronelli": ("veronelli",),
+    "gambero": ("gambero rosso", "gambero"),
+    "bibenda": ("bibenda",),
+}
+
+#: Plausible Spanne für eine 100-Punkte-Note. Alles darunter ist eine andere Skala:
+#: Mövenpick schreibt z.B. "Veronelli 3/100", das sind Sterne und keine Punkte.
+CRITIC_MIN, CRITIC_MAX = 50.0, 100.0
+
+_RE_CRITIC = re.compile(
+    r"([A-Za-zÀ-ÿ&.\s']{3,28}?)\s*(\d{1,3}(?:[.,]\d)?)\s*/\s*100", re.U
+)
+
+
+def parse_critic_scores(*texts: str) -> tuple[dict[str, float], list[str]]:
+    """Zieht Kritikerpunkte aus Händlertexten wie ``"Falstaff 92/100"``.
+
+    Returns:
+        ``(Punkte je Kritiker, verworfene Angaben)``. Verworfen wird, was nicht in die
+        100-Punkte-Spanne passt oder keinem bekannten Kritiker zuzuordnen ist — lieber
+        eine Lücke als eine Note auf der falschen Skala.
+    """
+    scores: dict[str, float] = {}
+    rejected: list[str] = []
+    for text in texts:
+        for raw_name, raw_value in _RE_CRITIC.findall(text or ""):
+            label = " ".join(raw_name.split()).strip(" .&'").lower()
+            try:
+                value = float(raw_value.replace(",", "."))
+            except ValueError:
+                continue
+            key = next(
+                (k for k, aliases in CRITIC_ALIASES.items()
+                 if any(label.endswith(a) or label == a for a in aliases)),
+                None,
+            )
+            if key is None:
+                rejected.append(f"{raw_name.strip()} {raw_value}/100 (unbekannter Kritiker)")
+                continue
+            if not (CRITIC_MIN <= value <= CRITIC_MAX):
+                rejected.append(f"{raw_name.strip()} {raw_value}/100 (andere Skala)")
+                continue
+            # Bei Mehrfachnennung die höhere Note behalten — Händler führen
+            # gelegentlich mehrere Jahrgänge derselben Quelle auf.
+            scores[key] = max(scores.get(key, 0.0), value)
+    return scores, rejected
+
 
 def looks_like_wine(*texts: str) -> bool:
     """Grobe Vorfilterung.
@@ -172,6 +241,7 @@ class RetailerAdapter:
         source_note: str = "",
         price_basis: str | None = None,
         vat_included: bool | None = None,
+        critic_text: str = "",
     ) -> Offer:
         """Baut ein :class:`Offer` mit normalisiertem Preis, Rabatt und
         Eigenmarken-Kennzeichnung.
@@ -221,6 +291,13 @@ class RetailerAdapter:
             fetched_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
             source_note=source_note,
         )
+        if critic_text:
+            scores, rejected = parse_critic_scores(critic_text)
+            offer.critic_scores = scores
+            if rejected:
+                offer.source_note = _join(
+                    offer.source_note, "verworfene Notenangaben: " + "; ".join(rejected[:3])
+                )
         offer.apply_price(norm)
         return offer
 

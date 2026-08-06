@@ -155,7 +155,7 @@ stünde monatelang ein alter Preis und damit ein falsches Prozent im Report.
 | Datei | Inhalt |
 |---|---|
 | `results.csv` | Alle Felder roh, inkl. Preisvergleich über Händler, aller Vivino-Felder, Marktpreis und `bargain_percent` |
-| `report.pdf` | Ranglisten, Spalte „Wo kaufen" mit Händlername, Link und Verkaufskanal, Vivino-Spalte immer gefüllt und verlinkt, Marktpreis-Spalte, Tabelle „ohne Bewertung", Status-Legende |
+| `report.pdf` | Ranglisten **als Auszüge** plus vollständige Listen aller bewerteten und aller unbewerteten Weine, Spalte „Wo kaufen" mit Händlername, Link und Verkaufskanal, Vivino-Spalte immer gefüllt und verlinkt, Marktpreis-Spalte, Tabelle „ohne Bewertung", Status-Legende |
 | `scatter.png` | Preis/75 cl (x, log) gegen normalisierte Bewertung (y), nach Händler gefärbt — für Druck und PDF |
 | `scatter.html` | Dasselbe interaktiv: Mouseover zeigt Weinname, Vivino-Bewertung, Preis, Händler und Schnäppchen; Klick öffnet die Händlerseite; Händler in der Legende ausblendbar. Selbstenthaltend, kein CDN, funktioniert offline |
 | `diff.md` | Änderungen zum letzten Lauf, inkl. neu aufgetauchter Vivino-Bewertungen |
@@ -225,6 +225,32 @@ Retry-Zeitpunkt.
 | **Coop** | DataDome | HTTP 403 mit CAPTCHA-Seite, sogar auf `/robots.txt` selbst. |
 | **Migros** | Cloudflare | HTTP 403 auf die Wein-Kategorie. |
 | **Flaschenpost** | Cloudflare | JS-Challenge („Just a moment…"), obwohl `robots.txt` `/aktionen` erlaubt. |
+
+### Falstaff über die Händler
+
+Falstaff selbst bleibt dicht — `.com`, `.at` und `.de` antworten alle mit HTTP 403,
+eine API-Subdomain existiert nicht. Mövenpick weist die Punkte aber **selbst am
+Produkt aus**: `Falstaff 92/100` steht in der Produktkachel, und der Adapter liest das
+mit. Das ist der Ersatz für den blockierten Zugang und in einem Punkt sogar besser:
+die Note hängt am *exakten* Artikel, es gibt kein Namens-Matching und damit kein
+Fehlzuordnungsrisiko — die Konfidenz ist per Konstruktion `exact`.
+
+Es ist nicht nur Falstaff. Beim Lauf vom 6.8.2026: Suckling 29, Parker 11,
+Falstaff 10, Decanter 8, Wine Spectator 7, Jeb Dunnuck 4, Galloni 3, Tim Atkin 3,
+Vinum 2 — alle auf der 100-Punkte-Skala. Die Rangfolge ist deshalb
+**Falstaff → benannter Kritiker → Vivino**: eine Note am exakten Produkt ist mehr wert
+als ein Namenstreffer. Die Quelle steht immer in `rank_source`.
+
+Zwei Vorsichtsmassnahmen:
+
+* **Herkunft in jeder Zeile.** `falstaff_reported_by` nennt den Händler, im Report
+  steht „laut Mövenpick". Die Note ist vom Verkäufer berichtet und nicht bei Falstaff
+  geprüft — Händler zitieren naturgemäss die freundlichen Noten.
+* **Kritikerauswahl nach fester Reihenfolge**, nicht nach der höchsten Note. Sonst wäre
+  es eine Auswahl nach Wunschergebnis.
+
+`Veronelli 3/100` wird verworfen: das sind Sterne, keine Punkte. Eine Note auf der
+falschen Skala ist schlimmer als eine Lücke.
 
 **Entscheidung vom 6.8.2026: keine Browser-Automation.** Die vier Quellen bleiben
 blockiert und werden als solche gemeldet — sie erscheinen in `report.pdf` unter
@@ -349,5 +375,9 @@ aktivieren). Schwerpunkte:
   Normalsatz von 8.1 %, mit dem hier gerechnet wird. Ein alkoholfreier Schaumwein
   bekäme sonst einen um 5.4 % zu hohen Preis. Aufgefallen an einem Rimuss aus dem
   Aktionis-Sortiment.
+* **Falstaff-Noten gibt es nur, wo der Händler sie ausweist** — beim letzten Lauf 10
+  von 400 Weinen, alle von Mövenpick. Prodega und die Aktionis-Quellen führen keine
+  Kritikerpunkte. Eine Falstaff-Note für einen Wein, den kein Händler zitiert, ist
+  nicht zu beschaffen, solange die Domain gesperrt ist.
 * **Bei Mövenpick gibt es meist kein Schnäppchen-Prozent.** Nicht weil die Angebote
   schlecht wären, sondern weil Vivino dort denselben Preis kennt — siehe oben.

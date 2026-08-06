@@ -245,3 +245,37 @@ def test_diff_highlights_newly_appeared_vivino_ratings(tmp_path):
     assert "vorher `no_entry`" in text
     assert "3.4/5" in text
     assert "https://www.vivino.com/de/heldenrose/w/4242" in text
+
+
+def test_pdf_lists_every_rated_wine_not_only_the_top_lists(tmp_path):
+    """Regression: ein bewerteter Wein, der in keiner Top-Liste steht, fiel komplett
+    aus dem PDF. Der Châteauneuf-du-Pape von Prodega lag auf Platz 21 von 68 nach
+    Bewertung, 6 von 25 in seiner Preisklasse und 20 von 61 bei den Schnäppchen —
+    überall knapp hinter dem Schnitt und damit unsichtbar, obwohl er in results.csv
+    und im Streudiagramm stand."""
+    import pdfplumber
+
+    def rated(name, price, rating):
+        return _row(
+            name, price,
+            vivino=VivinoResult(
+                status=VivinoStatus.EXACT, query=name.lower(),
+                url="https://www.vivino.com/de/x/w/1", note="ok",
+                rating=rating, rating_count=100, match_confidence="exact",
+            ),
+        )
+
+    # 14 bewertete Weine in derselben Preisklasse: mehr als PER_BAND und mehr als TOP_N.
+    wines = [rated(f"Testwein Nummer {i:02d} Bolgheri DOC", 12.0 + i * 0.1, 4.5 - i * 0.05)
+             for i in range(14)]
+    schlusslicht = "Testwein Nummer 13 Bolgheri DOC"
+    path = write_pdf(compute_scores(wines), tmp_path / "report.pdf")
+
+    with pdfplumber.open(path) as pdf:
+        text = " ".join((p.extract_text() or "") for p in pdf.pages)
+    text = " ".join(text.split())
+    assert "Alle bewerteten Weine (14)" in text
+    assert "Testwein Nummer 13" in text, "der letzte Wein fehlt im PDF"
+    # Und jeder einzelne ist auffindbar.
+    for i in range(14):
+        assert f"Testwein Nummer {i:02d}" in text, f"Wein {i} fehlt"

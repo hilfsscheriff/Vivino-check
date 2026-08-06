@@ -148,6 +148,33 @@ class VivinoResult:
 
 # --------------------------------------------------------------------------- Matching
 
+#: Anzeigenamen der Kritiker und die Reihenfolge, in der sie das Ranking treiben
+#: dürfen, wenn Falstaff fehlt. Alle auf der 100-Punkte-Skala.
+CRITIC_LABELS: dict[str, str] = {
+    "falstaff": "Falstaff",
+    "parker": "Parker",
+    "suckling": "James Suckling",
+    "galloni": "Vinous/Galloni",
+    "decanter": "Decanter",
+    "spectator": "Wine Spectator",
+    "vinum": "Vinum",
+    "dunnuck": "Jeb Dunnuck",
+    "atkin": "Tim Atkin",
+    "penin": "Guía Peñín",
+    "gambero": "Gambero Rosso",
+    "bibenda": "Bibenda",
+    "veronelli": "Veronelli",
+    "gaultmillau": "Gault&Millau",
+}
+
+#: Vorrang, wenn mehrere Kritiker eine Note haben. Falstaff steht nicht drin — der
+#: läuft über ``WineRow.falstaff`` und hat ohnehin Vorrang.
+CRITIC_PRIORITY = (
+    "parker", "suckling", "galloni", "decanter", "spectator", "vinum",
+    "dunnuck", "atkin", "penin", "gambero", "bibenda", "veronelli",
+)
+
+
 class MatchConfidence(str, enum.Enum):
     EXACT = "exact"              # Name + Jahrgang sicher
     WINE_LEVEL = "wine_level"    # Wein sicher, Jahrgang abweichend
@@ -244,6 +271,10 @@ class Offer:
     article_no: str | None = None
     fetched_at: str | None = None
     source_note: str = ""
+    #: Kritikerpunkte, die der *Händler* selbst ausweist ("Falstaff 92/100").
+    #: Der Ersatz für den blockierten Falstaff-Zugang — die Note hängt am exakten
+    #: Produkt, ist aber vom Händler berichtet und nicht bei der Quelle verifiziert.
+    critic_scores: dict[str, float] = field(default_factory=dict)
 
     def apply_price(self, p: NormalizedPrice) -> None:
         self.price_per_bottle_incl_vat = p.price_per_bottle_incl_vat
@@ -304,6 +335,9 @@ class WineRow:
     prices: list[RetailerPrice] = field(default_factory=list)
     falstaff: Rating | None = None
     vivino: VivinoResult | None = None
+    #: Weitere Kritikernoten, die Händler ausweisen: ``{"suckling": (94.0, "moevenpick")}``.
+    #: Nur informativ — sie treiben das Ranking nicht, Leitquelle bleibt Falstaff.
+    critics: dict[str, tuple[float, str]] = field(default_factory=dict)
     winesearcher: Rating | None = None
     value_score: float | None = None
     price_band: str = ""
@@ -413,11 +447,34 @@ class WineRow:
             and self.falstaff.confidence in self.RANKING_CONFIDENCES
         ):
             return self.falstaff.normalized, "Falstaff"
+        # Weitere 100-Punkte-Kritiker, die der Händler am Produkt ausweist. Sie kommen
+        # vor Vivino, weil die Note am *exakten* Produkt hängt — kein Namens-Matching,
+        # kein Fehlzuordnungsrisiko — während ein Vivino-Treffer über Namensähnlichkeit
+        # zustande kommt. Die Quelle steht immer in ``rank_source``.
+        critic = self.best_critic()
+        if critic is not None:
+            key, value, _who = critic
+            return round(value / 100.0, 4), CRITIC_LABELS.get(key, key.capitalize())
         if self.vivino and self.vivino.rating is not None and self._vivino_is_rankable():
             return round(self.vivino.rating / 5.0, 4), "Vivino"
         if self.winesearcher and self.winesearcher.value is not None:
             return self.winesearcher.normalized, "Wine-Searcher"
         return None, ""
+
+    def best_critic(self) -> tuple[str, float, str] | None:
+        """Beste verfügbare Kritikernote ausser Falstaff.
+
+        Returns:
+            ``(Schlüssel, Punkte, Händler)`` oder None. Die Reihenfolge folgt
+            :data:`CRITIC_PRIORITY`, nicht der Höhe der Note — sonst gewinnt immer der
+            freundlichste Kritiker, und das wäre eine Auswahl nach Wunschergebnis.
+        """
+        for key in CRITIC_PRIORITY:
+            entry = self.critics.get(key)
+            if entry is not None:
+                value, who = entry
+                return key, value, who
+        return None
 
     def _vivino_is_rankable(self) -> bool:
         v = self.vivino
@@ -479,6 +536,10 @@ class WineRow:
             "vivino_match_confidence": (v.match_confidence or "") if v else "",
             "vivino_candidates": " | ".join(f"{c.name} <{c.url}>" for c in v.candidates) if v else "",
             "vivino_retry_after": (v.retry_after or "") if v else "",
+            "falstaff_reported_by": (self.falstaff.source_name or "") if self.falstaff else "",
+            "critics": " · ".join(
+                f"{k} {v:.0f}/100 ({who})" for k, (v, who) in sorted(self.critics.items())
+            ),
             "winesearcher_value": _fmt_num(self.winesearcher.value) if self.winesearcher else "",
             "winesearcher_note": self.winesearcher.note if self.winesearcher else "",
         }

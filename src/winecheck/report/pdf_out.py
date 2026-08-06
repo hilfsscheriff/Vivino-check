@@ -329,7 +329,8 @@ def write_pdf(
         Paragraph(
             ch(
                 f"Stand {datetime_ch()} · {len(rows)} Weine · {len(rated)} mit Fremdbewertung · "
-                f"{len(unrated)} ohne · Preise normalisiert auf CHF pro 75 cl inkl. MwSt (8.1 %)"
+                f"{len(unrated)} ohne · Preise normalisiert auf CHF pro 75 cl inkl. MwSt (8.1 %) · "
+                f"die Ranglisten sind Auszüge, die vollständigen Listen stehen hinten"
             ),
             st["small"],
         ),
@@ -422,6 +423,36 @@ def write_pdf(
             Paragraph(ch("Hier zeigt sich, ob sich der Weg zum Abholgrosshandel lohnt."), st["small"])
         )
         story.append(_ranking_table(cross[:TOP_N], st, info=info, show_falstaff=show_falstaff))
+
+    # -- Vollständige Liste der bewerteten Weine --------------------------
+    # Ohne diesen Abschnitt fällt jeder bewertete Wein aus dem PDF, der in keiner
+    # Top-Liste steht — und das war die Mehrheit. Der Châteauneuf-du-Pape von Prodega
+    # lag auf Platz 21 von 68 nach Bewertung, 6 von 25 in seiner Preisklasse und 20
+    # von 61 bei den Schnäppchen: überall knapp hinter dem Schnitt und damit unsichtbar,
+    # obwohl er in results.csv und im Streudiagramm steht.
+    if rated:
+        story.append(PageBreak())
+        story.append(Paragraph(ch(f"Alle bewerteten Weine ({len(rated)})"), st["h2"]))
+        story.append(
+            Paragraph(
+                ch("Die Ranglisten oben sind Auszüge. Hier stehen alle bewerteten Weine "
+                   "vollständig, nach Preisklasse und darin nach Preis-Leistung sortiert."),
+                st["small"],
+            )
+        )
+        for label, _lo, _hi in PRICE_BANDS:
+            members = [r for r in rated if r.price_band == label]
+            if not members:
+                continue
+            members.sort(key=lambda r: (-(r.value_score or -1), r.best_price or 9e9))
+            story.append(
+                Paragraph(ch(f"Preisklasse {label} CHF — {len(members)} Weine"), st["band"])
+            )
+            story.append(_ranking_table(members, st, info=info, show_falstaff=show_falstaff))
+        rest = [r for r in rated if not r.price_band]
+        if rest:
+            story.append(Paragraph(ch(f"Ohne Preisklasse — {len(rest)} Weine"), st["band"]))
+            story.append(_ranking_table(rest, st, info=info, show_falstaff=show_falstaff))
 
     if unrated:
         story.append(PageBreak())
