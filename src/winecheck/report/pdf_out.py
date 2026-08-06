@@ -113,17 +113,62 @@ def _price_cell(row: WineRow, style) -> Paragraph:
     return Paragraph(text, style)
 
 
-def _retailer_cell(row: WineRow, style) -> Paragraph:
+def _retailer_cell(row: WineRow, style, info: dict[str, dict] | None = None) -> Paragraph:
+    """Wo der Wein zu kaufen ist.
+
+    Lesbarer Händlername statt Schlüssel, verlinkt auf die Produktseite, und der
+    Verkaufskanal darunter — bei Prodega ist die Kundenkarte nötig, das ändert die
+    Antwort auf "lohnt sich das".
+    """
     best = row.best_price
+    info = info or {}
     parts = []
     for p in sorted(row.prices, key=lambda x: x.price_per_bottle_incl_vat or 9e9):
         if p.price_per_bottle_incl_vat is None:
             continue
-        mark = "<b>" if p.price_per_bottle_incl_vat == best else ""
-        end = "</b>" if mark else ""
+        meta = info.get(p.retailer) or {}
+        label = ch(meta.get("name") or p.retailer)
+        price = chf(p.price_per_bottle_incl_vat, prefix="")
         flag = " !" if p.discount_plausibility.value == "questionable" else ""
-        parts.append(f"{mark}{ch(p.retailer)} {chf(p.price_per_bottle_incl_vat, prefix='')}{flag}{end}")
-    return Paragraph("<br/>".join(parts) or ch("—"), style)
+        text = f"{label} {price}{flag}"
+        if p.url:
+            text = f'<a href="{_esc(p.url)}">{text}</a>'
+        if p.price_per_bottle_incl_vat == best:
+            text = f"<b>{text}</b>"
+        channel = ch(meta.get("channel") or "")
+        if channel:
+            text += f'<br/><font size=6.2 color="#5a5a5a">{channel}</font>'
+        parts.append(text)
+    return Paragraph("<br/>".join(parts) or ch("kein Händler"), style)
+
+
+def _market_cell(row: WineRow, style) -> Paragraph:
+    """Vivino-Marktpreis und die Ersparnis darauf.
+
+    Der Marktpreis stammt bewusst nicht vom eigenen Händler — sonst verglichen wir
+    einen Preis mit sich selbst. Liegt kein unabhängiger Preis vor, steht hier die
+    Begründung statt einer 0.
+    """
+    v = row.vivino
+    if v is None or v.market_price is None:
+        note = (v.market_price_note if v else "") or "kein Marktpreis"
+        return Paragraph(f'<font size=6.5>{ch(truncate(note, 90))}</font>', style)
+
+    pct = row.bargain_percent
+    text = chf(v.market_price)
+    if v.market_price_shop:
+        shop = ch(v.market_price_shop)
+        text += f'<br/><font size=6.2 color="#5a5a5a">{shop}</font>'
+    if pct is not None:
+        colour = "#2e7d32" if pct > 0 else "#c62828"
+        sign = "−" if pct > 0 else "+"
+        text = (
+            f'<b><font color="{colour}">{sign}{abs(pct):.0f} %</font></b><br/>'
+            f'<font size=6.5>gegen {text}</font>'
+        )
+    if v.market_price_url:
+        text = f'<a href="{_esc(v.market_price_url)}">{text}</a>'
+    return Paragraph(text, style)
 
 
 def _table(data: list[list], widths: list[float]) -> Table:
@@ -146,39 +191,63 @@ def _table(data: list[list], widths: list[float]) -> Table:
     return t
 
 
-def _ranking_table(rows: list[WineRow], st: dict) -> Table:
-    header = ["Wein", "Jg.", "Preis/75cl", "Günstigster Händler", "Falstaff", "Vivino", "Konfidenz"]
+def _ranking_table(
+    rows: list[WineRow],
+    st: dict,
+    *,
+    info: dict[str, dict] | None = None,
+    show_falstaff: bool = False,
+) -> Table:
+    """Die Rangliste.
+
+    Die Falstaff-Spalte erscheint nur, wenn Falstaff überhaupt Werte geliefert hat —
+    solange die Quelle blockiert ist, wäre es eine Spalte voll "nicht abgefragt", und
+    die Breite fehlt für Kaufquelle und Marktpreis.
+    """
+    header = ["Wein", "Jg.", "Preis/75cl", "Wo kaufen"]
+    widths = [58 * mm, 9 * mm, 23 * mm, 40 * mm]
+    if show_falstaff:
+        header.append("Falstaff")
+        widths.append(20 * mm)
+    header += ["Vivino", "Marktpreis", "Konfidenz"]
+    widths += [38 * mm, 28 * mm, 19 * mm]
+
     data = [header]
     for row in rows:
         conf = row.vivino.match_confidence if row.vivino else ""
         if row.falstaff and row.falstaff.value is not None:
             conf = row.falstaff.confidence.value
         low = any(p.price_confidence is PriceConfidence.LOW for p in row.prices)
-        data.append([
-            Paragraph(ch(truncate(row.name, 60)), st["cell"]),
+        cells = [
+            Paragraph(ch(truncate(row.name, 54)), st["cell"]),
             Paragraph(str(row.vintage or ""), st["cell"]),
             _price_cell(row, st["cell"]),
-            _retailer_cell(row, st["cell"]),
-            _falstaff_cell(row, st["cell_link"]),
+            _retailer_cell(row, st["cell"], info),
+        ]
+        if show_falstaff:
+            cells.append(_falstaff_cell(row, st["cell_link"]))
+        cells += [
             _vivino_cell(row, st["cell_link"]),
+            _market_cell(row, st["cell_link"]),
             Paragraph(ch(conf or "—") + (" · Preis unsicher" if low else ""), st["cell"]),
-        ])
-    return _table(data, [72 * mm, 10 * mm, 25 * mm, 34 * mm, 24 * mm, 42 * mm, 24 * mm])
+        ]
+        data.append(cells)
+    return _table(data, widths)
 
 
-def _unrated_table(rows: list[WineRow], st: dict) -> Table:
-    header = ["Wein", "Jg.", "Preis/75cl", "Händler", "Warum keine Bewertung", "Vivino-Link"]
+def _unrated_table(rows: list[WineRow], st: dict, info: dict[str, dict] | None = None) -> Table:
+    header = ["Wein", "Jg.", "Preis/75cl", "Wo kaufen", "Warum keine Bewertung", "Vivino-Link"]
     data = [header]
     for row in rows:
         data.append([
             Paragraph(ch(truncate(row.name, 58)), st["cell"]),
             Paragraph(str(row.vintage or ""), st["cell"]),
             _price_cell(row, st["cell"]),
-            Paragraph(ch(", ".join(sorted({p.retailer for p in row.prices}))), st["cell"]),
+            _retailer_cell(row, st["cell"], info),
             Paragraph(ch(truncate(row.no_rating_reason(), 150)), st["cell"]),
             _vivino_cell(row, st["cell_link"]),
         ])
-    return _table(data, [66 * mm, 10 * mm, 24 * mm, 24 * mm, 76 * mm, 31 * mm])
+    return _table(data, [62 * mm, 9 * mm, 23 * mm, 36 * mm, 64 * mm, 41 * mm])
 
 
 def _legend(st: dict) -> list:
@@ -220,6 +289,7 @@ def write_pdf(
     *,
     source_reports: list | None = None,
     uncertain: list[str] | None = None,
+    retailer_info: dict[str, dict] | None = None,
 ) -> Path:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -233,6 +303,8 @@ def write_pdf(
         author="wine-check",
     )
 
+    info = retailer_info or {}
+    show_falstaff = any(r.falstaff and r.falstaff.value is not None for r in rows)
     rated = [r for r in rows if r.has_any_rating]
     unrated = [r for r in rows if not r.has_any_rating]
 
@@ -278,7 +350,28 @@ def write_pdf(
                 st["small"],
             )
         )
-        story.append(_ranking_table(best_rating, st))
+        story.append(_ranking_table(best_rating, st, info=info, show_falstaff=show_falstaff))
+
+    # -- Schnäppchen gegen den Marktpreis ---------------------------------
+    bargains = sorted(
+        [r for r in rows if r.bargain_percent is not None and r.bargain_percent > 0],
+        key=lambda r: -(r.bargain_percent or 0),
+    )
+    if bargains:
+        story.append(Paragraph(ch(f"Grösste Schnäppchen ({len(bargains)} mit Marktpreis)"), st["h2"]))
+        story.append(
+            Paragraph(
+                ch("Aktionspreis gegen den Vivino-Marktpreis, je mehr Prozent darunter, desto "
+                   "besser. Der Marktpreis ist ein Händlerpreis von Vivino und stammt "
+                   "ausdrücklich <b>nicht</b> vom eigenen Händler — sonst verglichen wir einen "
+                   "Preis mit sich selbst. Das ist der belastbarere Vergleich als das „statt X\" "
+                   "des Händlers, das bei Eigenmarken teils konstruiert ist. Ist kein "
+                   "unabhängiger Preis verfügbar, steht in der Spalte die Begründung statt "
+                   "einer 0."),
+                st["small"],
+            )
+        )
+        story.append(_ranking_table(bargains[:TOP_N], st, info=info, show_falstaff=show_falstaff))
 
     if scored:
         story.append(Paragraph(ch("Bestes Preis-Leistungs-Verhältnis"), st["h2"]))
@@ -306,7 +399,7 @@ def write_pdf(
                            f"beste {len(top)}"),
                         st["band"],
                     ),
-                    _ranking_table(top, st),
+                    _ranking_table(top, st, info=info, show_falstaff=show_falstaff),
                 ])
             )
 
@@ -316,7 +409,7 @@ def write_pdf(
         story.append(
             Paragraph(ch("Hier zeigt sich, ob sich der Weg zum Abholgrosshandel lohnt."), st["small"])
         )
-        story.append(_ranking_table(cross[:TOP_N], st))
+        story.append(_ranking_table(cross[:TOP_N], st, info=info, show_falstaff=show_falstaff))
 
     if unrated:
         story.append(PageBreak())
@@ -328,7 +421,7 @@ def write_pdf(
                 st["small"],
             )
         )
-        story.append(_unrated_table(unrated, st))
+        story.append(_unrated_table(unrated, st, info))
 
     if uncertain:
         story.append(Paragraph(ch(f"Unsichere Prospekt-Positionen ({len(uncertain)})"), st["h2"]))

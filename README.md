@@ -110,14 +110,45 @@ zuerst. Ein globaler Rang über klassenrelative Werte wäre irreführend und wü
 systematisch die teuren Weine nach oben spülen — beim ersten Lauf standen dort
 Champagner zu CHF 108 und Pomerol zu CHF 118 an der Spitze.
 
+## Schnäppchen gegen den Vivino-Marktpreis
+
+Vivino nennt im selben API-Aufruf Händlerpreise für die Schweiz. Auf CHF pro 75 cl
+normalisiert (über `bottle_quantity` und `bottle_type.volume_ml`, nur CHF, kein
+Währungsumrechnen) ergibt das einen **unabhängigen** Referenzpreis — belastbarer als
+das „statt X" des Händlers, das bei Eigenmarken teils konstruiert ist. Die Differenz
+steht als `bargain_percent` in der CSV und führt im PDF die Rangliste
+„Grösste Schnäppchen": je mehr Prozent unter dem Marktpreis, desto besser.
+
+**Die Falle dabei — Zirkularität.** Mövenpick ist Vivino-Partnerhändler
+(`merchant_id` 450). Für Mövenpick-Weine nennt Vivino genau den Mövenpick-Preis:
+Château Plince CHF 65 gegen CHF 65, Beaune CHF 79 gegen CHF 79. Ein ungefilterter
+Vergleich hätte dort systematisch 0 % ergeben und damit alle Weine anderer Händler
+künstlich besser aussehen lassen.
+
+Deshalb werden für jeden Wein die Domains **seiner eigenen Händler** aus den
+Vivino-Preisen ausgeschlossen. Bleibt kein unabhängiger Preis, steht in der Spalte die
+Begründung statt einer 0. In der Praxis heisst das: bei Mövenpick gibt es meist kein
+Schnäppchen-Prozent, bei Prodega, Coop, Denner und Otto's schon.
+
+Marktpreise werden nur 30 Tage gecacht, obwohl Bewertungen 90 Tage gelten — sonst
+stünde monatelang ein alter Preis und damit ein falsches Prozent im Report.
+
 ## Output
 
 | Datei | Inhalt |
 |---|---|
-| `results.csv` | Alle Felder roh, inkl. Preisvergleich über Händler und aller Vivino-Felder |
-| `report.pdf` | Ranglisten, Vivino-Spalte immer gefüllt und verlinkt, Tabelle „ohne Bewertung", Status-Legende |
-| `scatter.png` | Preis/75 cl (x, log) gegen normalisierte Bewertung (y), nach Händler gefärbt |
+| `results.csv` | Alle Felder roh, inkl. Preisvergleich über Händler, aller Vivino-Felder, Marktpreis und `bargain_percent` |
+| `report.pdf` | Ranglisten, Spalte „Wo kaufen" mit Händlername, Link und Verkaufskanal, Vivino-Spalte immer gefüllt und verlinkt, Marktpreis-Spalte, Tabelle „ohne Bewertung", Status-Legende |
+| `scatter.png` | Preis/75 cl (x, log) gegen normalisierte Bewertung (y), nach Händler gefärbt — für Druck und PDF |
+| `scatter.html` | Dasselbe interaktiv: Mouseover zeigt Weinname, Vivino-Bewertung, Preis, Händler und Schnäppchen; Klick öffnet die Händlerseite; Händler in der Legende ausblendbar. Selbstenthaltend, kein CDN, funktioniert offline |
 | `diff.md` | Änderungen zum letzten Lauf, inkl. neu aufgetauchter Vivino-Bewertungen |
+
+### Wo der Wein zu kaufen ist
+
+Die Spalte „Wo kaufen" nennt den lesbaren Händlernamen, verlinkt auf die Produktseite
+und zeigt den Verkaufskanal darunter — bei Prodega ist die Kundenkarte nötig, und das
+ändert die Antwort auf „lohnt sich das". Bei mehreren Händlern stehen alle da, der
+günstigste fett. Die Kanäle stehen als `channel` in `sources/retailers.yaml`.
 
 ## Quellen — Stand 5.8.2026
 
@@ -128,10 +159,42 @@ Händler stehen in `sources/retailers.yaml` und können ohne Codeänderung ergä
 
 | Quelle | Positionen | Weg |
 |---|---|---|
-| Mövenpick Wein | ~107 | serverseitiges Magento, `div.cs-product-tile` |
-| Prodega (Transgourmet) | ~30 | **öffentlicher Wochenprospekt als PDF**, kein Login nötig |
+| Aktionis | ~226 | Aggregator, serverseitiges HTML — liefert Coop, Otto's, Denner, Lidl, SPAR, Volg |
+| Mövenpick Wein | ~115 | serverseitiges Magento, `div.cs-product-tile` |
+| Prodega (Transgourmet) | ~68 | **Prodega Easy, öffentlicher JSON-Katalog**, kein Login nötig |
 | Denner | 1–3 | Nuxt-SSR-Payload (`__NUXT_DATA__`) |
-| Vivino | Pflichtspalte | JSON-Endpunkt `/api/explore/explore` |
+| Vivino | Pflichtspalte | JSON-Endpunkt `/api/explore/explore`, inkl. Marktpreise |
+
+### Aktionis als Umweg zu den blockierten Händlern
+
+`aktionis.ch` sammelt die Aktionen der Detailhändler ein und liefert sie serverseitig
+gerendert: `/q/Wein`, 48 Karten pro Seite, weiter über `?page=N` (`?p=` und `?offset=`
+werden ignoriert und liefern still wieder Seite 1). Pro Karte gibt es Aktionspreis,
+Referenzpreis, Rabatt, den vollen Namen im `title`-Attribut samt Jahrgang und Volumen
+sowie den Händler im `alt` des Logos.
+
+Damit kommen Quellen ins Werkzeug, die direkt nicht einlesbar sind (Coop, Migros, Lidl)
+oder für die es keinen eigenen Adapter gibt (Otto's, SPAR, Volg). Die Angebote werden
+dem **echten Händler** zugeschrieben, nicht Aktionis.
+
+**Das sind Daten aus zweiter Hand.** Ein Preis, der bei Aktionis falsch steht, steht
+danach auch im Report. Die Deal-URL wird als Angebots-URL mitgeführt, damit jede Zeile
+bis zur Quelle zurückverfolgbar bleibt. `robots.txt` erlaubt `/q/` und `/deals/`;
+gesperrt sind `/admin`, `/login`, `/profile`, `*.pdf`, `/dealtarget/` und `/app` — die
+werden nicht angefasst.
+
+### Geprüft und verworfen: QoQa
+
+QoQa hat eine offene JSON-API ohne Schlüssel (`api.qoqa.ch/v2/spotlight?locale=de`) mit
+einem eigenen Universum „Wein & Spirituosen". Technisch wäre die Anbindung eine
+Stunde Arbeit — inhaltlich taugt sie nicht:
+
+* Die Preise sind **Spannen über verschiedene Lot-Grössen ohne Flaschenzahl**
+  („Ab 49.– bis 169.–"). Ein Preis pro 75 cl ist daraus nicht ableitbar, das wäre
+  konsequent `price_confidence = low` und damit ausserhalb des Rankings.
+* Kein Referenzpreis, Laufzeit rund 24 Stunden — in einem Wochenreport längst abgelaufen.
+* Die Titel sind Produzenten- statt Weinnamen („Domaine Dalmeran"), Spirituosen sind
+  untergemischt. Der Matcher landete meist auf `winery_level`, was ohnehin nicht rankt.
 
 ### Was nicht funktioniert, und warum
 

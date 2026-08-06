@@ -19,6 +19,7 @@ from pathlib import Path
 import typer
 
 from .adapters.base import FetchReport, RetailerAdapter
+from .adapters.aktionis import AktionisAdapter
 from .adapters.denner import DennerAdapter
 from .adapters.moevenpick import MoevenpickAdapter
 from .adapters.prodega import ProdegaAdapter
@@ -32,12 +33,14 @@ from .ratings.falstaff import FalstaffAdapter
 from .ratings.vivino import VivinoAdapter
 from .report.csv_out import write_csv
 from .report.diff import snapshot, write_diff
+from .report.interactive import write_interactive
 from .report.pdf_out import write_pdf
 from .report.plot import write_scatter
 
 app = typer.Typer(add_completion=False, help="Aktionen der Schweizer Weinhändler prüfen.")
 
 ADAPTERS: dict[str, type[RetailerAdapter]] = {
+    "aktionis": AktionisAdapter,
     "denner": DennerAdapter,
     "moevenpick": MoevenpickAdapter,
     "prodega": ProdegaAdapter,
@@ -184,8 +187,12 @@ def rate(
                     row.name, row.vintage, refresh=refresh, retry_failed=retry_failed
                 )
             # Vivino IMMER — kein Abbruch beim ersten Treffer.
+            # Die Domains der Händler dieses Weins werden beim Marktpreis
+            # ausgeschlossen: Mövenpick ist Vivino-Partnerhändler, ohne Filter
+            # verglichen wir dessen Preis mit sich selbst.
             row.vivino = vivino.lookup(
-                row.name, row.vintage, refresh=refresh, retry_failed=retry_failed
+                row.name, row.vintage, refresh=refresh, retry_failed=retry_failed,
+                exclude_hosts=_retailer_hosts(reg, row),
             )
             stats[row.vivino.status.value] = stats.get(row.vivino.status.value, 0) + 1
             _echo(
@@ -216,8 +223,14 @@ def rate(
 def report(
     out: Path = typer.Option(Path("output"), "--out"),
     cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache"),
+    registry: Path = typer.Option(None, "--registry"),
 ) -> None:
-    """results.csv, report.pdf, scatter.png und diff.md schreiben."""
+    """results.csv, report.pdf, scatter.png, scatter.html und diff.md schreiben."""
+    reg = load_registry(registry)
+    info = {
+        c.key: {"name": c.name, "channel": c.channel, "domain": c.domain}
+        for c in reg.retailers.values()
+    }
     cache = Cache.open(cache_path)
     rows = _load_rated()
     if not rows:
@@ -229,8 +242,12 @@ def report(
 
     out.mkdir(parents=True, exist_ok=True)
     csv_path = write_csv(rows, out / "results.csv")
-    pdf_path = write_pdf(rows, out / "report.pdf", source_reports=reports, uncertain=uncertain)
+    pdf_path = write_pdf(
+        rows, out / "report.pdf", source_reports=reports, uncertain=uncertain,
+        retailer_info=info,
+    )
     png_path = write_scatter(rows, out / "scatter.png")
+    html_path = write_interactive(rows, out / "scatter.html", retailer_info=info)
 
     _prev_id, previous = cache.previous_snapshot()
     diff_path = write_diff(rows, previous, out / "diff.md", source_reports=reports)
@@ -239,6 +256,7 @@ def report(
     _echo(f"  {csv_path}")
     _echo(f"  {pdf_path}")
     _echo(f"  {png_path if png_path else '(scatter.png übersprungen — keine bewerteten Preise)'}")
+    _echo(f"  {html_path if html_path else '(scatter.html übersprungen)'}")
     _echo(f"  {diff_path}")
     cache.close()
 
@@ -259,7 +277,7 @@ def run(
     _echo("\n== rate")
     rate(cache_path=cache_path, registry=None, refresh=False, retry_failed=False, limit=limit)
     _echo("\n== report")
-    report(out=out, cache_path=cache_path)
+    report(out=out, cache_path=cache_path, registry=None)
 
 
 # --------------------------------------------------------------------- infos
@@ -291,6 +309,16 @@ def cache_stats(cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache")) -> No
 
 
 # ------------------------------------------------------------ Serialisierung
+
+def _retailer_hosts(reg, row: WineRow) -> set[str]:
+    """Domains aller Händler, die diesen Wein anbieten."""
+    hosts: set[str] = set()
+    for price in row.prices:
+        cfg = reg.retailers.get(price.retailer)
+        if cfg and cfg.domain:
+            hosts.add(cfg.domain.lower())
+    return hosts
+
 
 def _offer_payload(o: Offer) -> dict:
     return {

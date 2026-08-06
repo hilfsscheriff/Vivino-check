@@ -101,6 +101,20 @@ class VivinoResult:
     #: ``fuzzy``-Namensmatch heisst: Jahrgang stimmt, Wein bitte prüfen.
     match_confidence: str = ""
 
+    # -- Marktpreis --------------------------------------------------------
+    #: Vivino nennt im selben Aufruf Händlerpreise für die Schweiz. Auf CHF pro
+    #: 75 cl normalisiert ist das ein *unabhängiger* Referenzpreis — deutlich
+    #: belastbarer als das "statt X" des Händlers, das bei Eigenmarken teils
+    #: konstruiert ist.
+    market_price: float | None = None
+    market_price_raw: float | None = None
+    market_price_basis: str = ""
+    market_price_url: str = ""
+    market_price_shop: str = ""
+    #: Warum kein Marktpreis vorliegt — z.B. weil der einzige Preis vom selben
+    #: Händler stammt, mit dem verglichen werden soll.
+    market_price_note: str = ""
+
     def __post_init__(self) -> None:
         # Harte Zusicherung: die URL ist niemals leer. Ohne Weinseite die Suche.
         if not self.url:
@@ -288,6 +302,29 @@ class WineRow:
     rank_source: str = ""            # welche Skala den Sortierschlüssel gestellt hat
     is_private_label: bool = False
 
+    # -- Schnäppchen gegen den Marktpreis ----------------------------------
+    @property
+    def market_price(self) -> float | None:
+        """Unabhängiger Marktpreis pro 75 cl, sofern Vivino einen nennt."""
+        return self.vivino.market_price if self.vivino else None
+
+    @property
+    def bargain_percent(self) -> float | None:
+        """Um wie viel Prozent liegt der Aktionspreis unter dem Marktpreis.
+
+        Je höher, desto besser das Schnäppchen. ``None``, wenn kein unabhängiger
+        Marktpreis vorliegt oder der Aktionspreis nicht verlässlich ist — geschätzt
+        wird hier nichts. Negative Werte bleiben stehen: ein Angebot *über* dem
+        Marktpreis ist eine Information, kein Fehler.
+        """
+        market = self.market_price
+        price = self.best_price
+        if market is None or price is None or market <= 0:
+            return None
+        if not any(p.price_confidence is not PriceConfidence.LOW for p in self.prices):
+            return None
+        return round((market - price) / market * 100, 1)
+
     # -- Preis -------------------------------------------------------------
     @property
     def best_price(self) -> float | None:
@@ -388,6 +425,13 @@ class WineRow:
             "retailer_count": self.retailer_count,
             "price_band": self.price_band,
             "value_score": _fmt_num(self.value_score),
+            "bargain_percent": _fmt_num(self.bargain_percent),
+            "vivino_market_price": _fmt_num(v.market_price) if v else "",
+            "vivino_market_price_raw": _fmt_num(v.market_price_raw) if v else "",
+            "vivino_market_price_basis": (v.market_price_basis or "") if v else "",
+            "vivino_market_price_shop": (v.market_price_shop or "") if v else "",
+            "vivino_market_price_url": (v.market_price_url or "") if v else "",
+            "vivino_market_price_note": (v.market_price_note or "") if v else "",
             "rank_rating_normalized": _fmt_num(rating_norm),
             "rank_source": rank_src or self.rank_source,
             "falstaff_points": _fmt_num(self.falstaff.value) if self.falstaff else "",

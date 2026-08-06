@@ -20,6 +20,7 @@ retailers:
   # ---------------------------------------------------------------- Tier 1
   - key: coop
     name: Coop
+    channel: Filiale und Onlineshop
     tier: 1
     domain: coop.ch
     adapter: coop
@@ -39,6 +40,7 @@ retailers:
 
   - key: denner
     name: Denner
+    channel: Filiale und Onlineshop
     tier: 1
     domain: denner.ch
     adapter: denner
@@ -66,6 +68,7 @@ retailers:
 
   - key: migros
     name: Migros
+    channel: Filiale und Onlineshop
     tier: 1
     domain: migros.ch
     adapter: generic_html
@@ -81,6 +84,7 @@ retailers:
 
   - key: lidl
     name: Lidl Schweiz
+    channel: Filiale
     tier: 1
     domain: lidl.ch
     adapter: prospekt_pdf
@@ -97,6 +101,7 @@ retailers:
 
   - key: aldi
     name: Aldi Suisse
+    channel: Filiale
     tier: 1
     domain: aldi-suisse.ch
     adapter: prospekt_pdf
@@ -111,6 +116,7 @@ retailers:
 
   - key: ottos
     name: Otto's
+    channel: Filiale und Onlineshop
     tier: 1
     domain: ottos.ch
     adapter: generic_html
@@ -127,6 +133,7 @@ retailers:
 
   - key: landi
     name: Landi
+    channel: Filiale und Onlineshop
     tier: 1
     domain: landi.ch
     adapter: generic_html
@@ -141,6 +148,7 @@ retailers:
   # ---------------------------------------------------------------- Tier 2
   - key: flaschenpost
     name: Flaschenpost
+    channel: Onlineshop, Lieferung
     tier: 2
     domain: flaschenpost.ch
     adapter: generic_html
@@ -158,6 +166,7 @@ retailers:
 
   - key: moevenpick
     name: Mövenpick Wein
+    channel: Onlineshop und Weinkeller
     tier: 2
     domain: moevenpick-wein.com
     adapter: moevenpick
@@ -177,6 +186,7 @@ retailers:
 
   - key: schuler
     name: Schuler St. Jakobskellerei
+    channel: Onlineshop, Lieferung
     tier: 2
     domain: schuler.ch
     adapter: generic_html
@@ -190,9 +200,41 @@ retailers:
       /de/aktionen antwortete 404. Alternativen laut Auftrag sind Schubi, Gerstl
       und Denz.
 
+  - key: aktionis
+    name: Aktionis
+    channel: Aggregator, Kauf beim genannten Händler
+    tier: 2
+    domain: aktionis.ch
+    adapter: aktionis
+    enabled: true
+    status: ok
+    urls:
+      - https://www.aktionis.ch/q/Wein
+    shop_root: https://www.aktionis.ch/
+    promo_keywords: [wein, deals, aktion]
+    verified_at: "2026-08-06"
+    notes: >
+      Aggregator, kein eigener Händler. Sammelt die Aktionen der Detailhändler ein und
+      liefert sie serverseitig gerendert: /q/Wein, 48 Karten pro Seite, weiter über
+      ?page=N (?p= und ?offset= werden ignoriert). Beim ersten Lauf 253 Weinangebote
+      über 6 Seiten, verteilt auf Coop 204, Otto's 17, Denner 16, Lidl 7,
+      Coop Megastore 5, SPAR 3, Volg 1.
+      Damit kommen Quellen ins Werkzeug, die direkt nicht einlesbar sind (Coop,
+      Migros, Lidl) oder für die es keinen eigenen Adapter gibt (Otto's, SPAR, Volg).
+      Die Angebote werden dem *echten* Händler zugeschrieben, nicht Aktionis.
+      ACHTUNG: Daten aus zweiter Hand. Ein Preis, der bei Aktionis falsch steht, steht
+      danach auch im Report. Die Deal-URL wird als Angebots-URL mitgeführt, damit jede
+      Zeile bis zur Quelle zurückverfolgbar bleibt.
+      robots.txt erlaubt /q/ und /deals/; gesperrt sind /admin, /login, /profile,
+      *.pdf, /dealtarget/ und /app — die werden nicht angefasst.
+    private_label_brands:
+      [Prix Garantie, Qualité & Prix, Fine Food, M-Classic, Sélection, Terra Vigneto,
+       Carmelin, Domherrenwein, Heldenrosé, Noirillon, Cépage Roi]
+
   # ---------------------------------------------------------------- Tier 3
   - key: prodega
     name: Prodega (Transgourmet)
+    channel: Abholmarkt, Kundenkarte nötig
     tier: 3
     domain: transgourmet.ch
     adapter: prodega
@@ -223,6 +265,7 @@ retailers:
 
   - key: aligro
     name: Aligro
+    channel: Abholmarkt, Kundenkarte nötig
     tier: 3
     domain: aligro.ch
     adapter: generic_html
@@ -239,6 +282,7 @@ retailers:
 
   - key: topcc
     name: TopCC
+    channel: Abholmarkt, Kundenkarte nötig
     tier: 3
     domain: topcc.ch
     adapter: generic_html
@@ -248,6 +292,31 @@ retailers:
     shop_root: https://www.topcc.ch/
     verified_at: "2026-08-05"
     notes: /de/ antwortete 404. Wie Aligro ohne Karte ohne Nutzen.
+
+
+  # Über Aktionis mitgelesen, ohne eigenen Adapter. Stehen hier nur, damit der Report
+  # einen lesbaren Namen und den Verkaufskanal kennt.
+  - key: spar
+    name: SPAR
+    channel: Filiale
+    tier: 2
+    domain: spar.ch
+    adapter: none
+    enabled: false
+    status: via_aktionis
+    verified_at: "2026-08-06"
+    notes: Angebote kommen über den Aktionis-Aggregator.
+
+  - key: volg
+    name: Volg
+    channel: Filiale
+    tier: 2
+    domain: volg.ch
+    adapter: none
+    enabled: false
+    status: via_aktionis
+    verified_at: "2026-08-06"
+    notes: Angebote kommen über den Aktionis-Aggregator.
 
 # Bataillard ist nach Importvolumen die Nummer 3 der Schweiz, aber Grosshandel ohne
 # Endkunden-Aktionen — bewusst nicht aufgenommen.

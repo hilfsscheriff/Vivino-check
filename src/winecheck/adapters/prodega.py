@@ -1,27 +1,36 @@
 """Prodega / Transgourmet — der aufwendigste Adapter.
 
-Zwei Wege, in dieser Reihenfolge:
+Drei Wege, in dieser Reihenfolge:
 
-1. **Wochenprospekt als PDF, öffentlich.** ``transgourmet.ch/de/aktionen`` verlinkt die
-   Aktionsbroschüre der Woche unter ``www-static.transgourmet.ch`` — ohne Login. Dort
-   stehen die Weinaktionen mit Artikelnummer, Bezugsgrösse, Aktionspreis und
-   Referenzpreis ("statt"). Das PDF sagt selbst: *"Alle Angebote exklusive MwSt und
-   inklusive VRG"* — genau die Fussangel, wegen der jeder Vergleich mit Coop/Denner
-   sonst falsch ist.
-2. **Webkatalog hinter Login.** Für Sortiment und marktspezifische Preise. Zugangsdaten
+1. **Prodega Easy, öffentlicher JSON-Katalog.** ``web.transgourmet.ch`` liefert unter
+   ``/de/prodega-easy/catalog.data`` die Katalogdaten als turbo-stream-JSON —
+   **ohne Login**, ``isAuthenticated: false``. Mit ``hwg=3`` (Warengruppe Getränke),
+   ``searchTerm=wein`` und ``a=true`` (nur Aktionen) sind das rund 85 Weinpositionen
+   mit Artikelnummer, Bezeichnung inkl. Volumen, Aktions- und Normalpreis sowie
+   Gültigkeitszeitraum. Das ist die Hauptquelle.
+
+   Wichtig für die Preisrechnung: ``unitText`` sagt, worauf sich ``price`` bezieht
+   (``Fl`` = pro Flasche), ``sellUnit`` nur, wie verkauft wird (``Kt`` = Karton).
+   ``pricePerSellUnit`` geteilt durch ``price`` ergibt die Flaschenzahl im Karton.
+   Alle Preise sind exkl. MwSt.
+
+2. **Wochenprospekt als PDF, öffentlich.** ``transgourmet.ch/de/aktionen`` verlinkt die
+   Aktionsbroschüre der Woche unter ``www-static.transgourmet.ch``. Sie sagt selbst:
+   *"Alle Angebote exklusive MwSt und inklusive VRG"*. Wird nur noch als **Rückfall**
+   gelesen, wenn der Easy-Katalog nichts liefert: der Rasterparser ist heuristisch,
+   das JSON ist es nicht.
+
+3. **Webkatalog hinter Login.** Nur für marktspezifische Preise nötig. Zugangsdaten
    kommen aus ``PRODEGA_USER``/``PRODEGA_PASS`` oder als Session-Cookie aus
-   ``PRODEGA_COOKIE`` — nie aus dem Code, nie aus dem Repo.
+   ``PRODEGA_COOKIE`` — nie aus dem Code, nie aus dem Repo. Ungetestet.
 
-Zur robots.txt: die Domain verbietet Crawlern ``/login``, ``/user/login`` und
+Zur robots.txt: ``transgourmet.ch`` verbietet Crawlern ``/login``, ``/user/login`` und
 ``/search/``. Die Regeln greifen als Pfad-Präfix und damit nicht auf die
-sprachpräfixierte Variante ``/de/user/login``. Unabhängig davon wird der Login hier
-als *Nutzeraktion mit eigenen Zugangsdaten* behandelt und nicht als Crawling — das
-Rate-Limit von einer Anfrage pro zwei Sekunden gilt trotzdem.
+sprachpräfixierte Variante ``/de/user/login``. ``web.transgourmet.ch`` ist eine eigene
+Domain mit eigener robots.txt, die der Fetcher separat prüft.
 
-Zu ``easy.prodega.ch``: leitet auf ``web.transgourmet.ch`` mit einem Cookie-Check
-weiter und ist ohne Session nicht ansprechbar. Ein offener JSON-Endpunkt der App war
-ohne Reverse Engineering nicht auffindbar — laut Auftrag wird das dann gelassen und
-der Webkatalog genommen.
+Zu ``easy.prodega.ch``: leitet mit Cookie-Check auf ``web.transgourmet.ch`` weiter und
+ist als Einstieg unbrauchbar — der Katalogpfad dort funktioniert aber direkt.
 """
 
 from __future__ import annotations
@@ -32,13 +41,24 @@ import urllib.parse
 from selectolax.parser import HTMLParser
 
 from ..fetching import Blocked
-from ..models import Offer
+from ..models import Offer, PriceConfidence
 from .base import FetchReport, RetailerAdapter, looks_like_wine, parse_price
+from ..turbostream import TurboStream
 from .prospekt_pdf import ProspektPdfMixin
 
 PROMO_PAGE = "https://www.transgourmet.ch/de/aktionen"
 LOGIN_PAGE = "https://www.transgourmet.ch/de/user/login"
 WINE_CATEGORY = "https://www.transgourmet.ch/de/sortiment/wein"
+
+#: Prodega Easy, JSON-Katalog. ``hwg=3`` ist die Warengruppe Getränke, ``a=true``
+#: filtert auf Aktionen. Ohne ``a=true`` käme das ganze Sortiment.
+EASY_CATALOG = "https://web.transgourmet.ch/de/prodega-easy/catalog.data"
+EASY_PAGE = "https://web.transgourmet.ch/de/prodega-easy/catalog"
+EASY_PARAMS = {"searchTerm": "wein", "hwg": "3", "a": "true"}
+
+#: Seiten durchblättern, bis eine leer ist. pageSize ist 100, in der Praxis passt
+#: alles auf Seite 0 — die Schleife ist die Absicherung, falls das Sortiment wächst.
+EASY_MAX_PAGES = 6
 
 #: Die Wochenbroschüre heisst "kwNN-...-aktionen-d.pdf". Andere PDFs auf der Seite
 #: sind Kataloge und Marktberichte ohne Aktionspreise.
@@ -98,6 +118,72 @@ class ProdegaAdapter(ProspektPdfMixin, RetailerAdapter):
         self.logged_in = ok
         return ok, "angemeldet" if ok else "Login-Status unklar, fahre öffentlich fort"
 
+    # ------------------------------------------------------- Weg 1: Easy-JSON
+    def _fetch_easy(self) -> tuple[list[Offer], str]:
+        """Aktionen aus dem öffentlichen Prodega-Easy-Katalog."""
+        offers: list[Offer] = []
+        pages = 0
+        for page in range(EASY_MAX_PAGES):
+            params = {**EASY_PARAMS, "page": str(page)}
+            try:
+                res = self.fetcher.get(EASY_CATALOG, params=params, expect_json=True)
+            except Blocked as exc:
+                return offers, f"Easy-Katalog blockiert auf Seite {page}: {exc}"
+            stream = TurboStream.parse(res.text)
+            if stream is None:
+                return offers, f"Easy-Katalog lieferte kein turbo-stream-JSON (Seite {page})"
+            articles = _easy_articles(stream)
+            if not articles:
+                break
+            pages += 1
+            for art in articles:
+                offer = self._offer_from_easy(art)
+                if offer is not None:
+                    offers.append(offer)
+
+        note = f"Easy-Katalog: {len(offers)} Weinaktionen von {pages} Seite(n)"
+        return offers, note
+
+    def _offer_from_easy(self, art: dict) -> Offer | None:
+        """Ein Artikel aus dem Easy-Katalog.
+
+        ``price`` bezieht sich auf ``unitText``: bei ``Fl`` ist es der Flaschenpreis,
+        exkl. MwSt. Steht dort etwas anderes, wird die Bezugsgrösse nicht geraten —
+        dann fliegt die Position mit ``price_confidence = low`` aus dem Ranking.
+        """
+        name = _clean(art.get("description"))
+        if not name or not looks_like_wine(name):
+            return None
+        price = _num(art.get("price")) or _num(art.get("actionPrice"))
+        if price is None:
+            return None
+        reference = _num(art.get("normalPrice")) or _num(art.get("oldPrice"))
+
+        unit = _clean(art.get("unitText"))
+        per_bottle = unit.lower() in ("fl", "flasche", "bouteille", "st", "stk")
+        gebinde = name  # trägt das Volumen, z.B. "Sensuale Primitivo …, 75 cl"
+        if not per_bottle:
+            gebinde = f"{name} {unit}".strip()
+
+        offer = self.make_offer(
+            name=name,
+            url=_easy_item_url(art),
+            price_text=price,
+            reference_text=reference,
+            gebinde_text=gebinde,
+            article_no=_clean(art.get("articleNumber")) or None,
+            source_note=_easy_note(art),
+            price_basis="bottle" if per_bottle else "auto",
+            vat_included=False,
+        )
+        if not per_bottle:
+            offer.price_confidence = PriceConfidence.LOW
+            offer.source_note = _join(
+                offer.source_note,
+                f"Bezugsgrösse '{unit}' nicht als Flasche erkannt — nicht im Ranking",
+            )
+        return offer
+
     # ------------------------------------------------------------------ Ablauf
     def fetch(self) -> FetchReport:
         report = FetchReport(retailer=self.cfg.key)
@@ -106,30 +192,39 @@ class ProdegaAdapter(ProspektPdfMixin, RetailerAdapter):
         ok, login_note = self.login()
         notes.append(login_note)
 
-        # -- Weg 1: öffentlicher Wochenprospekt ----------------------------
-        pdf_url = ""
-        try:
-            promo = self.fetcher.get(PROMO_PAGE)
-            pdf_url = _find_promo_pdf(promo.text)
-        except Blocked as exc:
-            notes.append(f"Aktionsseite blockiert: {exc}")
+        # -- Weg 1: öffentlicher Easy-Katalog (JSON) -----------------------
+        easy_offers, easy_note = self._fetch_easy()
+        report.offers.extend(easy_offers)
+        notes.append(easy_note)
+        report.resolved_url = EASY_PAGE
 
-        if pdf_url:
+        # -- Weg 2: Wochenprospekt, nur als Rückfall -----------------------
+        if not easy_offers:
+            pdf_url = ""
             try:
-                pdf = self.fetcher.get(pdf_url)
-                offers, uncertain = self.offers_from_pdf(pdf.content_bytes, pdf_url)
-                report.offers.extend(offers)
-                self.uncertain.extend(uncertain)
-                notes.append(
-                    f"Wochenprospekt {pdf_url.rsplit('/', 1)[-1]}: {len(offers)} Weinpositionen"
-                    + (f", {len(uncertain)} unsicher" if uncertain else "")
-                )
+                promo = self.fetcher.get(PROMO_PAGE)
+                pdf_url = _find_promo_pdf(promo.text)
             except Blocked as exc:
-                notes.append(f"Prospekt-PDF nicht ladbar: {exc}")
-            except Exception as exc:  # noqa: BLE001
-                notes.append(f"Prospekt-PDF nicht lesbar: {exc}")
-        else:
-            notes.append("kein Wochenprospekt-PDF auf der Aktionsseite gefunden")
+                notes.append(f"Aktionsseite blockiert: {exc}")
+
+            if pdf_url:
+                try:
+                    pdf = self.fetcher.get(pdf_url)
+                    offers, uncertain = self.offers_from_pdf(pdf.content_bytes, pdf_url)
+                    report.offers.extend(offers)
+                    self.uncertain.extend(uncertain)
+                    report.resolved_url = pdf_url
+                    notes.append(
+                        f"Rückfall Wochenprospekt {pdf_url.rsplit('/', 1)[-1]}: "
+                        f"{len(offers)} Weinpositionen"
+                        + (f", {len(uncertain)} unsicher" if uncertain else "")
+                    )
+                except Blocked as exc:
+                    notes.append(f"Prospekt-PDF nicht ladbar: {exc}")
+                except Exception as exc:  # noqa: BLE001
+                    notes.append(f"Prospekt-PDF nicht lesbar: {exc}")
+            else:
+                notes.append("kein Wochenprospekt-PDF auf der Aktionsseite gefunden")
 
         # -- Weg 2: Webkatalog, nur mit Login ------------------------------
         if self.logged_in:
@@ -143,7 +238,6 @@ class ProdegaAdapter(ProspektPdfMixin, RetailerAdapter):
         else:
             notes.append("Webkatalog übersprungen (nicht angemeldet)")
 
-        report.resolved_url = pdf_url or PROMO_PAGE
         report.message = "; ".join(n for n in notes if n)
         if not report.offers:
             report.status = "empty"
@@ -238,3 +332,70 @@ def _market_url(url: str, market: str | None) -> str:
         return url
     sep = "&" if "?" in url else "?"
     return f"{url}{sep}market={urllib.parse.quote(market)}"
+
+
+# --------------------------------------------------------------- Easy-Katalog
+
+def _easy_articles(stream: TurboStream) -> list[dict]:
+    """Die Artikelliste aus der Suchantwort. Sub-Artikel (``zzArticles``) bleiben
+    draussen — das sind Gebindevarianten desselben Artikels."""
+    best: list[dict] = []
+    for obj in stream.objects_with("articles"):
+        arts = obj.get("articles")
+        if isinstance(arts, list) and len(arts) > len(best):
+            best = [a for a in arts if isinstance(a, dict) and a.get("articleNumber")]
+    return best
+
+
+def _easy_item_url(art: dict) -> str:
+    """Suchlink auf den Artikel — Prodega Easy hat keine stabile Detail-URL pro
+    Artikelnummer, die ohne Session funktioniert."""
+    number = _clean(art.get("articleNumber"))
+    if not number:
+        return EASY_PAGE
+    return f"{EASY_PAGE}?searchTerm={urllib.parse.quote(number)}&hwg=3"
+
+
+def _easy_note(art: dict) -> str:
+    bits = ["Prodega Easy"]
+    frm, to = _clean(art.get("actionValidFrom"))[:10], _clean(art.get("actionValidTo"))[:10]
+    if frm and to:
+        bits.append(f"Aktion {_de_date(frm)}\u2013{_de_date(to)}")
+    sell = _clean(art.get("sellUnit"))
+    unit = _clean(art.get("unitText"))
+    per_unit = _num(art.get("pricePerSellUnit"))
+    price = _num(art.get("price"))
+    if sell and unit and per_unit and price:
+        # pricePerSellUnit / price ergibt die Stueckzahl im Verkaufsgebinde.
+        count = round(per_unit / price) if price else 0
+        if count > 1:
+            bits.append(f"Verkauf per {sell} = {count} \u00d7 {unit}")
+    return "; ".join(bits)
+
+
+def _de_date(iso: str) -> str:
+    try:
+        y, m, d = iso.split("-")
+        return f"{int(d)}.{int(m)}.{y}"
+    except ValueError:
+        return iso
+
+
+def _num(value: object) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        f = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return f if f > 0 else None
+
+
+def _clean(value: object) -> str:
+    if value is None or isinstance(value, (dict, list, bool)):
+        return ""
+    return re.sub(r"\s+", " ", str(value)).strip()
+
+
+def _join(a: str, b: str) -> str:
+    return "; ".join(x for x in (a, b) if x)

@@ -18,6 +18,13 @@ LEGAL_DESIGNATIONS = {
     "doc", "docg", "dop", "igt", "igp", "aoc", "aop", "ao", "do", "doca", "dso",
     "vdp", "vdt", "qba", "ava", "pdo", "pgi", "vino", "vin", "wein", "weine",
     "wines", "vini", "controllata", "denominazione", "origine", "garantita",
+    # Weinart als Wort. Aktionis schreibt "… – Rotwein, Österreich (0.75l)"; ohne
+    # diese Einträge wäre "rotwein" ein eigenständiger Namensbestandteil und würde
+    # als Identität zählen.
+    "rotwein", "weisswein", "rosewein", "roséwein", "schaumwein", "perlwein",
+    "dessertwein", "likorwein", "likörwein", "sussweim", "susswein", "südwein",
+    "sudwein", "landwein", "tafelwein", "qualitatswein", "prädikatswein",
+    "pradikatswein", "schaumweine", "stillwein",
     "appellation", "controlee", "protegee", "qualitatswein", "landwein", "tafelwein",
 }
 

@@ -37,7 +37,17 @@ def merge_offers(offers: list[Offer]) -> list[WineRow]:
             offers=list(group),
             is_private_label=any(o.is_private_label for o in group),
         )
+        # Je Händler genau ein Preis. Ein Wein kann denselben Händler mehrfach
+        # liefern — Denner wird direkt *und* über Aktionis gelesen, und ein Shop
+        # führt dieselbe Flasche manchmal in zwei Gebinden. Behalten wird der
+        # verlässlichste, bei gleicher Verlässlichkeit der günstigste.
+        by_retailer: dict[str, Offer] = {}
         for o in group:
+            prev = by_retailer.get(o.retailer)
+            if prev is None or _better_price(o, prev):
+                by_retailer[o.retailer] = o
+
+        for o in by_retailer.values():
             row.prices.append(
                 RetailerPrice(
                     retailer=o.retailer,
@@ -53,6 +63,16 @@ def merge_offers(offers: list[Offer]) -> list[WineRow]:
         row.price_band = price_band(row.best_price)
         rows.append(row)
     return rows
+
+
+def _better_price(candidate: Offer, current: Offer) -> bool:
+    """Verlässlichkeit zuerst, dann der günstigere Preis."""
+    rank = {PriceConfidence.HIGH: 0, PriceConfidence.MEDIUM: 1, PriceConfidence.LOW: 2}
+    c_rank = rank.get(candidate.price_confidence, 3)
+    p_rank = rank.get(current.price_confidence, 3)
+    if c_rank != p_rank:
+        return c_rank < p_rank
+    return (candidate.price_per_bottle_incl_vat or 9e9) < (current.price_per_bottle_incl_vat or 9e9)
 
 
 def compute_scores(rows: list[WineRow]) -> list[WineRow]:

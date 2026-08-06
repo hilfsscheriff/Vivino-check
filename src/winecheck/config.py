@@ -30,6 +30,8 @@ class SourceConfig:
     promo_keywords: list[str] = field(default_factory=list)
     private_label_brands: list[str] = field(default_factory=list)
     notes: str = ""
+    #: Wo der Wein tatsächlich zu kaufen ist — Filiale, Onlineshop, Abholmarkt.
+    channel: str = ""
     blocked_by: str = ""
     verified_at: str = ""
     vat_included: bool = True

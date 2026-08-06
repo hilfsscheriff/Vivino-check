@@ -31,6 +31,11 @@ TTL_RATING_DAYS = 90
 TTL_PRICE_DAYS = 1
 TTL_SOFT_MISS_DAYS = 30      # rating_not_readable, no_entry
 
+#: Bewertungen ändern sich langsam, Preise nicht. Trägt ein Eintrag einen
+#: Vivino-Marktpreis, wird er nach dieser Zeit neu geholt — sonst stünde im Report
+#: monatelang ein alter Marktpreis und damit ein falsches Schnäppchen-Prozent.
+TTL_MARKET_PRICE_DAYS = 30
+
 #: Status-Werte, die nur kurz gecacht werden, weil Vivino-Einträge dazukommen.
 SOFT_MISS_STATUSES = {"rating_not_readable", "no_entry", "too_few_ratings", "ambiguous"}
 
@@ -123,7 +128,11 @@ class Cache:
         elif age_days > TTL_RATING_DAYS:
             return None
 
-        return json.loads(row["payload"])
+        payload = json.loads(row["payload"])
+        # Der Marktpreis veraltet schneller als die Bewertung.
+        if payload.get("market_price") is not None and age_days > TTL_MARKET_PRICE_DAYS:
+            return None
+        return payload
 
     def put_rating(
         self,

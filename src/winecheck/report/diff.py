@@ -41,6 +41,8 @@ def snapshot(rows: list[WineRow]) -> list[dict[str, Any]]:
             },
             "vivino_status": r.vivino.status.value if r.vivino else "",
             "vivino_rating": r.vivino.rating if r.vivino else None,
+            "market_price": r.market_price,
+            "bargain_percent": r.bargain_percent,
             "vivino_rating_count": r.vivino.rating_count if r.vivino else None,
             "vivino_url": r.vivino.url if r.vivino else "",
             "falstaff_points": r.falstaff.value if r.falstaff else None,
@@ -210,6 +212,9 @@ def _describe(row: WineRow) -> str:
         else:
             text += f", Vivino: {ch(VIVINO_LABELS.get(row.vivino.status, ''))}"
         text += f" ([Link]({row.vivino.url}))"
+    pct = row.bargain_percent
+    if pct is not None and pct > 0:
+        text += f" · **{pct:.0f} % unter Marktpreis**"
     if row.value_score is not None:
         text += f" · Score {row.value_score:.0f}"
     return text

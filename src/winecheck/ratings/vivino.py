@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
+import urllib.parse
+from dataclasses import dataclass, field
 from typing import Any
 
 from ..fetching import Blocked, Fetcher
@@ -53,6 +54,17 @@ MAX_CANDIDATES_SHOWN = 3
 
 
 @dataclass
+class _Price:
+    """Ein Händlerpreis aus der Vivino-Antwort, auf 75 cl normalisiert."""
+
+    per_75cl: float
+    raw: float
+    basis: str
+    url: str
+    shop: str
+
+
+@dataclass
 class _Cand:
     """Ein Kandidat aus der API, auf das Nötige reduziert."""
 
@@ -65,10 +77,35 @@ class _Cand:
     vintage_count: int
     wine_avg: float | None
     wine_count: int
+    prices: list[_Price] = field(default_factory=list)
 
     @property
     def has_vintage_rating(self) -> bool:
         return self.vintage_count >= MIN_RATINGS and self.vintage_avg is not None
+
+    def market_price(self, exclude_hosts: set[str]) -> tuple[_Price | None, str]:
+        """Günstigster Preis, der **nicht** vom Vergleichshändler selbst stammt.
+
+        Ohne diese Filterung wäre der Vergleich zirkulär: Mövenpick ist
+        Vivino-Partnerhändler (``merchant_id`` 450), und für Mövenpick-Weine nennt
+        Vivino genau den Mövenpick-Preis. Château Plince CHF 65 gegen CHF 65 wären
+        dann 0 % Ersparnis — und alle Weine anderer Händler sähen dadurch besser aus.
+        """
+        if not self.prices:
+            return None, "Vivino nennt keinen Händlerpreis für die Schweiz"
+        usable = [p for p in self.prices if not _host_matches(p.url, exclude_hosts)]
+        if not usable:
+            shops = ", ".join(sorted({p.shop for p in self.prices if p.shop})) or "demselben Shop"
+            return None, (
+                f"einziger Vivino-Preis stammt von {shops} — derselbe Händler, "
+                f"kein unabhängiger Vergleich möglich"
+            )
+        best = min(usable, key=lambda p: p.per_75cl)
+        skipped = len(self.prices) - len(usable)
+        note = f"Marktpreis von {best.shop or 'Vivino-Händler'}"
+        if skipped:
+            note += f" ({skipped} Preis(e) des eigenen Händlers übersprungen)"
+        return best, note
 
 
 def build_query(name: str, vintage: int | None = None) -> str:
@@ -116,9 +153,66 @@ def _parse_candidates(payload: dict[str, Any]) -> list[_Cand]:
                 vintage_count=_i(stats.get("ratings_count")),
                 wine_avg=_f(stats.get("wine_ratings_average")),
                 wine_count=_i(stats.get("wine_ratings_count")),
+                prices=_parse_prices(match),
             )
         )
     return out
+
+
+def _parse_prices(match: dict[str, Any]) -> list[_Price]:
+    """Händlerpreise auf CHF pro 75 cl normalisieren.
+
+    Nur CHF wird übernommen — umgerechnet wird nichts, ein Wechselkurs wäre eine
+    weitere Fehlerquelle. ``bottle_quantity`` ist die Zahl der Flaschen im Angebot,
+    ``bottle_type.volume_ml`` das Volumen je Flasche.
+    """
+    raw = match.get("prices")
+    if not isinstance(raw, list) or not raw:
+        single = match.get("price")
+        raw = [single] if isinstance(single, dict) else []
+
+    out: list[_Price] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        currency = ((entry.get("currency") or {}).get("code") or "").upper()
+        amount = _f(entry.get("amount"))
+        if currency != "CHF" or amount is None:
+            continue
+        bottles = _i(entry.get("bottle_quantity")) or 1
+        volume = _i((entry.get("bottle_type") or {}).get("volume_ml")) or 750
+        if bottles <= 0 or volume <= 0:
+            continue
+        per_75cl = round(amount / bottles * (750 / volume), 2)
+        url = str(entry.get("url") or "")
+        basis_parts = []
+        if bottles > 1:
+            basis_parts.append(f"{bottles} Flaschen")
+        if volume != 750:
+            basis_parts.append(f"{volume/10:g} cl")
+        out.append(
+            _Price(
+                per_75cl=per_75cl,
+                raw=amount,
+                basis=", ".join(basis_parts) or "pro Flasche",
+                url=url,
+                shop=_shop_name(url),
+            )
+        )
+    return out
+
+
+def _shop_name(url: str) -> str:
+    host = urllib.parse.urlsplit(url).netloc.lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def _host_matches(url: str, hosts: set[str]) -> bool:
+    """Gehört die Preis-URL zu einem der ausgeschlossenen Händler?"""
+    host = _shop_name(url)
+    if not host:
+        return False
+    return any(host == h or host.endswith("." + h) or h.endswith("." + host) for h in hosts if h)
 
 
 def _f(v: object) -> float | None:
@@ -141,12 +235,20 @@ def classify(
     retailer_vintage: int | None,
     query: str,
     candidates: list[_Cand],
+    *,
+    exclude_hosts: set[str] | None = None,
 ) -> VivinoResult:
     """Ordnet API-Kandidaten einem :class:`VivinoStatus` zu.
 
     Reine Funktion ohne Netz — deshalb vollständig testbar. Liefert **immer** ein
     Ergebnis mit gesetzter URL: Weinseite falls gefunden, sonst die Suchurl.
+
+    Args:
+        exclude_hosts: Domains der Händler, mit denen verglichen wird. Preise von
+            dort werden beim Marktpreis übersprungen, sonst ist der Vergleich
+            zirkulär.
     """
+    hosts = exclude_hosts or set()
     if not candidates:
         return VivinoResult.miss(
             VivinoStatus.NO_ENTRY,
@@ -232,6 +334,7 @@ def classify(
     top = ranked[0]
     c = candidates[top.index]
     decision = top.decision
+    price, price_note = c.market_price(hosts)
     suffix = "" if decision.confidence is MatchConfidence.EXACT else f" [{decision.reason}]"
 
     # -- Jahrgangsgenaue Bewertung ----------------------------------------
@@ -245,6 +348,7 @@ def classify(
             rating_count=c.vintage_count,
             matched_name=c.name,
             match_confidence=decision.confidence.value,
+            **_price_fields(price, price_note),
         )
 
     # -- Weinseite hat Bewertung, Jahrgang weicht ab -----------------------
@@ -263,6 +367,7 @@ def classify(
             rating_count=c.wine_count,
             matched_name=c.wine_name or c.name,
             match_confidence=decision.confidence.value,
+            **_price_fields(price, price_note),
         )
 
     # -- Seite existiert, aber zu wenige Bewertungen -----------------------
@@ -279,6 +384,7 @@ def classify(
         rating_count=count or None,
         matched_name=c.name,
         match_confidence=decision.confidence.value,
+        **_price_fields(price, price_note),
     )
 
 
@@ -320,6 +426,7 @@ class VivinoAdapter:
         *,
         refresh: bool = False,
         retry_failed: bool = False,
+        exclude_hosts: set[str] | None = None,
     ) -> VivinoResult:
         """Immer ein Ergebnis mit Status, Query und klickbarer URL."""
         query = build_query(name, vintage)
@@ -333,7 +440,7 @@ class VivinoAdapter:
 
         try:
             candidates = self._search(query)
-            result = classify(name, vintage, query, candidates)
+            result = classify(name, vintage, query, candidates, exclude_hosts=exclude_hosts)
             # Recall-Versuch, wenn die lange Query nichts fand. Gekürzt wird auf die
             # *unterscheidenden* Tokens, nicht positionell: "passio nero avola" wäre
             # zu 2/3 Rebsortenname und liefert ein Feld fremder Weine, das dann als
@@ -341,7 +448,10 @@ class VivinoAdapter:
             if result.status is VivinoStatus.NO_ENTRY:
                 short = " ".join(distinctive_tokens(name)[:4])
                 if short and short != query:
-                    alt = classify(name, vintage, short, self._search(short))
+                    alt = classify(
+                        name, vintage, short, self._search(short),
+                        exclude_hosts=exclude_hosts,
+                    )
                     if alt.status is not VivinoStatus.NO_ENTRY:
                         result = alt
         except Blocked as exc:
@@ -365,6 +475,20 @@ class VivinoAdapter:
         return result
 
 
+def _price_fields(price: _Price | None, note: str) -> dict[str, Any]:
+    """Marktpreis-Felder für :class:`VivinoResult`."""
+    if price is None:
+        return {"market_price_note": note}
+    return {
+        "market_price": price.per_75cl,
+        "market_price_raw": price.raw,
+        "market_price_basis": price.basis,
+        "market_price_url": price.url,
+        "market_price_shop": price.shop,
+        "market_price_note": note,
+    }
+
+
 def _to_payload(r: VivinoResult) -> dict[str, Any]:
     return {
         "status": r.status.value,
@@ -377,6 +501,12 @@ def _to_payload(r: VivinoResult) -> dict[str, Any]:
         "retry_after": r.retry_after,
         "checked_at": r.checked_at,
         "match_confidence": r.match_confidence,
+        "market_price": r.market_price,
+        "market_price_raw": r.market_price_raw,
+        "market_price_basis": r.market_price_basis,
+        "market_price_url": r.market_price_url,
+        "market_price_shop": r.market_price_shop,
+        "market_price_note": r.market_price_note,
         "candidates": [
             {
                 "name": c.name,
@@ -403,6 +533,12 @@ def _from_payload(d: dict[str, Any]) -> VivinoResult:
         retry_after=d.get("retry_after"),
         checked_at=d.get("checked_at"),
         match_confidence=d.get("match_confidence") or "",
+        market_price=d.get("market_price"),
+        market_price_raw=d.get("market_price_raw"),
+        market_price_basis=d.get("market_price_basis") or "",
+        market_price_url=d.get("market_price_url") or "",
+        market_price_shop=d.get("market_price_shop") or "",
+        market_price_note=d.get("market_price_note") or "",
         candidates=[
             VivinoCandidate(
                 name=c.get("name") or "",
