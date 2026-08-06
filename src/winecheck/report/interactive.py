@@ -149,6 +149,10 @@ def write_interactive(
         plot_w=plot_w,
         plot_h=plot_h,
         axis_y=PAD_TOP + plot_h,
+        pad_top=PAD_TOP,
+        plot_right=PAD_LEFT + plot_w,
+        y_label_y=PAD_TOP + plot_h / 2,
+        hint_y=PAD_TOP - 12,
         x_label_x=PAD_LEFT + plot_w / 2,
         x_label_y=HEIGHT - 14,
         grid="".join(grid),
@@ -194,13 +198,14 @@ _TEMPLATE = """<!doctype html>
   .pt.dim {{ opacity: .08; pointer-events: none; }}
   .pt.on {{ r: 9.5; stroke: var(--ink); stroke-width: 2; }}
   ul.legend {{ list-style: none; margin: 0; padding: 0; position: absolute;
-              right: 0; top: 46px; width: 190px; }}
+              right: 0; top: 58px; width: 186px; }}
   .legend-item {{ display: flex; align-items: center; gap: 8px; width: 100%;
                  background: none; border: 0; padding: 4px 6px; border-radius: 6px;
                  color: inherit; font: inherit; font-size: 12.5px; cursor: pointer; }}
   .legend-item:hover {{ background: var(--panel); }}
   .legend-item[aria-pressed="false"] {{ opacity: .38; }}
-  .dot {{ width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; }}
+  .dot {{ width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto;
+         margin-right: 2px; }}
   .legend-label {{ flex: 1 1 auto; text-align: left; }}
   .legend-count {{ color: var(--muted); font-variant-numeric: tabular-nums; }}
   #tip {{ position: fixed; z-index: 10; pointer-events: none; opacity: 0;
@@ -231,13 +236,15 @@ Details, Klick öffnet die Händlerseite · Händler in der Legende zum Ausblend
 <div class="wrap">
   <svg viewBox="0 0 {width} {height}" role="img" aria-label="Streudiagramm Preis gegen Bewertung">
     {grid}
-    <line class="axis" x1="{pad_left}" y1="{axis_y}" x2="{pad_left}" y2="46"/>
-    <line class="axis" x1="{pad_left}" y1="{axis_y}" x2="{legend_x}" y2="{axis_y}"/>
+    <line class="axis" x1="{pad_left}" y1="{axis_y}" x2="{pad_left}" y2="{pad_top}"/>
+    <line class="axis" x1="{pad_left}" y1="{axis_y}" x2="{plot_right}" y2="{axis_y}"/>
     <text class="axis-label" x="{x_label_x}" y="{x_label_y}" text-anchor="middle">
       Preis pro 75 cl inkl. MwSt (CHF, logarithmisch)
     </text>
-    <text class="axis-label" x="16" y="30">Normalisierte Bewertung</text>
-    <text class="hint" x="{pad_left}" y="30">oben links = gut und günstig</text>
+    <!-- Gedreht an der Achse, sonst kollidiert die Beschriftung mit dem Hinweis. -->
+    <text class="axis-label" transform="rotate(-90 18 {y_label_y})" x="18" y="{y_label_y}"
+          text-anchor="middle">Normalisierte Bewertung (0–1)</text>
+    <text class="hint" x="{pad_left}" y="{hint_y}">oben links = gut und günstig</text>
     <g id="pts">{circles}</g>
   </svg>
   <ul class="legend">{legend}</ul>

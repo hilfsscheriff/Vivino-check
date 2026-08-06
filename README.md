@@ -130,6 +130,23 @@ Vivino-Preisen ausgeschlossen. Bleibt kein unabhängiger Preis, steht in der Spa
 Begründung statt einer 0. In der Praxis heisst das: bei Mövenpick gibt es meist kein
 Schnäppchen-Prozent, bei Prodega, Coop, Denner und Otto's schon.
 
+**Die zweite Falle — Ausreisser.** Der erste Lauf zeigte an der Spitze der Liste
+Fantasiewerte: ein Bourgogne Chardonnay für CHF 13.95 gegen CHF 80.86 von
+`cultwinesintl.com` (83 %) und ein Champagner für CHF 275 gegen CHF 841 von
+`wineuponatime.com`. Das sind Wein-Anlage- und Sammlerplattformen; deren Preise sind
+keine vergleichbaren Detailhandelspreise. Kennt Vivino für einen Wein nur *einen*
+unabhängigen Preis und der kommt von dort, wird das Schnäppchen künstlich gross —
+derselbe Scheinsieger-Mechanismus wie beim falsch umgerechneten Literpreis.
+
+Dagegen zwei Regeln:
+
+* **Schweizer Shops zuerst**, auch wenn ein ausländischer günstiger ist — verglichen
+  wird mit dem schweizerischen Detailhandel. Gibt es nur einen ausländischen Preis,
+  wird er genommen, aber mit dem Vermerk „kein Schweizer Shop, Vergleich mit Vorsicht".
+* **`bargain_plausibility`**, analog zur 45-%-Regel bei Eigenmarken-Rabatten: über
+  65 % Ersparnis oder ein Marktpreis ohne Schweizer Shop gilt als `questionable`.
+  Solche Zeilen bleiben im Report, führen die Rangliste aber nicht an und tragen ein `!`.
+
 Marktpreise werden nur 30 Tage gecacht, obwohl Bewertungen 90 Tage gelten — sonst
 stünde monatelang ein alter Preis und damit ein falsches Prozent im Report.
 
