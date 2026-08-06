@@ -103,3 +103,38 @@ def test_missing_match_confidence_from_old_cache_does_not_rank():
     """Alte Cache-Einträge ohne Konfidenz werden nicht stillschweigend gerankt."""
     row = _row(**_vivino(VivinoStatus.EXACT, rating=4.5, confidence=""))
     assert row.ranking_rating() == (None, "")
+
+
+# ------------------------------------------------------- Diagramm-Achse
+
+def test_chart_axis_uses_vivino_only_never_falstaff():
+    """Auf einer Achse darf nur eine Bewertungsgrundlage stehen. Ein Falstaff-92 und
+    ein Vivino-4.6 sehen normalisiert gleich hoch aus, bedeuten aber Verschiedenes —
+    das Diagramm würde eine Vergleichbarkeit behaupten, die es nicht gibt. Für die
+    Rangliste bleibt Falstaff Leitquelle, dort steht die Herkunft je Zeile."""
+    row = _row(**_vivino(VivinoStatus.EXACT, rating=4.2, confidence="exact", count=900))
+    row.falstaff = Rating(
+        source="falstaff", value=95.0, scale_max=100.0,
+        confidence=MatchConfidence.EXACT,
+    )
+    # Ranking folgt Falstaff …
+    assert row.ranking_rating()[1] == "Falstaff"
+    # … die Achse trotzdem Vivino, in der Original-Skala 1–5.
+    assert row.chart_rating() == 4.2
+
+
+def test_chart_axis_drops_winery_averages():
+    """Der Produzenten-Mittelwert ist keine Note für diesen Wein. Auf der Achse würde
+    er wie eine wirken."""
+    row = _row(**_vivino(
+        VivinoStatus.WINERY_LEVEL, rating=4.6, confidence="winery_level", count=92093,
+    ))
+    assert row.chart_rating() is None
+
+
+def test_chart_axis_drops_wines_without_vivino():
+    """Ohne Vivino-Note kein Punkt — statt einer geschätzten Position."""
+    assert _row().chart_rating() is None
+    assert _row(**_vivino(
+        VivinoStatus.NO_ENTRY, rating=None, confidence="none",
+    )).chart_rating() is None

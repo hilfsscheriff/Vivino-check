@@ -43,9 +43,26 @@ def snapshot(rows: list[WineRow]) -> list[dict[str, Any]]:
             "vivino_rating": r.vivino.rating if r.vivino else None,
             "market_price": r.market_price,
             "bargain_percent": r.bargain_percent,
-            "vivino_rating_count": r.vivino.rating_count if r.vivino else None,
             "vivino_url": r.vivino.url if r.vivino else "",
+            "vivino_rating_count": r.vivino.rating_count if r.vivino else None,
+            # Der Match-Grad muss mit, sonst kann die Webseite einen fuzzy-Treffer
+            # nicht von einem exakten unterscheiden und stellt beide gleich dar.
+            "vivino_match_confidence": (r.vivino.match_confidence if r.vivino else ""),
+            "vivino_matched_name": (r.vivino.matched_name if r.vivino else ""),
             "falstaff_points": r.falstaff.value if r.falstaff else None,
+            # Für die Webseite: Sorte, Trinkreife, Kaufquelle. Ältere Läufe haben
+            # diese Felder nicht — der Seitenbau muss ohne sie auskommen.
+            "style": r.style,
+            "style_label": r.style_label,
+            "maturity": r.maturity.code if r.maturity else "",
+            "maturity_short": r.maturity.short if r.maturity else "",
+            "maturity_region": r.maturity.region_label if r.maturity else "",
+            "vintage_quality": (r.maturity.quality or "") if r.maturity else "",
+            "cheapest_retailer": r.cheapest_retailer,
+            "urls": {p.retailer: p.url for p in r.prices if p.url},
+            "value_score": r.value_score,
+            "price_band": r.price_band,
+            "rank_source": r.rank_source,
         })
     return out
 

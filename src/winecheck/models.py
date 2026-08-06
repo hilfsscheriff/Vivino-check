@@ -114,6 +114,8 @@ class VivinoResult:
     #: Warum kein Marktpreis vorliegt — z.B. weil der einzige Preis vom selben
     #: Händler stammt, mit dem verglichen werden soll.
     market_price_note: str = ""
+    #: Vivinos ``wine.type_id`` — verlässlicher als jede Namensanalyse für die Sorte.
+    wine_type_id: int | None = None
 
     def __post_init__(self) -> None:
         # Harte Zusicherung: die URL ist niemals leer. Ohne Weinseite die Suche.
@@ -348,6 +350,24 @@ class WineRow:
     rank_source: str = ""            # welche Skala den Sortierschlüssel gestellt hat
     is_private_label: bool = False
 
+    @property
+    def style(self) -> str:
+        """Sorte: rot, weiss, rose, schaumwein, suesswein oder unbekannt.
+
+        Vivinos ``type_id`` hat Vorrang, weil er aus der Weindatenbank kommt; sonst
+        wird der Name ausgewertet.
+        """
+        from .names import wine_style
+
+        type_id = self.vivino.wine_type_id if self.vivino else None
+        return wine_style(self.name, type_id)
+
+    @property
+    def style_label(self) -> str:
+        from .names import STYLE_LABELS
+
+        return STYLE_LABELS.get(self.style, self.style)
+
     # -- Schnäppchen gegen den Marktpreis ----------------------------------
     @property
     def market_price(self) -> float | None:
@@ -489,6 +509,38 @@ class WineRow:
         # Leere Konfidenz kommt aus älteren Cache-Einträgen — dann nicht ranken.
         return v.match_confidence in ("exact", "wine_level")
 
+    def chart_rating(self) -> float | None:
+        """Note für die Diagramm-Achse — ausschliesslich Vivino, in 1–5.
+
+        Absichtlich *nicht* :meth:`ranking_rating`: dort mischen Falstaff (0–100) und
+        Vivino (1–5) über eine 0–1-Normalisierung auf eine Achse, und zwei
+        Bewertungsgrundlagen in einem Streudiagramm sind nicht vergleichbar — ein
+        Falstaff-92 und ein Vivino-4.6 liegen dann nebeneinander, ohne dass die Punkte
+        dasselbe bedeuten. Für die Rangliste bleibt Falstaff die Leitquelle; hier zählt
+        nur die eine Skala, die für alle 400 Weine dieselbe ist.
+
+        ``winery_level`` fällt raus: ein Produzenten-Mittelwert ist keine Note für
+        diesen Wein und hat auf der Achse nichts zu suchen. ``fuzzy``-Matches kommen
+        mit — sie betreffen 59 von 128 Weinen, und sie zu verschweigen halbiert das
+        Diagramm — aber :meth:`chart_confirmed` markiert sie als unbestätigt, damit
+        sie gezeichnet nicht wie bestätigte aussehen.
+        """
+        v = self.vivino
+        if v is None or v.rating is None:
+            return None
+        if v.status not in (VivinoStatus.EXACT, VivinoStatus.WINE_LEVEL):
+            return None
+        return v.rating
+
+    def chart_confirmed(self) -> bool:
+        """Ob der Punkt auf einem bestätigten Match sitzt.
+
+        Trennt die Darstellung von der Datenlage: ein ``fuzzy``-Match ist eine
+        plausible, aber ungeprüfte Zuordnung. Gefüllt gezeichnet würde er dasselbe
+        behaupten wie ein exakter Treffer.
+        """
+        return self._vivino_is_rankable()
+
     def no_rating_reason(self) -> str:
         """Begründung für die Tabelle 'ohne Bewertung'."""
         bits = []
@@ -540,6 +592,8 @@ class WineRow:
             "vivino_match_confidence": (v.match_confidence or "") if v else "",
             "vivino_candidates": " | ".join(f"{c.name} <{c.url}>" for c in v.candidates) if v else "",
             "vivino_retry_after": (v.retry_after or "") if v else "",
+            "sorte": self.style_label,
+            "sorte_key": self.style,
             "trinkreife": self.maturity.short if self.maturity else "",
             "trinkreife_text": self.maturity.text if self.maturity else "",
             "trinkreife_code": self.maturity.code if self.maturity else "",

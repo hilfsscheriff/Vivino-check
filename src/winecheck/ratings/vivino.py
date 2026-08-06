@@ -77,6 +77,7 @@ class _Cand:
     vintage_count: int
     wine_avg: float | None
     wine_count: int
+    type_id: int | None = None
     prices: list[_Price] = field(default_factory=list)
 
     @property
@@ -162,6 +163,7 @@ def _parse_candidates(payload: dict[str, Any]) -> list[_Cand]:
                 vintage_count=_i(stats.get("ratings_count")),
                 wine_avg=_f(stats.get("wine_ratings_average")),
                 wine_count=_i(stats.get("wine_ratings_count")),
+                type_id=_i(wine.get("type_id")) or None,
                 prices=_parse_prices(match),
             )
         )
@@ -358,6 +360,7 @@ def classify(
             matched_name=c.name,
             match_confidence=decision.confidence.value,
             **_price_fields(price, price_note),
+            wine_type_id=c.type_id,
         )
 
     # -- Weinseite hat Bewertung, Jahrgang weicht ab -----------------------
@@ -377,6 +380,7 @@ def classify(
             matched_name=c.wine_name or c.name,
             match_confidence=decision.confidence.value,
             **_price_fields(price, price_note),
+            wine_type_id=c.type_id,
         )
 
     # -- Seite existiert, aber zu wenige Bewertungen -----------------------
@@ -516,6 +520,7 @@ def _to_payload(r: VivinoResult) -> dict[str, Any]:
         "market_price_url": r.market_price_url,
         "market_price_shop": r.market_price_shop,
         "market_price_note": r.market_price_note,
+        "wine_type_id": r.wine_type_id,
         "candidates": [
             {
                 "name": c.name,
@@ -548,6 +553,7 @@ def _from_payload(d: dict[str, Any]) -> VivinoResult:
         market_price_url=d.get("market_price_url") or "",
         market_price_shop=d.get("market_price_shop") or "",
         market_price_note=d.get("market_price_note") or "",
+        wine_type_id=d.get("wine_type_id"),
         candidates=[
             VivinoCandidate(
                 name=c.get("name") or "",

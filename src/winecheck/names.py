@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from functools import lru_cache
 
 #: Rechtliche Herkunftsbezeichnungen. Händler und Bewertungsquellen schreiben die
 #: völlig inkonsistent ("Sicilia DOC" vs. gar nicht), darum raus aus dem Vergleich.
@@ -307,3 +308,98 @@ def looks_like_private_label(name: str, brands: list[str]) -> bool:
     """Eigenmarken-Erkennung über die in retailers.yaml gepflegten Markennamen."""
     hay = strip_accents((name or "").lower())
     return any(strip_accents(b.lower()) in hay for b in brands if b)
+
+
+# --------------------------------------------------------------------- Sorte
+
+#: Weinsorten für Filter und Anzeige.
+STYLES = ("rot", "weiss", "rose", "schaumwein", "suesswein", "unbekannt")
+
+STYLE_LABELS: dict[str, str] = {
+    "rot": "Rotwein",
+    "weiss": "Weisswein",
+    "rose": "Rosé",
+    "schaumwein": "Schaumwein",
+    "suesswein": "Süsswein",
+    "unbekannt": "unbekannt",
+}
+
+#: Vivinos ``wine.type_id`` — verlässlicher als jede Namensanalyse.
+VIVINO_TYPE_IDS: dict[int, str] = {
+    1: "rot",
+    2: "weiss",
+    3: "schaumwein",
+    4: "rose",
+    7: "suesswein",     # Dessertwein
+    24: "suesswein",    # Likörwein, Port
+}
+
+#: Schaumwein zuerst prüfen: ein "Rosé Champagne" ist Schaumwein, nicht Rosé, und
+#: ein "Blanc de Blancs" ist kein stiller Weisswein.
+_SPARKLING = (
+    "champagne", "champagner", "prosecco", "cava", "cremant", "crémant", "sekt",
+    "spumante", "franciacorta", "espumoso", "mousseux", "frizzante", "perlwein",
+    "schaumwein", "valdobbiadene", "cartizze", "asti", "lambrusco", "pet nat",
+)
+_SWEET = (
+    "sauternes", "barsac", "edelsuss", "edelsüss", "beerenauslese",
+    "trockenbeerenauslese", "eiswein", "strohwein", "passito", "recioto",
+    "vin santo", "vinsanto", "tokaji", "tokaj", "porto", "portwein", "madeira",
+    "sherry", "moscatel", "banyuls", "pineau", "dessertwein", "likorwein",
+    "spatlese", "auslese", "monbazillac", "jurancon moelleux",
+)
+_ROSE = ("rosewein", "rose", "rosato", "rosado", "blush", "oeil de perdrix", "chiaretto")
+_RED_WORDS = ("rotwein", "rosso", "rouge", "tinto", "vino rosso", "red wine")
+_WHITE_WORDS = ("weisswein", "bianco", "blanc", "blanco", "white wine", "vin blanc")
+
+
+def wine_style(name: str, vivino_type_id: int | None = None) -> str:
+    """Sorte eines Weins, für Filter und Anzeige.
+
+    Args:
+        vivino_type_id: Vivinos ``wine.type_id``. Liegt er vor, gilt er — er kommt aus
+            der Weindatenbank und nicht aus einer Namensanalyse.
+
+    Die Reihenfolge der Namensprüfung ist wesentlich: Schaumwein und Süsswein zuerst,
+    weil "Rosé Champagne" ein Schaumwein ist und "Sauternes" kein stiller Weisswein.
+    Erst danach Farbe, und Farbwörter schlagen Rebsortennamen — sonst wird
+    "Bianco di Merlot" zum Rotwein.
+    """
+    if vivino_type_id is not None and vivino_type_id in VIVINO_TYPE_IDS:
+        return VIVINO_TYPE_IDS[vivino_type_id]
+
+    low = strip_accents((name or "").lower())
+
+    def has(words: tuple[str, ...]) -> bool:
+        return any(_style_re(w).search(low) for w in words)
+
+    if has(_SPARKLING):
+        return "schaumwein"
+    if has(_SWEET):
+        return "suesswein"
+    if has(_ROSE):
+        return "rose"
+    red_word, white_word = has(_RED_WORDS), has(_WHITE_WORDS)
+    if red_word != white_word:
+        return "rot" if red_word else "weiss"
+    # Rückfall über Rebsorten.
+    red_grapes = {"merlot", "syrah", "shiraz", "cabernet", "nebbiolo", "sangiovese",
+                  "tempranillo", "primitivo", "malbec", "zweigelt", "blaufrankisch",
+                  "lagrein", "aglianico", "negroamaro", "grenache", "carmenere",
+                  "monastrell", "mourvedre", "barbera", "dolcetto", "corvina",
+                  "pinotage", "touriga", "mencia", "carignan", "cinsault"}
+    white_grapes = {"chardonnay", "riesling", "chasselas", "fendant", "veltliner",
+                    "verdejo", "albarino", "vermentino", "gewurztraminer", "silvaner",
+                    "sylvaner", "arneis", "grigio", "gris", "viognier", "semillon",
+                    "chenin", "colombard", "godello", "furmint", "assyrtiko",
+                    "johannisberg", "arvine", "heida", "completer", "marsanne"}
+    tokens = set(tokenize(name))
+    red, white = bool(tokens & red_grapes), bool(tokens & white_grapes)
+    if red != white:
+        return "rot" if red else "weiss"
+    return "unbekannt"
+
+
+@lru_cache(maxsize=512)
+def _style_re(word: str) -> re.Pattern[str]:
+    return re.compile(rf"(?<![a-z0-9]){re.escape(word)}(?![a-z0-9])")

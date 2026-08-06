@@ -31,7 +31,10 @@ _PALETTE = [
 def _points(rows: list[WineRow]) -> list[dict]:
     out: list[dict] = []
     for row in rows:
-        rating, source = row.ranking_rating()
+        # Nur Vivino auf der Achse — dieselbe Begründung wie in plot.py: zwei
+        # Bewertungsgrundlagen in einem Diagramm sind nicht vergleichbar.
+        rating = row.chart_rating()
+        source = "Vivino"
         price = row.best_price
         if rating is None or price is None or price <= 0:
             continue
@@ -48,6 +51,9 @@ def _points(rows: list[WineRow]) -> list[dict]:
             "priceText": chf(price),
             "rating": rating,
             "source": source,
+            # False = fuzzy: die Note gehört zu einem Eintrag, dessen Name nur
+            # ungefähr passt. Wird hohl gezeichnet, nicht weggelassen.
+            "sure": row.chart_confirmed(),
             "vivino": (
                 f"{v.rating:.1f}/5 aus {v.rating_count} Bewertungen"
                 if v and v.rating is not None and v.rating_count
@@ -96,7 +102,8 @@ def write_interactive(
     y_min, y_max = min(ratings), max(ratings)
     # Etwas Luft, damit Punkte nicht am Rand kleben.
     lx_min, lx_max = math.log10(x_min) - 0.06, math.log10(x_max) + 0.06
-    y_lo, y_hi = max(0.0, y_min - 0.02), min(1.0, y_max + 0.02)
+    # Vivino-Skala 1–5; die Spanne folgt den Daten, aber gekappt auf gültige Noten.
+    y_lo, y_hi = max(1.0, y_min - 0.1), min(5.0, y_max + 0.1)
 
     plot_w = WIDTH - PAD_LEFT - PAD_RIGHT
     plot_h = HEIGHT - PAD_TOP - PAD_BOTTOM
@@ -114,7 +121,7 @@ def write_interactive(
     # Achsen: x-Ticks als runde CHF-Werte innerhalb der Spanne.
     x_ticks = [v for v in (1, 2, 3, 5, 7, 10, 15, 20, 30, 50, 75, 100, 150, 200, 300, 500, 800)
                if x_min * 0.95 <= v <= x_max * 1.05]
-    y_ticks = [round(y_lo + i * (y_hi - y_lo) / 5, 3) for i in range(6)]
+    y_ticks = [round(y_lo + i * (y_hi - y_lo) / 5, 2) for i in range(6)]
 
     grid = []
     for v in x_ticks:
@@ -130,9 +137,14 @@ def write_interactive(
             f'<text class="tick" x="{PAD_LEFT - 8}" y="{y + 3.5}" text-anchor="end">{v:.2f}</text>'
         )
 
+    # Inline-``style`` statt Präsentationsattribute: die Regel ``.pt {{ stroke: ... }}``
+    # im Stylesheet hätte ein ``stroke=``-Attribut überstimmt.
     circles = "".join(
         f'<circle class="pt" data-i="{i}" cx="{pt["cx"]}" cy="{pt["cy"]}" r="6" '
-        f'fill="{pt["colour"]}" data-retailer="{html.escape(pt["retailer"])}"/>'
+        + (f'fill="{pt["colour"]}"'
+           if pt["sure"] else
+           f'style="fill:none;stroke:{pt["colour"]};stroke-width:1.8"')
+        + f' data-retailer="{html.escape(pt["retailer"])}"/>'
         for i, pt in enumerate(points)
     )
 
@@ -176,7 +188,7 @@ _TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>wine-check — Preis gegen Bewertung</title>
+<title>wine-check — Preis gegen Vivino-Bewertung</title>
 <style>
   :root {{
     --ink: #24201f; --muted: #5a5a5a; --line: #ded7d9;
@@ -224,6 +236,7 @@ _TEMPLATE = """<!doctype html>
   #tip .n {{ font-weight: 650; display: block; margin-bottom: 4px; }}
   #tip .r {{ display: flex; justify-content: space-between; gap: 14px; }}
   #tip .k {{ color: var(--muted); }}
+  .warn {{ color: var(--brand); font-size: 11.5px; }}
   #tip .good {{ color: #2e7d32; font-weight: 650; }}
   #tip .bad {{ color: #c62828; font-weight: 650; }}
   @media (prefers-color-scheme: dark) {{
@@ -235,12 +248,12 @@ _TEMPLATE = """<!doctype html>
 </style>
 </head>
 <body>
-<h1>Preis gegen Bewertung</h1>
+<h1>Preis gegen Vivino-Bewertung</h1>
 <p class="sub">Stand {stamp} · {count} Weine mit Preis und Bewertung · Punkt anfahren für
 Details, Klick öffnet die Händlerseite · Händler in der Legende zum Ausblenden</p>
 
 <div class="wrap">
-  <svg viewBox="0 0 {width} {height}" role="img" aria-label="Streudiagramm Preis gegen Bewertung">
+  <svg viewBox="0 0 {width} {height}" role="img" aria-label="Streudiagramm Preis gegen Vivino-Bewertung">
     {grid}
     <line class="axis" x1="{pad_left}" y1="{axis_y}" x2="{pad_left}" y2="{pad_top}"/>
     <line class="axis" x1="{pad_left}" y1="{axis_y}" x2="{plot_right}" y2="{axis_y}"/>
@@ -249,7 +262,7 @@ Details, Klick öffnet die Händlerseite · Händler in der Legende zum Ausblend
     </text>
     <!-- Gedreht an der Achse, sonst kollidiert die Beschriftung mit dem Hinweis. -->
     <text class="axis-label" transform="rotate(-90 18 {y_label_y})" x="18" y="{y_label_y}"
-          text-anchor="middle">Normalisierte Bewertung (0–1)</text>
+          text-anchor="middle">Vivino-Bewertung (1–5)</text>
     <text class="hint" x="{pad_left}" y="{hint_y}">oben links = gut und günstig</text>
     <g id="pts">{circles}</g>
   </svg>
@@ -258,8 +271,12 @@ Details, Klick öffnet die Händlerseite · Händler in der Legende zum Ausblend
 
 <div id="tip" role="tooltip"></div>
 
-<p class="foot">Die Bewertung ist auf 0–1 normalisiert, damit sich Falstaff (0–100) und
-Vivino (1–5) vergleichen lassen; die Quelle steht je Punkt im Tooltip. Der Marktpreis
+<p class="foot">Die Achse zeigt ausschliesslich Vivino (1–5). Falstaff auf 0–100 liesse
+sich normalisieren, aber nicht vergleichen — zwei Bewertungsgrundlagen in einem
+Diagramm bedeuten bei gleicher Höhe Verschiedenes. Falstaff bleibt Leitquelle der
+Rangliste im PDF. Produzenten-Mittelwerte stehen nicht auf der Achse. Hohle Punkte
+sitzen auf einem unbestätigten Namensabgleich — die Note stammt von einem Vivino-Eintrag,
+dessen Name nur ungefähr passt; der gefundene Name steht im Tooltip. Der Marktpreis
 stammt von einem Vivino-Händler und ausdrücklich nicht vom eigenen Händler — sonst
 verglichen wir einen Preis mit sich selbst.</p>
 
@@ -277,7 +294,8 @@ function show(el, evt) {{
   const d = DATA[+el.dataset.i];
   if (!d) return;
   let h = '<span class="n">' + esc(d.name) + (d.vintage ? " " + d.vintage : "") + "</span>";
-  h += row("Vivino", esc(d.vivino));
+  h += row("Vivino", esc(d.vivino) + (d.sure ? "" :
+           ' <span class="warn">Namensabgleich unbestätigt</span>'));
   if (d.source && d.source !== "Vivino") h += row("Ranking über", esc(d.source));
   if (d.reife) {{
     h += row("Trinkreife", '<b>' + esc(d.reife) + "</b>");

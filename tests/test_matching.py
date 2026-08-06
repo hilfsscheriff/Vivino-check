@@ -328,3 +328,26 @@ def test_dedup_key_ignores_word_order_but_not_vintage():
     b = dedup_key("Rossetti Linda Bolgheri", 2021)
     assert a == b
     assert dedup_key("Rossetti Linda Bolgheri", 2022) != a
+
+
+def test_second_label_does_not_inherit_the_grand_vin_producer_average():
+    """Regression aus der Webseite: "Bordeaux AC Mouton Cadet Baron Ph de Rothschild"
+    für CHF 9.95 bekam über den Produzenten-Pfad die 4.6 von Château Mouton Rothschild
+    aus 92'093 Bewertungen — einem Premier Grand Cru Classé. "Cadet" ist genau der
+    Unterschied zwischen der Zweitmarke und dem Erstwein."""
+    d = match_winery(
+        "Bordeaux AC Mouton Cadet Baron Ph de Rothschild (2023) – Rotwein, Frankreich",
+        "Château Mouton Rothschild",
+    )
+    assert not d.matched, d.reason
+    assert "Cadet" in d.reason
+
+
+def test_generic_extras_still_allow_the_producer_average():
+    """Gegenprobe: Schaumwein-Dosage und Herkunft sind keine eigene Linie. Sonst
+    verliert der schwache Pfad seinen Zweck."""
+    d = match_winery("Col del Sol Brut Prosecco Superiore Valdobbiadene", "Col del Sol")
+    assert d.matched, d.reason
+
+    d2 = match_winery("Piccini Chianti Classico Riserva DOCG", "Piccini")
+    assert d2.matched, "Region und Qualitätsstufe sind generisch, kein eigener Linienname"

@@ -195,19 +195,45 @@ class Cache:
 
     # -- Läufe (für diff.md) ----------------------------------------------
     def save_snapshot(self, snapshot: list[dict[str, Any]], label: str = "") -> int:
+        """Lauf ablegen — höchstens einer pro Kalendertag.
+
+        Ein Lauf soll eine Aktionswoche sein. Beim Entwickeln oder nach einem
+        korrigierten Matcher baut man den Report am selben Tag mehrfach neu, und jeder
+        Neubau legte bisher einen eigenen Lauf an: der Lauf-Filter der Webseite füllte
+        sich mit zwölf Chips „6.8.2026", `diff.md` verglich gegen den eigenen Neubau
+        von vor zehn Minuten (also gegen nichts), und die Seite wuchs mit jedem Lauf um
+        rund 100 KB. Der jüngste Stand eines Tages ersetzt darum den älteren.
+        """
+        now = time.time()
+        today = time.strftime("%Y-%m-%d", time.localtime(now))
+        for row in self.conn.execute("SELECT id, started_at FROM runs").fetchall():
+            if time.strftime("%Y-%m-%d", time.localtime(float(row["started_at"]))) == today:
+                self.conn.execute("DELETE FROM runs WHERE id=?", (int(row["id"]),))
         cur = self.conn.execute(
             "INSERT INTO runs (started_at, label, snapshot) VALUES (?,?,?)",
-            (time.time(), label, json.dumps(snapshot, ensure_ascii=False)),
+            (now, label, json.dumps(snapshot, ensure_ascii=False)),
         )
         self.conn.commit()
         return int(cur.lastrowid or 0)
 
     def previous_snapshot(self, before_id: int | None = None) -> tuple[int | None, list[dict[str, Any]]]:
-        """Letzter Lauf vor ``before_id`` — Basis für ``diff.md``."""
+        """Letzter Lauf vor ``before_id`` — Basis für ``diff.md``.
+
+        Ohne ``before_id`` werden Läufe von *heute* übersprungen. Sonst vergleicht
+        ``diff.md`` den Neubau gegen den eigenen Neubau von vor zehn Minuten und meldet
+        pflichtschuldig „keine Änderungen" — der Bericht wäre formal richtig und
+        praktisch wertlos. Interessant ist der Abstand zur letzten Aktionswoche.
+        """
         if before_id is None:
-            row = self.conn.execute(
-                "SELECT id, snapshot FROM runs ORDER BY id DESC LIMIT 1"
-            ).fetchone()
+            today = time.strftime("%Y-%m-%d", time.localtime())
+            row = None
+            for cand in self.conn.execute(
+                "SELECT id, started_at, snapshot FROM runs ORDER BY id DESC"
+            ).fetchall():
+                stamp = time.strftime("%Y-%m-%d", time.localtime(float(cand["started_at"])))
+                if stamp != today:
+                    row = cand
+                    break
         else:
             row = self.conn.execute(
                 "SELECT id, snapshot FROM runs WHERE id < ? ORDER BY id DESC LIMIT 1", (before_id,)
@@ -215,6 +241,28 @@ class Cache:
         if not row:
             return None, []
         return int(row["id"]), json.loads(row["snapshot"] or "[]")
+
+    def all_runs(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        """Alle gespeicherten Läufe, neuester zuerst — Grundlage für die Webseite."""
+        rows = self.conn.execute(
+            "SELECT id, started_at, label, snapshot FROM runs ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        out = []
+        for row in rows:
+            try:
+                wines = json.loads(row["snapshot"] or "[]")
+            except json.JSONDecodeError:
+                continue
+            if not wines:
+                continue
+            out.append({
+                "id": int(row["id"]),
+                "started_at": float(row["started_at"]),
+                "label": row["label"] or "",
+                "wines": wines,
+            })
+        return out
 
     def stats(self) -> dict[str, int]:
         q = self.conn.execute

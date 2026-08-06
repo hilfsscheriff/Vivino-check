@@ -33,6 +33,7 @@ uv run wine-check rate
 uv run wine-check report --out ./output
 uv run wine-check run --all
 uv run wine-check trinkreife        # Jahrgangstabelle einlesen, einmal pro Jahr
+uv run wine-check site --out ./docs # Webseite für GitHub Pages bauen
 ```
 
 `fetch` und `rate` sind getrennt, weil `fetch` täglich sinnvoll ist und `rate` nur bei
@@ -106,10 +107,71 @@ ersten Live-Lauf gelernt:
 Beide bleiben mit Note, Status und Link in der Vivino-Spalte sichtbar und lassen sich
 von Hand übernehmen — sie sortieren nur keine Rangliste.
 
+Ein `winery_level`-Treffer entsteht ausserdem gar nicht mehr, wenn der Händlername ein
+zusätzliches **unterscheidendes** Wort trägt. Beispiel aus dem Live-Lauf: „Bordeaux AC
+Mouton Cadet Baron Ph de Rothschild" für CHF 9.95 bekam über den Produzenten-Pfad die
+4.6 aus 92'093 Bewertungen von Château Mouton Rothschild — der Note eines Premier Grand
+Cru Classé. „Cadet" ist genau der Unterschied zwischen Zweitmarke und Erstwein. Reine
+Herkunfts- und Qualitätsangaben („Chianti Classico Riserva") lösen die Sperre nicht aus,
+sonst verliert der Pfad seinen Zweck. Die Korrektur nahm 30 der 44 Produzenten-Treffer
+weg und senkte die Trefferquote von 42 % auf 36 % — genau der Handel, den der Auftrag
+verlangt.
+
 Die Preis-Leistungs-Rangliste wird **klassenweise** ausgegeben, günstigste Klasse
 zuerst. Ein globaler Rang über klassenrelative Werte wäre irreführend und würde
 systematisch die teuren Weine nach oben spülen — beim ersten Lauf standen dort
 Champagner zu CHF 108 und Pomerol zu CHF 118 an der Spitze.
+
+### Warum auf der Diagrammachse nur Vivino steht
+
+Die Rangliste im PDF folgt Falstaff als Leitquelle. Die **Diagramme nicht** — dort steht
+ausschliesslich die Vivino-Note in ihrer eigenen Skala 1–5.
+
+Vorher waren beide Skalen auf 0–1 normalisiert und lagen auf einer Achse. Rechnerisch
+geht das, inhaltlich nicht: ein Falstaff-92 und ein Vivino-4.6 landen dann auf derselben
+Höhe, obwohl ein Punkt bei Falstaff etwas anderes bedeutet als ein Zehntel bei Vivino,
+aus anderer Grundgesamtheit, mit anderer Verteilung. Ein Streudiagramm behauptet mit der
+gemeinsamen Achse Vergleichbarkeit, und die gab es nicht. Vivino ist die einzige Skala,
+die für alle Weine dieselbe ist — Pflichtspalte, für jeden Wein abgefragt.
+
+Falstaff- und andere Kritikerpunkte stehen weiter im Tooltip und in der Tabelle.
+
+Auf der Achse gilt zusätzlich:
+
+* **Produzenten-Durchschnitte kommen nicht drauf.** Ein Punkt auf der Achse liest sich
+  als Note dieses Weins.
+* **`fuzzy`-Treffer kommen drauf, aber hohl gezeichnet.** Sie betreffen 59 der 128
+  Punkte; sie zu verschweigen halbiert das Diagramm, sie gefüllt zu zeichnen behauptet
+  die Sicherheit eines exakten Treffers. Der Tooltip nennt den gefundenen Namen, die
+  Tabelle setzt ein `?` hinter die Note. Beschriftet werden im PNG nur bestätigte
+  Punkte — ein Name neben einem Punkt liest sich als Empfehlung.
+
+## Die Webseite
+
+`wine-check site --out ./docs` baut **eine einzige HTML-Datei** mit allen Daten inline.
+Kein CDN, keine externen Schriften, keine Bilder von aussen. Drei Gründe:
+
+* Sie läuft per Doppelklick, aus OneDrive und auf GitHub Pages gleichermassen.
+* Sie läuft unterwegs ohne Netz weiter, sobald sie einmal geladen ist — genau dann,
+  wenn man am Tisch sitzt und schlechten Empfang hat.
+* Wer sie mit Freunden teilt, verschickt nicht deren IP-Adressen an ein CDN.
+
+Enthalten: das Diagramm mit Mouseover, eine sortierte Tabelle mit Kaufquelle und
+Schnäppchen-Prozent, und kombinierbare Filter nach **Lauf, Trinkreife, Sorte und
+Händler** plus Suchfeld über Name, Produzent und Region. Die Schlüssel der eingebetteten
+JSON sind gekürzt (`name` → `n`), das spart rund ein Drittel der Dateigrösse.
+
+Veröffentlichen: Repository → Settings → Pages → Branch `main`, Ordner `/docs`. Die
+`.nojekyll` wird mitgeschrieben, damit Pages die Datei unverändert ausliefert.
+
+### Ein Lauf ist eine Aktionswoche, kein Neubau
+
+Jeder `report`-Aufruf legte anfangs einen eigenen Lauf an. Nach einem Tag Entwicklung
+zeigte der Lauf-Filter dreizehn Chips, alle mit dem Datum „6.8.2026", `diff.md` verglich
+gegen den eigenen Neubau von vor zehn Minuten und meldete korrekt „keine Änderungen",
+und die Seite war auf 1.4 MB gewachsen. Jetzt ersetzt der jüngste Stand eines Tages den
+älteren, und `previous_snapshot` überspringt heutige Läufe. Die Seite ist damit 191 KB
+statt 1376 KB.
 
 ## Trinkreife
 
@@ -210,9 +272,10 @@ stünde monatelang ein alter Preis und damit ein falsches Prozent im Report.
 |---|---|
 | `results.csv` | Alle Felder roh, inkl. Preisvergleich über Händler, aller Vivino-Felder, Marktpreis und `bargain_percent` |
 | `report.pdf` | Ranglisten **als Auszüge** plus vollständige Listen aller bewerteten und aller unbewerteten Weine, Spalte „Wo kaufen" mit Händlername, Link und Verkaufskanal, Vivino-Spalte immer gefüllt und verlinkt, Marktpreis-Spalte, Tabelle „ohne Bewertung", Status-Legende |
-| `scatter.png` | Preis/75 cl (x, log) gegen normalisierte Bewertung (y), nach Händler gefärbt — für Druck und PDF |
+| `scatter.png` | Preis/75 cl (x, log) gegen **Vivino-Bewertung 1–5** (y), nach Händler gefärbt — für Druck und PDF |
 | `scatter.html` | Dasselbe interaktiv: Mouseover zeigt Weinname, Vivino-Bewertung, Preis, Händler und Schnäppchen; Klick öffnet die Händlerseite; Händler in der Legende ausblendbar. Selbstenthaltend, kein CDN, funktioniert offline |
 | `diff.md` | Änderungen zum letzten Lauf, inkl. neu aufgetauchter Vivino-Bewertungen |
+| `docs/index.html` | Die Webseite — eine einzige Datei mit allen Daten inline, siehe unten |
 
 ### Wo der Wein zu kaufen ist
 
@@ -378,6 +441,14 @@ eine Note da ist, fällt es auf.
 Flags: `--refresh` (Bewertungen), `--refresh-prices` (Preise), `--retry-failed`
 (`blocked` und Nicht-Treffer erneut prüfen).
 
+In `runs` liegt pro Kalendertag höchstens ein Lauf — siehe „Ein Lauf ist eine
+Aktionswoche". Nach einer Matcher-Korrektur lassen sich gezielt die betroffenen
+Bewertungen verwerfen, statt alle 400 neu abzufragen:
+
+```bash
+sqlite3 cache/winecheck.sqlite "DELETE FROM ratings WHERE source='vivino' AND status='winery_level'"
+```
+
 ## Anstand gegenüber den Quellen
 
 Max. eine Anfrage pro 2 Sekunden pro Domain, `robots.txt` wird respektiert,
@@ -397,7 +468,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-150 Tests: 143 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+279 Tests: 272 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die
@@ -406,7 +477,12 @@ aktivieren). Schwerpunkte:
 * **Preisnormalisierung** — u.a. „Karton 6 × 75 cl, CHF 41.70 exkl. MwSt" → CHF 7.51.
 * **Vivino-Statuslogik** — alle acht Status-Werte, jeweils mit der Zusicherung, dass
   URL, Query und Notiz gesetzt sind.
-* **Report** — dass die Vivino-Spalte in `results.csv` und `report.pdf` nie leer ist.
+* **Report** — dass die Vivino-Spalte in `results.csv` und `report.pdf` nie leer ist und
+  dass jeder der 400 Weine im PDF auffindbar ist, nicht nur die Ranglisten-Auszüge.
+* **Diagrammachse** — dass dort nur Vivino landet, auch wenn eine Falstaff-Note
+  vorliegt, und dass Produzenten-Durchschnitte draussen bleiben.
+* **Läufe** — dass mehrere Neubauten am selben Tag einen Lauf ergeben und `diff.md`
+  gegen die Vorwoche vergleicht, nicht gegen sich selbst.
 
 ## Bekannte Grenzen
 

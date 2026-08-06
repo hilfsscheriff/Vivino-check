@@ -35,6 +35,7 @@ from .report.csv_out import write_csv
 from .report.diff import snapshot, write_diff
 from .report.interactive import write_interactive
 from .report.pdf_out import write_pdf
+from .report.site import build as build_site
 from .report.plot import write_scatter
 
 app = typer.Typer(add_completion=False, help="Aktionen der Schweizer Weinhändler prüfen.")
@@ -281,6 +282,65 @@ def run(
 
 
 # --------------------------------------------------------------------- infos
+
+@app.command()
+def site(
+    out: Path = typer.Option(Path("docs"), "--out", help="Zielordner, Standard docs/ für GitHub Pages"),
+    cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache"),
+    registry: Path = typer.Option(None, "--registry"),
+    runs: int = typer.Option(12, "--runs", help="wie viele Läufe die Seite anbieten soll"),
+    title: str = typer.Option("Schweizer Weinaktionen", "--title"),
+) -> None:
+    """Statische Webseite bauen — für GitHub Pages oder zum Mitnehmen aufs Handy.
+
+    Eine einzige HTML-Datei mit allen Daten inline: kein CDN, keine externen Schriften.
+    Damit läuft sie per Doppelklick, in OneDrive und auf Pages gleichermassen, sie
+    funktioniert unterwegs ohne Netz, und Besucher lösen keine Anfragen an Dritte aus.
+    """
+    import time as _time
+
+    reg = load_registry(registry)
+    info = {
+        c.key: {"name": c.name, "channel": c.channel, "domain": c.domain}
+        for c in reg.retailers.values()
+    }
+    cache = Cache.open(cache_path)
+    history = cache.all_runs(limit=runs)
+    cache.close()
+
+    if not history:
+        _echo(
+            "Keine Läufe im Cache — zuerst 'wine-check report' laufen lassen, das "
+            "legt die Momentaufnahme an.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    from .report.site import _wine_from_snapshot
+
+    prepared = []
+    for run in history:
+        stamp = _time.localtime(run["started_at"])
+        prepared.append({
+            "id": run["id"],
+            "label": f"{stamp.tm_mday}.{stamp.tm_mon}.{stamp.tm_year}",
+            "wines": [_wine_from_snapshot(w) for w in run["wines"]],
+        })
+
+    out.mkdir(parents=True, exist_ok=True)
+    # GitHub Pages würde den Ordner sonst durch Jekyll schicben.
+    (out / ".nojekyll").write_text("", encoding="utf-8")
+    path = build_site(prepared, out / "index.html", retailer_info=info, title=title)
+    if path is None:
+        _echo("Keine Weine in den Läufen — nichts zu bauen.", err=True)
+        raise typer.Exit(1)
+
+    size = path.stat().st_size / 1024
+    _echo(f"  {path}  ({size:.0f} KB, {len(prepared)} Läufe, alles inline)")
+    _echo(f"  {out / '.nojekyll'}")
+    _echo("")
+    _echo("  GitHub Pages: Repository -> Settings -> Pages -> Branch main, Ordner /docs")
+
 
 @app.command()
 def trinkreife(

@@ -464,6 +464,27 @@ def match_winery(retailer_name: str, winery_name: str) -> MatchDecision:
     covered = sum(1 for tok in w.token_set if tok in r.token_set)
     ratio = covered / len(w.token_set)
     score = max(fuzz.partial_ratio(w.joined, r.joined), ratio * 100)
+
+    # Trägt der Händlername über den Produzenten hinaus ein eigenständiges Wort, dann
+    # benennt es eine bestimmte Linie und der Produzenten-Durchschnitt gilt dafür
+    # nicht. "Mouton Cadet" von Baron Philippe de Rothschild bekam so die 4.6 von
+    # Château Mouton Rothschild — CHF 9.95 mit der Note eines Premier Grand Cru.
+    # Generische Zusätze sind unschädlich: "Col del Sol Brut Prosecco Superiore
+    # Valdobbiadene" ist gegenüber dem Produzenten "Col del Sol" nur um Schaumwein-
+    # Dosage und Herkunft erweitert.
+    extras = [t for t in r.token_set if t not in w.token_set and is_distinctive(t)]
+    if extras:
+        return MatchDecision(
+            matched=False,
+            confidence=MatchConfidence.NONE,
+            score=score,
+            reason=(
+                f"Produzent '{winery_name}' erkannt, aber {_pretty(set(extras))} benennt "
+                f"eine bestimmte Linie — der Produzenten-Durchschnitt gilt dafür nicht"
+            ),
+            source_name=winery_name,
+        )
+
     if ratio >= 0.6 and score >= MIN_SCORE:
         return MatchDecision(
             matched=True,
