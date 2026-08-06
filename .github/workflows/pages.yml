@@ -49,3 +49,11 @@ jobs:
       - name: Ausliefern
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # Standard sind 10 Minuten (600000 ms). Genau daran sind am 6.8.2026 fünf
+          # Versuche gescheitert: Artefakt hochgeladen, Deployment angelegt, dann zehn
+          # Minuten "deployment_queued" — und die Action bricht nach ihrem eigenen
+          # Limit ab, nicht GitHub. Bei einer stauenden Warteschlange ist das zu
+          # ungeduldig. 30 Minuten kosten nichts, solange nichts ansteht.
+          timeout: 1800000
+
