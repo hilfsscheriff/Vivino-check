@@ -49,11 +49,11 @@ jobs:
       - name: Ausliefern
         id: deployment
         uses: actions/deploy-pages@v4
-        with:
-          # Standard sind 10 Minuten (600000 ms). Genau daran sind am 6.8.2026 fünf
-          # Versuche gescheitert: Artefakt hochgeladen, Deployment angelegt, dann zehn
-          # Minuten "deployment_queued" — und die Action bricht nach ihrem eigenen
-          # Limit ab, nicht GitHub. Bei einer stauenden Warteschlange ist das zu
-          # ungeduldig. 30 Minuten kosten nichts, solange nichts ansteht.
-          timeout: 1800000
+        # Kein eigenes Zeitlimit setzen: 10 Minuten (600000 ms) sind das harte Maximum
+        # der Action. Ein höherer Wert wird stillschweigend gekappt und erzeugt nur eine
+        # Warnung — am 6.8.2026 in diese Falle getappt, als sechs Deploys nach exakt
+        # 10 Minuten in "deployment_queued" abbrachen. Die Ursache war eine
+        # GitHub-Störung ("Incident with Pages – Deployment Lag"), nicht das Limit und
+        # nicht dieses Repository. Bei erneutem Auftreten zuerst githubstatus.com lesen,
+        # dann erst an der Konfiguration drehen.
 
