@@ -1,5 +1,7 @@
 # wine-check
 
+**Live: <https://hilfsscheriff.github.io/Vivino-check/>**
+
 Liest die Aktions- und Sale-Seiten der grössten Schweizer Weinhändler ein, gleicht sie
 gegen externe Weinbewertungen ab und sagt händlerübergreifend, wo aktuell das beste
 Preis-Leistungs-Verhältnis liegt.
@@ -164,6 +166,22 @@ JSON sind gekürzt (`name` → `n`), das spart rund ein Drittel der Dateigrösse
 Veröffentlichen: Repository → Settings → Pages → Branch `main`, Ordner `/docs`. Die
 `.nojekyll` wird mitgeschrieben, damit Pages die Datei unverändert ausliefert.
 
+### Tabelle sortieren und filtern
+
+Jeder Spaltentitel ist anklickbar, ein zweiter Klick kehrt die Richtung um. Leere Werte
+sortieren in **beiden** Richtungen nach unten — ein Wein ohne Note ist keine 0 und würde
+aufsteigend sonst die Liste anführen.
+
+Dazu drei Spaltenfilter, die die Chip-Filter nicht schon abdecken: Note ab, Preis bis, und
+nur Weine unter dem Marktpreis. Sie greifen in `visible()`, also **vor** Diagramm und
+Zähler — sonst zeigen Diagramm, Zähler und Tabelle drei verschiedene Mengen, und man weiss
+nicht, welche gilt.
+
+Auf dem Handy ist `thead` ausgeblendet, weil die Tabelle dort zur Kartenliste wird; die
+Kopfzeilen-Sortierung ist dann nicht bedienbar. Darum gibt es zusätzlich ein
+Sortier-Auswahlfeld in der Filterzeile, das auf jeder Breite funktioniert. Beide Wege
+teilen denselben Zustand und ziehen gegenseitig nach.
+
 ### Ein Lauf ist eine Aktionswoche, kein Neubau
 
 Jeder `report`-Aufruf legte anfangs einen eigenen Lauf an. Nach einem Tag Entwicklung
@@ -172,6 +190,29 @@ gegen den eigenen Neubau von vor zehn Minuten und meldete korrekt „keine Ände
 und die Seite war auf 1.4 MB gewachsen. Jetzt ersetzt der jüngste Stand eines Tages den
 älteren, und `previous_snapshot` überspringt heutige Läufe. Die Seite ist damit 191 KB
 statt 1376 KB.
+
+## Der Skill für unterwegs
+
+`skills/weinkarte/` ist ein Claude-Skill für den Restauranttisch: Foto der Weinkarte rein,
+drei Empfehlungen raus — mit Vivino-Note, dem Aufschlag gegenüber dem Ladenpreis und der
+Trinkreife des Jahrgangs. Er braucht dieses Repository **nicht**; die Regeln, die
+Vivino-Parameter und die Jahrgangstabelle liegen als Referenzdateien darin.
+
+Installieren: den Ordner nach `~/.claude/skills/weinkarte/` kopieren.
+
+Zwei Dinge daraus sind beim Bauen durch Messung entstanden und wären nicht zu erraten:
+
+* **Nach dem Produzenten suchen, nie nach der Appellation.** Der Vivino-Endpunkt sortiert
+  nach Bewertung, nicht nach Namensähnlichkeit. „Fontodi Chianti Classico" liefert 666
+  Treffer, angeführt von einem Castell'in Villa Riserva 1986 für CHF 821 — Fontodi selbst
+  kommt in den ersten 24 nicht vor. „Fontodi" allein liefert 12 von 12 richtige. Dasselbe
+  bei Tommasi und Muga.
+* **Restaurantpreis geteilt durch Ladenpreis unter 1.5 heisst: falscher Wein.** Kein
+  Restaurant verkauft unter dem Ladenpreis. Die vier Fehltreffer beim Test ergaben ×0.1,
+  ×0.1, ×0.2 und ×0.5, der richtige ×2.2. Eine Division, die fast jeden Fehlgriff fängt.
+
+Alle Zahlen im Beispiel des Skills sind gemessene Vivino-Werte. Ein Skill, der vor
+erfundenen Zahlen warnt, darf im eigenen Beispiel keine haben.
 
 ## Trinkreife
 

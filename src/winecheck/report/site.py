@@ -258,6 +258,19 @@ _TEMPLATE = r"""<!doctype html>
   .good { color:#2e7d32; font-weight:650; }
   .bad { color:#c62828; }
   .warn { color:var(--brand); }
+  .colfilter { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
+               margin:0 0 12px; font-size:13px; color:var(--muted); }
+  .colfilter label { display:flex; gap:6px; align-items:center; }
+  .colfilter select { font:inherit; color:var(--ink); background:var(--bg);
+                      border:1px solid var(--line); border-radius:7px; padding:4px 6px; }
+  .colfilter .cb { cursor:pointer; }
+  .colhint { margin-left:auto; font-size:12px; opacity:.75; }
+  @media (max-width: 767px) { .colhint { display:none; } }
+  th .sortbtn { font:inherit; color:inherit; background:none; border:0; padding:0;
+                cursor:pointer; letter-spacing:inherit; text-transform:inherit; }
+  th .sortbtn:hover { color:var(--brand); }
+  th.sorted { color:var(--brand); }
+  th.num .sortbtn { width:100%; text-align:right; }
   @media (prefers-color-scheme: dark){ .good{color:#7cc47f} .bad{color:#ef9a9a} }
   .pill { display:inline-block; font-size:.7rem; padding:2px 7px; border-radius:999px;
           background:var(--chip); color:var(--muted); }
@@ -309,6 +322,39 @@ _TEMPLATE = r"""<!doctype html>
 
   <div class="card">
     <h2 id="tblTitle">Weine</h2>
+    <div class="colfilter">
+      <label>Note ab
+        <select id="fMinRating">
+          <option value="">alle</option>
+          <option value="3.5">3.5</option>
+          <option value="3.8">3.8</option>
+          <option value="4">4.0</option>
+          <option value="4.2">4.2</option>
+          <option value="4.5">4.5</option>
+        </select>
+      </label>
+      <label>Preis bis
+        <select id="fMaxPrice">
+          <option value="">alle</option>
+          <option value="10">CHF 10</option>
+          <option value="20">CHF 20</option>
+          <option value="40">CHF 40</option>
+          <option value="80">CHF 80</option>
+        </select>
+      </label>
+      <label class="cb"><input type="checkbox" id="fBargain"> nur unter Marktpreis</label>
+      <label>Sortieren
+        <select id="fSort">
+          <option value="rating:-1">Note, beste zuerst</option>
+          <option value="price:1">Preis, günstigste zuerst</option>
+          <option value="price:-1">Preis, teuerste zuerst</option>
+          <option value="bargain:-1">Ersparnis, grösste zuerst</option>
+          <option value="name:1">Name A–Z</option>
+          <option value="shop:1">Händler A–Z</option>
+        </select>
+      </label>
+      <span class="colhint">Spaltentitel antippen sortiert auch · nochmal antippen kehrt um</span>
+    </div>
     <div id="table"></div>
   </div>
 
@@ -349,7 +395,8 @@ D.runs.forEach(run => {
     return o;
   });
 });
-const S = { run: D.runs[0].id, mat: new Set(), style: new Set(), shop: new Set(), q: "" };
+const S = { run: D.runs[0].id, mat: new Set(), style: new Set(), shop: new Set(), q: "",
+            sort: "rating", dir: -1, minRating: null, maxPrice: null, onlyBargain: false };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const chf = v => v == null ? "" : "CHF " + Number(v).toFixed(2)
@@ -364,6 +411,11 @@ function visible() {
     if (S.style.size && !S.style.has(w.style || "?")) return false;
     if (S.shop.size && !w.retailers.some(r => S.shop.has(r))) return false;
     if (q && !(w.name + " " + (w.maturityRegion || "")).toLowerCase().includes(q)) return false;
+    // Spaltenfilter greifen hier, nicht erst in der Tabelle: sonst zeigen Diagramm,
+    // Zähler und Tabelle drei verschiedene Mengen, und man weiss nicht, welche gilt.
+    if (S.minRating != null && !(w.rating != null && w.rating >= S.minRating)) return false;
+    if (S.maxPrice != null && !(w.price != null && w.price <= S.maxPrice)) return false;
+    if (S.onlyBargain && !(w.bargain != null && w.bargain > 0)) return false;
     return true;
   });
 }
@@ -462,9 +514,26 @@ function chart(list) {
 function table(list) {
   const box = document.getElementById("table");
   if (!list.length) { box.innerHTML = '<p class="empty">Kein Wein passt zu dieser Auswahl.</p>'; return; }
-  const sorted = list.slice().sort((a, b) =>
-    (b.rating ?? -1) - (a.rating ?? -1) || (a.price ?? 9e9) - (b.price ?? 9e9));
   const shopName = k => (D.retailers.find(r => r.key === k) || {}).name || k;
+  // Leere Werte sortieren immer nach unten, in beiden Richtungen. Ein Wein ohne Note
+  // ist keine 0 — er würde sonst bei aufsteigender Sortierung die Liste anführen.
+  const KEYS = {
+    name:    w => (w.name || "").toLowerCase(),
+    rating:  w => w.rating,
+    price:   w => w.price,
+    shop:    w => shopName(w.cheapest).toLowerCase(),
+    bargain: w => w.bargain,
+  };
+  const key = KEYS[S.sort] || KEYS.rating;
+  const sorted = list.slice().sort((a, b) => {
+    const x = key(a), y = key(b);
+    const xe = x == null || x === "", ye = y == null || y === "";
+    if (xe && ye) return 0;
+    if (xe) return 1;
+    if (ye) return -1;
+    if (typeof x === "string") return S.dir * x.localeCompare(y, "de");
+    return S.dir * (x - y);
+  });
   const rows = sorted.slice(0, 400).map(w => {
     const vivino = w.rating != null
       ? `<a href="${esc(w.vivinoUrl)}" rel="noopener">${w.rating.toFixed(1)}/5</a>`
@@ -491,9 +560,28 @@ function table(list) {
       <td data-l="gegen Markt" class="num">${bargain}</td>
     </tr>`;
   }).join("");
-  box.innerHTML = `<table><thead><tr><th>Wein</th><th>Vivino</th><th>Preis/75cl</th>
-    <th>Wo kaufen</th><th>gegen Markt</th></tr></thead><tbody>${rows}</tbody></table>`
+  const COLS = [
+    ["name", "Wein", ""], ["rating", "Vivino", ""], ["price", "Preis/75cl", "num"],
+    ["shop", "Wo kaufen", ""], ["bargain", "gegen Markt", "num"],
+  ];
+  const head = COLS.map(([k, label, cls]) => {
+    const on = S.sort === k;
+    const arrow = on ? (S.dir < 0 ? " ▾" : " ▴") : "";
+    return `<th class="${cls}${on ? " sorted" : ""}"><button type="button" class="sortbtn"`
+      + ` data-col="${k}" aria-label="Nach ${esc(label)} sortieren">${esc(label)}${arrow}</button></th>`;
+  }).join("");
+  box.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`
     + (sorted.length > 400 ? `<p class="empty">${sorted.length - 400} weitere ausgeblendet — Filter verfeinern.</p>` : "");
+
+  box.querySelectorAll(".sortbtn").forEach(b => b.addEventListener("click", () => {
+    const col = b.dataset.col;
+    // Gleiche Spalte nochmal = Richtung wechseln. Neue Spalte startet in der
+    // Richtung, die man dort erwartet: Text A→Z, Zahlen gross→klein.
+    if (S.sort === col) S.dir = -S.dir;
+    else { S.sort = col; S.dir = (col === "name" || col === "shop") ? 1 : -1; }
+    syncSort();
+    render();
+  }));
 }
 
 /* ------------------------------------------------------------------ Filter */
@@ -539,9 +627,37 @@ function render() {
 }
 
 document.getElementById("q").addEventListener("input", e => { S.q = e.target.value; render(); });
+const numOrNull = v => v === "" ? null : Number(v);
+/* Kopfzeile und Auswahlfeld sind zwei Wege zur selben Sortierung. Nach einem Klick auf
+   die Kopfzeile muss das Feld nachziehen, sonst zeigt es etwas anderes an als gilt. */
+function syncSort() {
+  const el = document.getElementById("fSort");
+  const wanted = `${S.sort}:${S.dir}`;
+  el.value = [...el.options].some(o => o.value === wanted) ? wanted : "";
+}
+document.getElementById("fSort").addEventListener("change", e => {
+  const [col, dir] = e.target.value.split(":");
+  S.sort = col; S.dir = Number(dir); render();
+});
+document.getElementById("fMinRating").addEventListener("change", e => {
+  S.minRating = numOrNull(e.target.value); render();
+});
+document.getElementById("fMaxPrice").addEventListener("change", e => {
+  S.maxPrice = numOrNull(e.target.value); render();
+});
+document.getElementById("fBargain").addEventListener("change", e => {
+  S.onlyBargain = e.target.checked; render();
+});
 document.getElementById("reset").addEventListener("click", () => {
   S.mat.clear(); S.style.clear(); S.shop.clear(); S.q = "";
-  document.getElementById("q").value = ""; render();
+  S.minRating = null; S.maxPrice = null; S.onlyBargain = false;
+  S.sort = "rating"; S.dir = -1;
+  document.getElementById("q").value = "";
+  document.getElementById("fMinRating").value = "";
+  document.getElementById("fMaxPrice").value = "";
+  document.getElementById("fBargain").checked = false;
+  syncSort();
+  render();
 });
 render();
 </script>
