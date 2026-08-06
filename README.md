@@ -470,6 +470,31 @@ Preisblock steht rund 180 pt darüber, die Bezeichnung darunter. Positionen ohne
 sichere Bezugsgrösse landen mit `price_confidence = low` in der Report-Liste
 „Unsichere Prospekt-Positionen" zur manuellen Ergänzung — nicht im Ranking.
 
+### Der Wein heisst Cabernet, das ist keine Preisangabe
+
+Die MwSt-Erkennung liest den Text, in dem Gebinde und MwSt-Hinweis stehen — und dieser
+Text enthält absichtlich den Weinnamen, weil dort „75 cl" und „Karton zu 6" vorkommen.
+Zwei Alternativen des Ausdrucks hatten keine Wortgrenze am Anfang:
+
+```
+net(?:to)?\b    griff in "Caber-net", "Mio-netto", "Ligor-netto", "Freixe-net"
+ht\b            griff in "ni-cht"
+```
+
+Damit galt **jeder Cabernet als exkl. MwSt** und wurde um 8.1 % hochgerechnet. Betroffen
+waren 13 Weine bei Coop, Mövenpick und Denner, von CHF 3.45 bis CHF 239. Der Preis war
+falsch, sah aber völlig normal aus — genau die Sorte Fehler, die einen Scheinsieger
+erzeugt, und der Grund, warum der Auftrag die MwSt ausdrücklich benennt.
+
+Die Korrektur ist ein `\b` je Alternative. Prodega, das wirklich exkl. MwSt quotiert,
+bleibt unverändert bei 66 Positionen. Die Regressionstests prüfen beide Richtungen: die
+vier echten Weinnamen dürfen **nicht** greifen, „exkl. MwSt", „netto", „ohne MwSt" und
+„HT" müssen weiter greifen.
+
+Aufgefallen ist es nur, weil Sie gesagt haben, die Mövenpick-Preise seien inkl. MwSt.
+Nachrechnen lohnt sich: der Weg von der Rohangabe zum Literpreis hat mehr Stellen, an
+denen etwas schieflaufen kann, als man ihm ansieht.
+
 ## Cache
 
 sqlite unter `cache/winecheck.sqlite`, Key = Quelle + normalisierter Name + Jahrgang.

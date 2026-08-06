@@ -148,3 +148,54 @@ def test_discount_ignores_nonsense_reference():
     assert discount_percent(12.50, 12.50) is None
     assert discount_percent(15.0, 12.50) is None
     assert discount_percent(6.25, None) is None
+
+
+# ------------------------------------------------- MwSt-Erkennung, Wortgrenzen
+
+@pytest.mark.parametrize("text", [
+    # "Cabernet" endet auf "net" — das war der Fehler. Betroffen waren Coop,
+    # Mövenpick und die Aktionis-Quellen, insgesamt 20 Weine.
+    "Cabernet Sauvignon Coonawarra The Siding Wynns, 75 cl",
+    "Cabernet Franc Sicilia Menfi DOC 2018 Didacus",
+    "California 2022 Cabernet Sauvignon Submission",
+    # Weitere echte Fälle aus dem Livebetrieb, alle auf "net"/"netto" endend.
+    "Mionetto Prosecco DOC Treviso Brut, 75 cl",
+    "Ticino DOC Merlot Ligornetto (2022) – Rotwein, Schweiz",
+    "Freixenet Carta Medium Dry semi seco – Schaumwein",
+    # "nicht" endet auf "ht" — kam über die Quellnotiz herein.
+    "Volumen nicht genannt, 75 cl angenommen",
+    # Gegenprobe ohne MwSt-Hinweis überhaupt.
+    "Chianti Classico DOCG, 75 cl",
+])
+def test_wine_names_are_not_read_as_vat_hints(text):
+    """Ein Wein heisst Cabernet, das ist keine Preisangabe.
+
+    Der Detailhandel schreibt inkl. MwSt an, und ohne Hinweis im Text muss der
+    Händler-Default gelten. Vorher wurden diese Weine um 8.1 % hochgerechnet — ein
+    Fehler, der den Preis falsch macht, ohne dass er auffällt.
+    """
+    r = normalize_price(20.0, text, default_vat_included=True)
+    assert r.price_per_bottle_incl_vat is not None
+    assert "exkl" not in r.price_raw_basis, r.price_raw_basis
+
+
+@pytest.mark.parametrize("text,expect_excl", [
+    ("Karton 6 × 75 cl, exkl. MwSt", True),
+    ("Preis exkl. MwSt", True),
+    ("75 cl, ohne MwSt", True),
+    ("netto, 75 cl", True),
+    ("75 cl netto", True),
+    ("Prix HT, 75 cl", True),
+    ("75 cl, inkl. MwSt", False),
+    ("Karton 6, brutto", False),
+    ("Prix TTC", False),
+])
+def test_real_vat_hints_are_still_recognised(text, expect_excl):
+    """Die Anbindung an Wortgrenzen darf die echten Angaben nicht verlieren —
+    Prodega quotiert wirklich exkl. MwSt, das muss weiter greifen."""
+    r = normalize_price(100.0, text, price_basis="bottle")
+    assert ("exkl" in r.price_raw_basis) is expect_excl, r.price_raw_basis
+    if expect_excl:
+        assert r.price_per_bottle_incl_vat == pytest.approx(108.1, abs=0.05)
+    else:
+        assert r.price_per_bottle_incl_vat == pytest.approx(100.0, abs=0.05)

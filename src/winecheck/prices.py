@@ -59,8 +59,19 @@ _RE_PACK_ONLY = re.compile(
 _RE_VOLUME = re.compile(r"(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(cl|ml|dl|l|lt|liter)\b", re.I)
 _RE_CARTON_WORD = re.compile(r"karton|harass|kiste|caisse|gebinde|tray|\bpack\b", re.I)
 _RE_PER_BOTTLE = re.compile(r"pro\s*flasche|je\s*flasche|/\s*fl\b|par\s*bouteille|st(?:ü|u)ck", re.I)
-_RE_EXCL_VAT = re.compile(r"exkl?\.?\s*(?:mwst|vat|tva|ust)|ohne\s*mwst|net(?:to)?\b|ht\b", re.I)
-_RE_INCL_VAT = re.compile(r"inkl?\.?\s*(?:mwst|vat|tva|ust)|brutto|ttc\b", re.I)
+# Die Wortgrenzen am *Anfang* jeder Alternative sind nicht Kosmetik. Der Text, der hier
+# geprüft wird, enthält den Weinnamen — absichtlich, weil dort "75 cl" und "Karton zu 6"
+# stehen. Ohne führendes \b griffen:
+#   net(?:to)?\b  in "Caber-net" und in "Mio-netto"  -> 20 Weine 8.1 % zu teuer
+#   ht\b          in "ni-cht"
+# Jeder Cabernet galt damit als exkl. MwSt und wurde hochgerechnet. Genau die Sorte
+# Fehler, die einen Scheinsieger erzeugt: der Preis ist falsch, sieht aber normal aus.
+_RE_EXCL_VAT = re.compile(
+    r"\bexkl?\.?\s*(?:mwst|vat|tva|ust)|\bohne\s*mwst|\bnet(?:to)?\b|\bht\b", re.I
+)
+_RE_INCL_VAT = re.compile(
+    r"\binkl?\.?\s*(?:mwst|vat|tva|ust)|\bbrutto\b|\bttc\b", re.I
+)
 _RE_BAG_IN_BOX = re.compile(r"bag[\s-]?in[\s-]?box|\bbib\b|beutel|tetra|pouch", re.I)
 
 
