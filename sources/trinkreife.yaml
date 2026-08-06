@@ -1,0 +1,2745 @@
+source:
+  name: Vinum Trinkreifetabelle 2026 (via Mövenpick)
+  pdf: https://www.moevenpick-wein.com/media/wysiwyg/pdf/Trinkreifetabelle_2026_CH_Moevenpick_V1.pdf
+  page: https://www.moevenpick-wein.com/de/magazin/weinwissen/wein-trinkreife-2026
+  fetched_at: '2026-08-06'
+  note: Jahrgangstabelle von Vinum, als Text-PDF veröffentlicht. Wird jährlich ersetzt — mit 'wine-check
+    trinkreife' neu einlesen. Weinart stammt aus der Farbe des Weinglas-Symbols, Jahrgangsqualität aus
+    der Zellhintergrundfarbe, leere Zellen bedeuten 'hätte man besser schon getrunken'.
+legend:
+  g: zu jung — reifen lassen
+  k: macht Spass, wird noch besser
+  '*': zurzeit höchster Genuss
+  m: Zenit überschritten — austrinken
+  '-': hätte man besser schon getrunken
+entries:
+- region: Wallis
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2001
+  - 1999
+  - 1995
+  - 1986
+  - 1985
+  - 1979
+  - 1977
+- region: Wallis
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': k
+    '2023': '*'
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': m
+    '2018': m
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 1999
+  - 1997
+  - 1992
+- region: Waadt, Neuenburg
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2000
+  - 1999
+  - 1997
+- region: Waadt, Neuenburg
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': k
+    '2023': '*'
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': m
+    '2018': m
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': exzellent
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': exzellent
+  older_peaks: []
+- region: Deutschschweiz
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': '*'
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 1998
+  - 1997
+  - 1995
+- region: Tessin
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': k
+    '2021': k
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': '*'
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2013': exzellent
+    '2012': exzellent
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Genf
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Genf
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': k
+    '2023': '*'
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': m
+    '2018': m
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Baden
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': '*'
+    '2017': k
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '-'
+    '2012': '*'
+    '2011': '-'
+    '2010': '-'
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2012': exzellent
+  older_peaks: []
+- region: Württemberg
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': '*'
+    '2017': k
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '-'
+    '2012': '*'
+    '2011': '-'
+    '2010': '-'
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2012': exzellent
+  older_peaks: []
+- region: Franken, Ostdeutschland
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '-'
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': exzellent
+  older_peaks: []
+- region: Nahe, Mittelrhein, Ahr
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': g
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '-'
+    '2011': '*'
+    '2010': '-'
+  quality:
+    '2025': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': gut bis sehr gut
+    '2011': exzellent
+  older_peaks: []
+- region: Ahr
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': k
+    '2020': k
+    '2019': k
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '-'
+    '2012': '*'
+    '2011': '*'
+    '2010': '-'
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2012': exzellent
+    '2011': exzellent
+  older_peaks:
+  - 1992
+- region: Mosel
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': g
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '-'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 1992
+- region: Pfalz
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': k
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '-'
+    '2012': '*'
+    '2011': '*'
+    '2010': '-'
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2012': exzellent
+    '2011': exzellent
+  older_peaks: []
+- region: Rheingau Riesling
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': g
+    '2018': '*'
+    '2017': k
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Rheinhessen
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': k
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '-'
+    '2012': '*'
+    '2011': '*'
+    '2010': '-'
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2012': exzellent
+    '2011': exzellent
+  older_peaks: []
+- region: Niederösterreich, Wien
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': k
+    '2021': g
+    '2020': k
+    '2019': g
+    '2018': k
+    '2017': k
+    '2016': m
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': exzellent
+    '2012': exzellent
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2001
+  - 1999
+  - 1995
+  - 1986
+  - 1985
+  - 1979
+  - 1977
+- region: Steiermark
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': k
+    '2021': g
+    '2020': k
+    '2019': g
+    '2018': k
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': exzellent
+    '2012': exzellent
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 1999
+  - 1997
+  - 1992
+- region: Burgenland
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': g
+    '2018': g
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': exzellent
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': exzellent
+    '2012': exzellent
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2000
+  - 1999
+  - 1997
+- region: Burgenland
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': k
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': k
+    '2017': k
+    '2016': m
+    '2015': '*'
+    '2014': m
+    '2013': '*'
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': exzellent
+    '2012': exzellent
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Ungarn -Tokaj Edelsüss
+  wine_type: weiss
+  maturity:
+    '2025': '-'
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': g
+    '2018': g
+    '2017': g
+    '2016': k
+    '2015': k
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2023': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': gut bis sehr gut
+    '2014': gut bis sehr gut
+    '2013': exzellent
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 1988
+  - 1993
+  - 1999
+  - 2000
+  - 2002
+- region: Griechenland
+  wine_type: rot
+  maturity:
+    '2025': '-'
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': g
+    '2018': k
+    '2017': k
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': gut bis sehr gut
+    '2013': exzellent
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks: []
+- region: USA -Kalifornien
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': k
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': exzellent
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': exzellent
+    '2012': exzellent
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 1992
+  - 1987
+  - 1986
+  - 1985
+- region: USA -Kalifornien
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': exzellent
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': exzellent
+    '2012': exzellent
+  older_peaks:
+  - 1992
+  - 1986
+- region: USA -Oregon
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': k
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': exzellent
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': exzellent
+    '2012': exzellent
+    '2010': exzellent
+  older_peaks: []
+- region: Chile
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': '*'
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': exzellent
+    '2023': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks: []
+- region: Chile
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': k
+    '2023': '*'
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': m
+    '2018': m
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': exzellent
+    '2023': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks: []
+- region: Argentinien
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': exzellent
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2015': gut bis sehr gut
+    '2014': gut bis sehr gut
+    '2013': exzellent
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks: []
+- region: Australien
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': k
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': exzellent
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': exzellent
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks: []
+- region: Südafrika
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': k
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2015': exzellent
+    '2013': exzellent
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 1992
+- region: Südafrika
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': m
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2015': exzellent
+    '2013': exzellent
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 1992
+- region: Bordeaux -Médoc
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': g
+    '2018': g
+    '2017': '*'
+    '2016': k
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': k
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': exzellent
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2008
+  - 2005
+  - 2001
+  - 2000
+  - 1996
+  - 1990
+  - 1989
+  - 1988
+  - 2001
+  - 1999
+  - 1990
+- region: Pessac-Léognan
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': k
+    '2020': g
+    '2019': k
+    '2018': k
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': exzellent
+  older_peaks:
+  - 2005
+  - 2001
+  - 2000
+  - 1996
+  - 1990
+  - 1989
+  - 1988
+- region: St-Émilion / Pomerol / Fronsac
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': k
+    '2020': g
+    '2019': k
+    '2018': k
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': exzellent
+  older_peaks:
+  - 2008
+  - 2005
+  - 2000
+  - 1998
+  - 1990
+  - 1989
+  - 1988
+  - 1985
+  - 1999
+- region: Côtes Bdx / Bdx supérieur
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': k
+    '2020': k
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': '*'
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2005
+  - 2000
+  - 2001
+  - 1999
+  - 1997
+  - 1990
+- region: Pessac-Léognan / Graves / div.
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': k
+    '2023': k
+    '2022': k
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': '*'
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': exzellent
+    '2015': exzellent
+    '2014': exzellent
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': exzellent
+  older_peaks:
+  - 2004
+  - 2002
+  - 2001
+  - 1998
+  - 1996
+  - 2004
+  - 2001
+  - 1999
+  - 1990
+- region: Sauternes
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': g
+    '2018': k
+    '2017': k
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': gut bis sehr gut
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2007
+  - 2005
+  - 2001
+  - 1999
+  - 1997
+  - 1996
+  - 1989
+  - 1988
+  - 1986
+  - 2000
+  - 1995
+  - 1988
+- region: Burgund -Côte d’Or (Crus)
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': k
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': m
+    '2010': '*'
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2009
+  - 2008
+  - 2001
+  - 1999
+  - 1997
+  - 1995
+  - 1990
+  - 1989
+  - 1985
+  - 1995
+- region: Côte d’Or (Crus)
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': k
+    '2017': '*'
+    '2016': m
+    '2015': '*'
+    '2014': '*'
+    '2013': m
+    '2012': '*'
+    '2011': m
+    '2010': '*'
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2009
+  - 2008
+  - 2001
+  - 1999
+  - 1997
+  - 1995
+  - 1992
+  - 1990
+  - 1989
+- region: Chablis (Crus)
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': '*'
+    '2017': '*'
+    '2016': m
+    '2015': '*'
+    '2014': '*'
+    '2013': m
+    '2012': '*'
+    '2011': m
+    '2010': '*'
+  quality:
+    '2025': gut bis sehr gut
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2001
+  - 1999
+  - 1995
+  - 1992
+  - 1990
+  - 1989
+- region: Beaujolais (Crus)
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': k
+    '2023': k
+    '2022': k
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': exzellent
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2009
+- region: 'Rhône: -Nord'
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': k
+    '2017': k
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': exzellent
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': exzellent
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2009
+  - 2000
+  - 1999
+  - 1995
+  - 1990
+  - 1989
+  - 1985
+  - 1978
+- region: Süd
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': k
+    '2021': k
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2014': exzellent
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2009
+  - 2000
+  - 1995
+  - 1990
+  - 1989
+  - 1985
+  - 1978
+- region: Provence
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': k
+    '2021': k
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2001
+  - 1995
+  - 1990
+  - 1989
+- region: Languedoc-Roussillon
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': k
+    '2021': k
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': gut bis sehr gut
+    '2014': exzellent
+    '2013': exzellent
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2008
+  - 2001
+  - 2000
+  - 1995
+  - 1992
+  - 1990
+- region: Jahrgangs-Champagner
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': k
+    '2017': k
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': gut bis sehr gut
+    '2024': exzellent
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2008
+  - 2004
+  - 2002
+  - 1996
+  - 1995
+  - 1990
+  - 1989
+  - 1985
+- region: Elsass (Crus)
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': k
+    '2020': k
+    '2019': k
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': m
+    '2012': m
+    '2011': '*'
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': exzellent
+    '2019': exzellent
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2009
+  - 2008
+  - 2001
+  - 2000
+  - 1998
+  - 1996
+  - 1990
+  - 1989
+- region: Loire -Crus (Sancerre, Vouvray etc)
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': k
+    '2020': k
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2009
+  - 2008
+  - 1995
+  - 1990
+  - 1989
+  - 1985
+  - 1976
+- region: Spätlesen
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': k
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': exzellent
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2009
+  - 2008
+  - 1997
+  - 1995
+  - 1990
+  - 1989
+  - 1985
+  - 1976
+- region: Südwesten
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': k
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': exzellent
+  older_peaks:
+  - 2009
+  - 2002
+  - 2001
+  - 1995
+  - 1990
+  - 1989
+- region: Piemont -Barolo, Barbaresco
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': g
+    '2018': g
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2001
+  - 1999
+  - 1990
+- region: Barbera
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': exzellent
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Toskana -Chianti Classico
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 1999
+- region: Montalcino
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': g
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2001
+  - 1999
+  - 1997
+  - 1990
+- region: Montepulciano
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': '*'
+    '2012': '*'
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': exzellent
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2004
+  - 2001
+  - 1999
+  - 1990
+- region: Veneto -Amarone
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': g
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': '*'
+    '2012': '*'
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2000
+  - 1995
+  - 1988
+- region: Südtirol
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 1995
+- region: Friaul
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': exzellent
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: 'Veltlin: Sfursat'
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Süditalien -Apulien, Basilikata, Kampanien
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': gut bis sehr gut
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Sizilien
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Rioja -Crianza
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': k
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': m
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks: []
+- region: Reserva, Gran Reserva
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': g
+    '2019': k
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': exzellent
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': gut bis sehr gut
+    '2010': exzellent
+  older_peaks:
+  - 2001
+  - 1998
+  - 1996
+  - 1995
+  - 1994
+  - 1989
+  - 1985
+  - 1982
+  - 1981
+- region: Ribera del Duero
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': k
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': exzellent
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': exzellent
+    '2013': exzellent
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': exzellent
+  older_peaks: []
+- region: Katalonien
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': k
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': gut bis sehr gut
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Rueda
+  wine_type: weiss
+  maturity:
+    '2025': k
+    '2024': k
+    '2023': '*'
+    '2022': '*'
+    '2021': '*'
+    '2020': m
+    '2019': m
+    '2018': m
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': exzellent
+    '2024': gut bis sehr gut
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': exzellent
+    '2018': gut bis sehr gut
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2014': gut bis sehr gut
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': exzellent
+  older_peaks: []
+- region: Galicien
+  wine_type: weiss
+  maturity:
+    '2025': g
+    '2024': k
+    '2023': '*'
+    '2022': '*'
+    '2021': '*'
+    '2020': '*'
+    '2019': m
+    '2018': m
+    '2017': m
+    '2016': m
+    '2015': m
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': exzellent
+    '2023': gut bis sehr gut
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': gut bis sehr gut
+    '2017': exzellent
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Douro -Rotweine
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': k
+    '2021': '*'
+    '2020': '*'
+    '2019': '*'
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': m
+    '2013': m
+    '2012': m
+    '2011': m
+    '2010': m
+  quality:
+    '2025': gut bis sehr gut
+    '2024': exzellent
+    '2023': exzellent
+    '2022': gut bis sehr gut
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks: []
+- region: Vintage Port
+  wine_type: rot
+  maturity:
+    '2025': g
+    '2024': g
+    '2023': g
+    '2022': g
+    '2021': g
+    '2020': k
+    '2019': k
+    '2018': '*'
+    '2017': '*'
+    '2016': '*'
+    '2015': '*'
+    '2014': '*'
+    '2013': '*'
+    '2012': '*'
+    '2011': '*'
+    '2010': '*'
+  quality:
+    '2025': exzellent
+    '2024': exzellent
+    '2023': exzellent
+    '2022': exzellent
+    '2021': gut bis sehr gut
+    '2020': gut bis sehr gut
+    '2019': gut bis sehr gut
+    '2018': exzellent
+    '2017': gut bis sehr gut
+    '2016': gut bis sehr gut
+    '2015': exzellent
+    '2013': gut bis sehr gut
+    '2012': gut bis sehr gut
+    '2011': exzellent
+    '2010': gut bis sehr gut
+  older_peaks:
+  - 2003
+  - 2000
+  - 1997
+  - 1994
+  - 1992
+  - 1991
+  - 1985
+  - 1983

@@ -23,7 +23,7 @@ from .adapters.aktionis import AktionisAdapter
 from .adapters.denner import DennerAdapter
 from .adapters.moevenpick import MoevenpickAdapter
 from .adapters.prodega import ProdegaAdapter
-from .aggregate import compute_scores, merge_offers
+from .aggregate import attach_maturity, compute_scores, merge_offers
 from .cache import Cache
 from .config import SourceConfig, load_registry
 from .fetching import Fetcher
@@ -161,7 +161,7 @@ def rate(
     reg = load_registry(registry)
     cache = Cache.open(cache_path)
     offers = [_offer_from_payload(d) for d in cache.all_offers()]
-    rows = compute_scores(merge_offers(offers))
+    rows = compute_scores(attach_maturity(merge_offers(offers)))
     if limit:
         rows = rows[:limit]
     if not rows:
@@ -281,6 +281,35 @@ def run(
 
 
 # --------------------------------------------------------------------- infos
+
+@app.command()
+def trinkreife(
+    out: Path = typer.Option(None, "--out", help="Ziel, Standard sources/trinkreife.yaml"),
+) -> None:
+    """Die Vinum-Jahrgangstabelle neu einlesen.
+
+    Sie erscheint jährlich; einmal pro Jahr ausführen. Das PDF ist ein Text-PDF, es
+    braucht kein OCR — Weinart und Jahrgangsqualität stecken allerdings in der Grafik
+    und werden über Farben ausgewertet.
+    """
+    import time as _time
+
+    from .trinkreife import DEFAULT_PATH, SOURCE_URL, parse_pdf, to_yaml
+
+    target = out or DEFAULT_PATH
+    with Fetcher() as fetcher:
+        _echo(f"  hole {SOURCE_URL.rsplit('/', 1)[-1]} …")
+        res = fetcher.get(SOURCE_URL)
+    entries = parse_pdf(res.content_bytes)
+    if not entries:
+        _echo("Keine Tabellenzeilen erkannt — Layout geändert?", err=True)
+        raise typer.Exit(1)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(to_yaml(entries, _time.strftime("%Y-%m-%d")), encoding="utf-8")
+    weiss = sum(1 for e in entries if e.wine_type == "weiss")
+    rot = sum(1 for e in entries if e.wine_type == "rot")
+    _echo(f"  {len(entries)} Zeilen ({rot} rot, {weiss} weiss) -> {target}")
+
 
 @app.command()
 def sources(registry: Path = typer.Option(None, "--registry")) -> None:
@@ -430,7 +459,7 @@ def _load_rated() -> list[WineRow]:
             row.falstaff = falstaff_from(d["falstaff"])
         row.price_band = price_band(row.best_price)
         rows.append(row)
-    return compute_scores(rows)
+    return compute_scores(attach_maturity(rows))
 
 
 if __name__ == "__main__":

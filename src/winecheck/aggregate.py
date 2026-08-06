@@ -131,6 +131,23 @@ def _better_price(candidate: Offer, current: Offer) -> bool:
     return (candidate.price_per_bottle_incl_vat or 9e9) < (current.price_per_bottle_incl_vat or 9e9)
 
 
+def attach_maturity(rows: list[WineRow], table=None) -> list[WineRow]:
+    """Trinkreife aus der Vinum-Jahrgangstabelle anhängen.
+
+    Wo Region oder Jahrgang nicht eindeutig zuzuordnen sind, bleibt das Feld leer —
+    eine falsche Region liefert eine falsche Empfehlung, und die wäre schlimmer als
+    eine Lücke.
+    """
+    from .trinkreife import Table
+
+    tbl = table if table is not None else Table.load()
+    if not tbl.entries:
+        return rows
+    for row in rows:
+        row.maturity = tbl.lookup(row.name, row.vintage)
+    return rows
+
+
 def compute_scores(rows: list[WineRow]) -> list[WineRow]:
     """Setzt ``value_score`` je Preisklasse.
 

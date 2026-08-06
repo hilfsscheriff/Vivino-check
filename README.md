@@ -32,6 +32,7 @@ uv run wine-check fetch --retailers coop,denner,prodega
 uv run wine-check rate
 uv run wine-check report --out ./output
 uv run wine-check run --all
+uv run wine-check trinkreife        # Jahrgangstabelle einlesen, einmal pro Jahr
 ```
 
 `fetch` und `rate` sind getrennt, weil `fetch` täglich sinnvoll ist und `rate` nur bei
@@ -109,6 +110,59 @@ Die Preis-Leistungs-Rangliste wird **klassenweise** ausgegeben, günstigste Klas
 zuerst. Ein globaler Rang über klassenrelative Werte wäre irreführend und würde
 systematisch die teuren Weine nach oben spülen — beim ersten Lauf standen dort
 Champagner zu CHF 108 und Pomerol zu CHF 118 an der Spitze.
+
+## Trinkreife
+
+**Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232
+Feldpfade geprüft, die einzigen „from"-Treffer sind Preisfelder, und die
+`cellar`-Treffer sind UI-Texte für den *eigenen* Weinkeller des Nutzers. Prodega
+nennt sie nirgends, Falstaff ist gesperrt.
+
+Es gibt aber die **Vinum-Jahrgangstabelle**, die Mövenpick als Sponsoringpartner als
+PDF veröffentlicht — und zwar als *Text*-PDF, weshalb kein OCR nötig ist.
+`wine-check trinkreife` liest sie ein und schreibt `sources/trinkreife.yaml`
+(70 Zeilen, 42 rot, 28 weiss). Die Tabelle erscheint jährlich; einmal pro Jahr
+ausführen. Quelle und Abrufdatum stehen in der YAML.
+
+| Stufe | Bedeutung |
+|---|---|
+| jetzt trinken | bietet zurzeit höchsten Genuss |
+| kann liegen | macht bereits Spass, wird aber noch besser |
+| lagern | noch zu jung, reifen lassen |
+| austrinken | Zenit überschritten |
+| zu alt | hätte man besser schon getrunken |
+
+Drei Dinge stecken nicht im Text, sondern in der Grafik, und werden über Koordinaten
+und Farben gelesen:
+
+* **Weinart** — ein Weinglas am Zeilenanfang, gelb weiss, rot rot. Die Reihenfolge ist
+  *nicht* durchgehend weiss-dann-rot: bei Burgenland steht Rot zuerst. Eine Annahme
+  darüber wäre falsch gewesen.
+* **Jahrgangsqualität** — die Zellhintergrundfarbe: mittelmässig, gut bis sehr gut,
+  exzellent. Steht als eigene Spalte im Report.
+* **Leere Zellen** — „hätte man besser schon getrunken". Im Text fehlen sie einfach,
+  weshalb Zeilen mit 13 statt 16 Codes auftauchen; nur über die x-Position ist
+  erkennbar, *welcher* Jahrgang gemeint ist.
+
+Das PDF setzt zudem zwei Tabellenblöcke nebeneinander — zeilenweises Extrahieren
+schrieb „Wallis" und „Steiermark" in dieselbe Zeile.
+
+### Wo keine Auskunft kommt
+
+Die Tabelle gilt für **Region und Weinart**, nicht für die einzelne Flasche. Beim
+letzten Lauf gab es für 189 von 400 Weinen eine Auskunft. Leer bleibt es, wenn:
+
+* die Region nicht eindeutig zuzuordnen ist,
+* mehrere zutreffende Zeilen sich widersprechen,
+* der Wein ein **Rosé** ist — die Tabelle führt keine Rosé-Zeilen, und ein Rosé darf
+  nicht die Reife des Rotweins derselben Region erben,
+* die Weinart nicht zur vorhandenen Zeile passt: Tessin hat nur eine Rotwein-Zeile,
+  ein weisser „Ticino Bianco di Merlot" bekommt sie darum nicht.
+
+Die Zuordnung von feinen Herkünften auf die groben Tabellenregionen ist Handarbeit
+(`REGION_TOKENS`) und auf Wortgrenzen geprüft. Ohne das landete ein Rioja im
+Languedoc, weil „oc" in „D**OC**a" steckt, und ein Cabernet in der Deutschschweiz,
+weil „bern" in „Ca**bern**et" steckt.
 
 ## Schnäppchen gegen den Vivino-Marktpreis
 

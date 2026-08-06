@@ -335,6 +335,10 @@ class WineRow:
     prices: list[RetailerPrice] = field(default_factory=list)
     falstaff: Rating | None = None
     vivino: VivinoResult | None = None
+    #: Trinkreife aus der Vinum-Jahrgangstabelle, sofern Region und Jahrgang
+    #: eindeutig zuzuordnen waren. Typ ist ``winecheck.trinkreife.Match``; als
+    #: ``Any`` gehalten, damit models.py nicht von trinkreife.py abhängt.
+    maturity: Any | None = None
     #: Weitere Kritikernoten, die Händler ausweisen: ``{"suckling": (94.0, "moevenpick")}``.
     #: Nur informativ — sie treiben das Ranking nicht, Leitquelle bleibt Falstaff.
     critics: dict[str, tuple[float, str]] = field(default_factory=dict)
@@ -536,6 +540,12 @@ class WineRow:
             "vivino_match_confidence": (v.match_confidence or "") if v else "",
             "vivino_candidates": " | ".join(f"{c.name} <{c.url}>" for c in v.candidates) if v else "",
             "vivino_retry_after": (v.retry_after or "") if v else "",
+            "trinkreife": self.maturity.short if self.maturity else "",
+            "trinkreife_text": self.maturity.text if self.maturity else "",
+            "trinkreife_code": self.maturity.code if self.maturity else "",
+            "trinkreife_region": self.maturity.region_label if self.maturity else "",
+            "trinkreife_weinart": self.maturity.wine_type if self.maturity else "",
+            "jahrgang_qualitaet": (self.maturity.quality or "") if self.maturity else "",
             "falstaff_reported_by": (self.falstaff.source_name or "") if self.falstaff else "",
             "critics": " · ".join(
                 f"{k} {v:.0f}/100 ({who})" for k, (v, who) in sorted(self.critics.items())

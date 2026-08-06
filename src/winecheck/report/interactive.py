@@ -59,6 +59,12 @@ def _points(rows: list[WineRow]) -> list[dict]:
             "market": chf(v.market_price) if v and v.market_price is not None else "",
             "bargain": row.bargain_percent,
             "band": row.price_band,
+            "reife": row.maturity.short if row.maturity else "",
+            "reifeText": row.maturity.text if row.maturity else "",
+            "reifeRegion": (
+                f"{row.maturity.region_label} {row.maturity.wine_type}" if row.maturity else ""
+            ),
+            "jahrgang": (row.maturity.quality or "") if row.maturity else "",
             "retailers": sorted({p.retailer for p in row.prices}),
         })
     return out
@@ -273,6 +279,10 @@ function show(el, evt) {{
   let h = '<span class="n">' + esc(d.name) + (d.vintage ? " " + d.vintage : "") + "</span>";
   h += row("Vivino", esc(d.vivino));
   if (d.source && d.source !== "Vivino") h += row("Ranking über", esc(d.source));
+  if (d.reife) {{
+    h += row("Trinkreife", '<b>' + esc(d.reife) + "</b>");
+  }}
+  if (d.jahrgang) h += row("Jahrgang", esc(d.jahrgang));
   h += row("Preis/75cl", esc(d.priceText));
   h += row("Händler", esc(d.retailerName) + (d.retailers.length > 1
         ? " (+" + (d.retailers.length - 1) + ")" : ""));

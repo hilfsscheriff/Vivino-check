@@ -148,6 +148,25 @@ def _retailer_cell(row: WineRow, style, info: dict[str, dict] | None = None) -> 
     return Paragraph("<br/>".join(parts) or ch("kein Händler"), style)
 
 
+#: Farben der Trinkreife-Stufen. Grün heisst jetzt geniessen, blau noch warten,
+#: orange bald austrinken, grau vorbei.
+_MATURITY_COLOURS = {
+    "*": "#2e7d32", "k": "#00838f", "m": "#ef6c00", "g": "#1a4f8a", "-": "#8a8a8a",
+}
+
+
+def _maturity_cell(row: WineRow, style) -> Paragraph:
+    """Trinkreife laut Vinum-Jahrgangstabelle, plus Jahrgangsqualität."""
+    m = row.maturity
+    if m is None:
+        return Paragraph('<font size=6.2 color="#8a8a8a">keine Angabe</font>', style)
+    colour = _MATURITY_COLOURS.get(m.code, "#5a5a5a")
+    text = f'<b><font color="{colour}">{ch(m.short)}</font></b>'
+    if m.quality:
+        text += f'<br/><font size=6.2 color="#5a5a5a">Jg. {ch(m.quality)}</font>'
+    return Paragraph(text, style)
+
+
 def _market_cell(row: WineRow, style) -> Paragraph:
     """Vivino-Marktpreis und die Ersparnis darauf.
 
@@ -211,13 +230,13 @@ def _ranking_table(
     solange die Quelle blockiert ist, wäre es eine Spalte voll "nicht abgefragt", und
     die Breite fehlt für Kaufquelle und Marktpreis.
     """
-    header = ["Wein", "Jg.", "Preis/75cl", "Wo kaufen"]
-    widths = [58 * mm, 9 * mm, 23 * mm, 40 * mm]
+    header = ["Wein", "Jg.", "Reife", "Preis/75cl", "Wo kaufen"]
+    widths = [50 * mm, 9 * mm, 17 * mm, 22 * mm, 37 * mm]
     if show_falstaff:
         header.append("Falstaff")
         widths.append(20 * mm)
     header += ["Vivino", "Marktpreis", "Konfidenz"]
-    widths += [38 * mm, 28 * mm, 19 * mm]
+    widths += [36 * mm, 26 * mm, 18 * mm]
 
     data = [header]
     for row in rows:
@@ -226,8 +245,9 @@ def _ranking_table(
             conf = row.falstaff.confidence.value
         low = any(p.price_confidence is PriceConfidence.LOW for p in row.prices)
         cells = [
-            Paragraph(ch(truncate(row.name, 54)), st["cell"]),
+            Paragraph(ch(truncate(row.name, 48)), st["cell"]),
             Paragraph(str(row.vintage or ""), st["cell"]),
+            _maturity_cell(row, st["cell"]),
             _price_cell(row, st["cell"]),
             _retailer_cell(row, st["cell"], info),
         ]
@@ -243,18 +263,19 @@ def _ranking_table(
 
 
 def _unrated_table(rows: list[WineRow], st: dict, info: dict[str, dict] | None = None) -> Table:
-    header = ["Wein", "Jg.", "Preis/75cl", "Wo kaufen", "Warum keine Bewertung", "Vivino-Link"]
+    header = ["Wein", "Jg.", "Reife", "Preis/75cl", "Wo kaufen", "Warum keine Bewertung", "Vivino-Link"]
     data = [header]
     for row in rows:
         data.append([
-            Paragraph(ch(truncate(row.name, 58)), st["cell"]),
+            Paragraph(ch(truncate(row.name, 52)), st["cell"]),
             Paragraph(str(row.vintage or ""), st["cell"]),
+            _maturity_cell(row, st["cell"]),
             _price_cell(row, st["cell"]),
             _retailer_cell(row, st["cell"], info),
-            Paragraph(ch(truncate(row.no_rating_reason(), 150)), st["cell"]),
+            Paragraph(ch(truncate(row.no_rating_reason(), 130)), st["cell"]),
             _vivino_cell(row, st["cell_link"]),
         ])
-    return _table(data, [62 * mm, 9 * mm, 23 * mm, 36 * mm, 64 * mm, 41 * mm])
+    return _table(data, [54 * mm, 9 * mm, 17 * mm, 22 * mm, 34 * mm, 58 * mm, 41 * mm])
 
 
 def _legend(st: dict) -> list:
@@ -276,6 +297,26 @@ def _legend(st: dict) -> list:
             Paragraph(ch(text), st["cell"]),
         ])
     out.append(_table(rows, [45 * mm, 186 * mm]))
+
+    out.append(Paragraph(ch("Legende Trinkreife"), st["h2"]))
+    out.append(
+        Paragraph(
+            ch("Quelle: Vinum-Jahrgangstabelle, von Mövenpick als PDF veröffentlicht. "
+               "Die Auskunft gilt für Region und Weinart, nicht für die einzelne Flasche. "
+               "Wo Region oder Jahrgang nicht eindeutig zuzuordnen waren, steht "
+               "„keine Angabe\" — eine falsche Region liefert eine falsche Empfehlung."),
+            st["small"],
+        )
+    )
+    reife = [["Stufe", "Bedeutung"]]
+    from ..trinkreife import MATURITY, MATURITY_SHORT
+    for code, text in MATURITY.items():
+        reife.append([
+            Paragraph(f'<b><font color="{_MATURITY_COLOURS.get(code, "#5a5a5a")}">'
+                      f'{ch(MATURITY_SHORT[code])}</font></b>', st["cell"]),
+            Paragraph(ch(text), st["cell"]),
+        ])
+    out.append(_table(reife, [45 * mm, 186 * mm]))
 
     out.append(Paragraph(ch("Legende Match-Konfidenz"), st["h2"]))
     conf = [["Stufe", "Bedeutung"]]
