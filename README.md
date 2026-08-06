@@ -172,8 +172,14 @@ Jeder Spaltentitel ist anklickbar, ein zweiter Klick kehrt die Richtung um. Leer
 sortieren in **beiden** Richtungen nach unten — ein Wein ohne Note ist keine 0 und würde
 aufsteigend sonst die Liste anführen.
 
-Dazu drei Spaltenfilter, die die Chip-Filter nicht schon abdecken: Note ab, Preis bis, und
-nur Weine unter dem Marktpreis. Sie greifen in `visible()`, also **vor** Diagramm und
+Dazu vier Spaltenfilter, die die Chip-Filter nicht schon abdecken: Note ab, Preis bis,
+nur Weine unter dem Marktpreis, und **nur bei Vivino gefunden**.
+
+Der letzte meint „bestätigter Namensabgleich" und ist strenger, als er klingt: draussen
+bleiben nicht nur die 272 Weine ohne Eintrag, sondern auch die 59 `fuzzy`-Treffer, deren
+Name nur ungefähr passt, und die Produzenten-Mittelwerte. Von 400 Weinen bleiben **69** —
+genau die gefüllten Punkte im Diagramm. Wer nur mit Zahlen arbeiten will, denen er traut,
+setzt diesen Haken. Sie greifen in `visible()`, also **vor** Diagramm und
 Zähler — sonst zeigen Diagramm, Zähler und Tabelle drei verschiedene Mengen, und man weiss
 nicht, welche gilt.
 

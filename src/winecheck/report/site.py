@@ -342,6 +342,7 @@ _TEMPLATE = r"""<!doctype html>
           <option value="80">CHF 80</option>
         </select>
       </label>
+      <label class="cb" title="Nur Weine mit bestätigtem Namensabgleich — ohne unsichere Treffer, ohne Produzenten-Mittelwerte, ohne Weine ohne Eintrag"><input type="checkbox" id="fFound"> nur bei Vivino gefunden</label>
       <label class="cb"><input type="checkbox" id="fBargain"> nur unter Marktpreis</label>
       <label>Sortieren
         <select id="fSort">
@@ -396,7 +397,8 @@ D.runs.forEach(run => {
   });
 });
 const S = { run: D.runs[0].id, mat: new Set(), style: new Set(), shop: new Set(), q: "",
-            sort: "rating", dir: -1, minRating: null, maxPrice: null, onlyBargain: false };
+            sort: "rating", dir: -1, minRating: null, maxPrice: null, onlyBargain: false,
+            onlyFound: false };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const chf = v => v == null ? "" : "CHF " + Number(v).toFixed(2)
@@ -416,6 +418,10 @@ function visible() {
     if (S.minRating != null && !(w.rating != null && w.rating >= S.minRating)) return false;
     if (S.maxPrice != null && !(w.price != null && w.price <= S.maxPrice)) return false;
     if (S.onlyBargain && !(w.bargain != null && w.bargain > 0)) return false;
+    // "Bei Vivino gefunden" heisst: bestätigter Namensabgleich. Nicht dabei sind
+    // fuzzy-Treffer (Name passt nur ungefähr), Produzenten-Mittelwerte und die
+    // Weine ohne Eintrag. Das sind genau die gefüllten Punkte im Diagramm.
+    if (S.onlyFound && !(w.rating != null && !w.fuzzy)) return false;
     return true;
   });
 }
@@ -648,14 +654,18 @@ document.getElementById("fMaxPrice").addEventListener("change", e => {
 document.getElementById("fBargain").addEventListener("change", e => {
   S.onlyBargain = e.target.checked; render();
 });
+document.getElementById("fFound").addEventListener("change", e => {
+  S.onlyFound = e.target.checked; render();
+});
 document.getElementById("reset").addEventListener("click", () => {
   S.mat.clear(); S.style.clear(); S.shop.clear(); S.q = "";
-  S.minRating = null; S.maxPrice = null; S.onlyBargain = false;
+  S.minRating = null; S.maxPrice = null; S.onlyBargain = false; S.onlyFound = false;
   S.sort = "rating"; S.dir = -1;
   document.getElementById("q").value = "";
   document.getElementById("fMinRating").value = "";
   document.getElementById("fMaxPrice").value = "";
   document.getElementById("fBargain").checked = false;
+  document.getElementById("fFound").checked = false;
   syncSort();
   render();
 });
