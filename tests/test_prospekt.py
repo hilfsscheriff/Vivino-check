@@ -113,3 +113,44 @@ def test_cell_price_normalizes_to_75cl_incl_vat(unit, price, expected):
     norm = normalize_price(price, f"{unit}, exkl. MwSt", price_basis="bottle",
                            default_vat_included=False)
     assert norm.price_per_bottle_incl_vat == pytest.approx(expected, abs=0.01)
+
+
+# ------------------------------------------------- Auswahl des Wochenprospekts
+
+@pytest.mark.parametrize(
+    "urls,expected",
+    [
+        # Monatswechsel: KW33 aus 2026-08 schlägt KW32 aus 2026-07.
+        (["/public/2026-07/kw32-agh-aktionen-d.pdf",
+          "/public/2026-08/kw33-agh-aktionen-d.pdf"], "kw33"),
+        # Gleicher Monat, zweistellige Woche: lexikografisch stünde kw10 vor kw9.
+        (["/public/2026-03/kw9-agh-aktionen-d.pdf",
+          "/public/2026-03/kw10-agh-aktionen-d.pdf"], "kw10"),
+        # Jahreswechsel.
+        (["/public/2026-12/kw52-agh-aktionen-d.pdf",
+          "/public/2027-01/kw01-agh-aktionen-d.pdf"], "kw01"),
+    ],
+)
+def test_newest_promo_pdf_wins(urls, expected):
+    from winecheck.adapters.prodega import _find_promo_pdf
+
+    html = " ".join(f'<a href="https://www-static.transgourmet.ch{u}">x</a>' for u in urls)
+    assert expected in _find_promo_pdf(html)
+
+
+def test_catalogues_and_market_reports_are_not_mistaken_for_promotions():
+    """Auf der Aktionsseite liegen 26 PDFs; nur die Wochenbroschüre trägt Preise."""
+    from winecheck.adapters.prodega import _find_promo_pdf
+
+    html = """
+      <a href="https://www-static.transgourmet.ch/public/2026-03/2026_0313_marktbericht_tg-p_q2_2026_6er_d.pdf">x</a>
+      <a href="https://www-static.transgourmet.ch/public/2026-02/kw09-agh-bgh-outdoor_katalog-d.pdf">x</a>
+      <a href="https://www-static.transgourmet.ch/public/2026-08/kw33-agh-aktionen-d.pdf">x</a>
+    """
+    assert "kw33-agh-aktionen-d.pdf" in _find_promo_pdf(html)
+
+
+def test_no_promo_pdf_yields_empty_string():
+    from winecheck.adapters.prodega import _find_promo_pdf
+
+    assert _find_promo_pdf("<a href='https://x/public/2026-01/marktbericht.pdf'>x</a>") == ""

@@ -204,14 +204,32 @@ def _login_form(html: str) -> dict[str, str] | None:
     return None
 
 
+_RE_YEAR_MONTH = re.compile(r"/(\d{4})-(\d{2})/")
+_RE_KW = re.compile(r"kw(\d{1,2})", re.I)
+
+
+def _promo_sort_key(url: str) -> tuple[int, int, int]:
+    """Sortierschlüssel (Jahr, Monat, Kalenderwoche).
+
+    Bewusst nicht lexikografisch: ``kw10`` sortiert als Text vor ``kw9``, und im
+    selben Monat können beide vorkommen. Der Pfad trägt beides —
+    ``/public/2026-08/kw33-agh-aktionen-d.pdf``.
+    """
+    ym = _RE_YEAR_MONTH.search(url)
+    kw = _RE_KW.search(url)
+    return (
+        int(ym.group(1)) if ym else 0,
+        int(ym.group(2)) if ym else 0,
+        int(kw.group(1)) if kw else 0,
+    )
+
+
 def _find_promo_pdf(html: str) -> str:
     """Die Aktionsbroschüre der aktuellen Woche heraussuchen."""
-    candidates = _RE_ANY_PDF.findall(html or "")
-    promo = [u for u in candidates if _RE_PROMO_PDF.search(u)]
-    if promo:
-        # Der neueste Pfad enthält das jüngste Jahr-Monat-Segment.
-        return sorted(promo)[-1]
-    return ""
+    promo = [u for u in _RE_ANY_PDF.findall(html or "") if _RE_PROMO_PDF.search(u)]
+    if not promo:
+        return ""
+    return max(promo, key=_promo_sort_key)
 
 
 def _market_url(url: str, market: str | None) -> str:

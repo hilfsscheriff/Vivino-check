@@ -63,7 +63,10 @@ def fetch(
     retailers: str = typer.Option("", "--retailers", help="Kommaliste, z.B. denner,prodega"),
     cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache"),
     registry: Path = typer.Option(None, "--registry"),
-    refresh_prices: bool = typer.Option(False, "--refresh-prices", help="Preis-Cache ignorieren"),
+    refresh_prices: bool = typer.Option(
+        False, "--refresh-prices",
+        help="Angebote aller gewählten Händler vorab löschen, auch wenn der Lauf scheitert",
+    ),
 ) -> None:
     """Aktionsseiten einlesen und Angebote im Cache ablegen."""
     reg = load_registry(registry)
@@ -73,10 +76,31 @@ def fetch(
     reports: list[FetchReport] = []
     uncertain: list[str] = []
 
+    # Blockierte Quellen erscheinen im Report, auch wenn sie nicht aktiviert sind —
+    # sonst liest sich "keine Coop-Aktionen" wie "Coop hat diese Woche nichts", statt
+    # wie "Coop ist nicht einlesbar".
+    if keys is None:
+        for cfg in reg.retailers.values():
+            if cfg.enabled or cfg.status != "blocked":
+                continue
+            reports.append(
+                FetchReport(
+                    retailer=cfg.key,
+                    status="blocked",
+                    message=(
+                        f"{cfg.blocked_by or 'Bot-Schutz'} — Schutzmassnahme wird nicht "
+                        f"umgangen. {' '.join((cfg.notes or '').split())[:150]}"
+                    ),
+                )
+            )
+            _echo(f"  {cfg.key:<14} blockiert ({cfg.blocked_by}) — nicht umgangen")
+
     with Fetcher() as fetcher:
         for cfg in selected:
             if not cfg.enabled and keys is None:
                 continue
+            if refresh_prices:
+                cache.clear_offers(cfg.key)
             adapter = _adapter_for(cfg, fetcher)
             if adapter is None:
                 _echo(f"  {cfg.key:<14} übersprungen — kein Adapter ({cfg.status})")
@@ -96,7 +120,12 @@ def fetch(
             report = adapter.fetch()
             reports.append(report)
             uncertain.extend(getattr(adapter, "uncertain", []))
-            if refresh_prices:
+            # Eine Aktionsseite ist eine Momentaufnahme, keine Sammlung: der frische
+            # Satz ersetzt den alten. Sonst stehen nach zwei Läufen die Aktionen von
+            # KW32 und KW33 nebeneinander im Report, und "Ausgelaufene Aktionen" in
+            # diff.md kann nie anschlagen. Ersetzt wird nur bei erfolgreichem Lauf —
+            # eine blockierte Quelle darf ihren letzten guten Stand behalten.
+            if report.status == "ok" and report.offers:
                 cache.clear_offers(cfg.key)
             for offer in report.offers:
                 cache.put_offer(cfg.key, offer.name, offer.vintage, _offer_payload(offer))

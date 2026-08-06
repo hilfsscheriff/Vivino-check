@@ -146,6 +146,12 @@ Retry-Zeitpunkt.
 | **Migros** | Cloudflare | HTTP 403 auf die Wein-Kategorie. |
 | **Flaschenpost** | Cloudflare | JS-Challenge („Just a moment…"), obwohl `robots.txt` `/aktionen` erlaubt. |
 
+**Entscheidung vom 6.8.2026: keine Browser-Automation.** Die vier Quellen bleiben
+blockiert und werden als solche gemeldet — sie erscheinen in `report.pdf` unter
+„Quellen in diesem Lauf" und in `diff.md` unter „Quellen mit Problemen", damit „keine
+Coop-Aktionen" nicht wie „Coop hat diese Woche nichts" aussieht. Drei funktionierende
+Händler sind besser als sieben halbe.
+
 Weil **Falstaff als Leitquelle nicht erreichbar ist**, läuft das Ranking derzeit über
 Vivino. Die Herkunft wird in jeder Zeile mitgeführt (`rank_source`), und die beiden
 Skalen — Falstaff 0–100, Vivino 1–5 — werden nie im selben Sortierschlüssel gemischt,
@@ -172,6 +178,16 @@ Der Zugang läuft über zwei Wege, und der erste braucht **keine Zugangsdaten**:
    `form_build_id`, `form_id`) und ist implementiert, aber **ungetestet** — ohne
    gültige Zugangsdaten war der eingeloggte Katalog nicht erreichbar. Markt über
    `market:` in der YAML setzen.
+
+   *Entscheidung vom 6.8.2026: der Prospekt genügt.* Weg 2 bleibt ungenutzt im Code.
+   Wer ihn aktivieren will, legt die Zugangsdaten in `.env` — der Adapter nimmt sie
+   automatisch und ergänzt den Katalog um den Prospekt herum. Solange nichts gesetzt
+   ist, steht die Begründung in jedem Lauf in der Spalte „Bemerkung".
+
+Welcher Prospekt gilt, entscheidet sich über Jahr, Monat und Kalenderwoche im Pfad
+(`/public/2026-08/kw33-agh-aktionen-d.pdf`) — nicht lexikografisch, sonst stünde
+`kw10` vor `kw9`. Marktberichte und Sortimentskataloge liegen auf derselben Seite und
+werden nicht verwechselt: nur `kw…aktionen….pdf` trägt Preise.
 
 `easy.prodega.ch` leitet auf `web.transgourmet.ch` mit Cookie-Check weiter und ist
 ohne Session nicht ansprechbar. Ein offener JSON-Endpunkt der App war ohne Reverse
@@ -221,7 +237,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-132 Tests: 125 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+150 Tests: 143 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die
