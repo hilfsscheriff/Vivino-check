@@ -1,5 +1,5 @@
 ---
-name: weinkarte
+name: Vivino Wein Check
 description: Analysiert eine Restaurant-Weinkarte und sagt, welche Flasche das beste Preis-Leistungs-Verhältnis hat — mit echten Vivino-Bewertungen, dem Aufschlag gegenüber dem Ladenpreis und der Trinkreife des Jahrgangs. Nutze diesen Skill immer, wenn ein Foto oder eine Abschrift einer Weinkarte, Getränkekarte oder Weinliste kommt, oder wenn jemand fragt, welchen Wein er im Restaurant nehmen soll, ob ein Weinpreis auf einer Karte in Ordnung ist, wie hoch der Aufschlag ist, welcher Wein auf einer Liste sich lohnt, oder ob ein bestimmter Jahrgang jetzt trinkreif ist — auch wenn die Wörter "Weinkarte" oder "Vivino" nicht fallen. Ebenso bei englischen Formulierungen wie "which wine should I order", "is this wine list overpriced", "check this wine menu". Nicht verwenden für Weinaktionen im Detailhandel, Kellerplanung oder Einkaufslisten.
 ---
 
@@ -41,11 +41,37 @@ Nebenregionen, Jahrgänge, die schon ein paar Jahre liegen, Weissweine aus Gebie
 Prestige. Die berühmten Namen sind auf einer Karte fast immer die teuersten pro
 Qualitätspunkt.
 
-### 3. Bewertungen holen
+### 3. Bewertungen über die Vivino-API holen
 
-Frag Vivino nach den ausgewählten Weinen ab. Endpunkt, Feldwege und Grenzen stehen in
-`references/vivino-api.md` — **lies das, bevor du die erste Anfrage baust.** Zwei Dinge
-dort entscheiden über brauchbar oder Unsinn, und beide sind nicht zu erraten:
+Ein GET pro Wein, JSON zurück. Die Anfrage steht hier vollständig, damit du sie sofort
+abschicken kannst, ohne vorher etwas nachzulesen:
+
+```
+https://www.vivino.com/api/explore/explore?search_term=PRODUZENT&min_rating=1&country_code=CH&currency_code=CHF&per_page=12
+```
+
+Ein gewöhnlicher Browser-`User-Agent` genügt. Die Werte liegen unter
+`explore_vintage.matches[i]`:
+
+| Feld | Bedeutung |
+|---|---|
+| `vintage.statistics.ratings_average` | Note für diesen Jahrgang |
+| `vintage.statistics.ratings_count` | Anzahl Bewertungen (unter 30 ist die Note Zufall) |
+| `vintage.wine.winery.name` | Produzent — **hiermit die Kandidaten filtern** |
+| `vintage.wine.region.name` | Region, für die Trinkreife |
+| `price.amount` | Ladenpreis in CHF, Grundlage des Aufschlags |
+| `records_matched` | über 200 heisst: Suchbegriff war zu allgemein |
+
+`min_rating=1` schliesst nichts aus, erfüllt aber die Bedingung, dass **irgendein** Filter
+gesetzt sein muss — ohne Filter kommt eine leere Trefferliste und kein Fehler. `country_code`
+und `currency_code` sorgen für Schweizer Ladenpreise in Franken; sonst vergleichst du einen
+Restaurantpreis in CHF gegen einen Ladenpreis in Euro.
+
+Höchstens eine Anfrage alle zwei Sekunden. Antwortet die API nicht — schlechter Empfang,
+gesperrtes Netz — steht in `references/vivino-api.md`, was dann noch geht; erfinde keine
+Note aus dem Gedächtnis.
+
+Zwei Dinge entscheiden über brauchbar oder Unsinn, und beide sind nicht zu erraten:
 
 * **Suche nach dem Produzenten, nie nach der Appellation.** Der Endpunkt sortiert nach
   Bewertung, nicht nach Namensähnlichkeit. „Fontodi Chianti Classico" liefert 666 Treffer,
