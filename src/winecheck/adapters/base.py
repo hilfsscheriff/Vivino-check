@@ -24,10 +24,18 @@ WINE_HINTS = (
 )
 
 #: Sortimente, die trotz Wein-Stichwort nicht gemeint sind.
+#:
+#: Alkoholfreies steht hier aus zwei Gründen: es ist für einen Wein-Preisvergleich
+#: nicht gemeint, und es unterliegt in der Schweiz dem **reduzierten** MwSt-Satz von
+#: 2.6 % statt dem Normalsatz von 8.1 %, mit dem hier gerechnet wird. Ein
+#: alkoholfreier Schaumwein bekäme sonst einen um 5.4 % zu hohen Preis.
 NOT_WINE = (
     "weinessig", "essig", "weinbrand", "glas", "gläser", "glaeser", "korkenzieher",
     "kühler", "kuehler", "karaffe", "dekanter", "traubensaft", "weinstein",
     "sauerkraut", "weingummi", "senf", "bratwurst", "fondue", "weinbergschnecke",
+    "alkoholfrei", "alkoholfreier", "alkoholfreie", "alkoholfreies",
+    "entalkoholisiert", "entalkoholisierter", "sans alcool", "senza alcol",
+    "rimuss", "alkoholarm",
 )
 
 _RE_PRICE = re.compile(r"(\d{1,4}(?:['’]\d{3})*(?:[.,]\d{1,2})?)")

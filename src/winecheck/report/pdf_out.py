@@ -25,7 +25,13 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from ..models import VIVINO_LABELS, PriceConfidence, VivinoStatus, WineRow
+from ..models import (
+    VIVINO_LABELS,
+    DiscountPlausibility,
+    PriceConfidence,
+    VivinoStatus,
+    WineRow,
+)
 from ..prices import PRICE_BANDS
 from .formatting import ch, chf, datetime_ch, rating_text, truncate
 
@@ -160,10 +166,11 @@ def _market_cell(row: WineRow, style) -> Paragraph:
         shop = ch(v.market_price_shop)
         text += f'<br/><font size=6.2 color="#5a5a5a">{shop}</font>'
     if pct is not None:
-        colour = "#2e7d32" if pct > 0 else "#c62828"
+        questionable = row.bargain_plausibility is DiscountPlausibility.QUESTIONABLE
+        colour = "#8a6d1f" if questionable else ("#2e7d32" if pct > 0 else "#c62828")
         sign = "−" if pct > 0 else "+"
         text = (
-            f'<b><font color="{colour}">{sign}{abs(pct):.0f} %</font></b><br/>'
+            f'<b><font color="{colour}">{sign}{abs(pct):.0f} %{" !" if questionable else ""}</font></b><br/>'
             f'<font size=6.5>gegen {text}</font>'
         )
     if v.market_price_url:
@@ -353,9 +360,14 @@ def write_pdf(
         story.append(_ranking_table(best_rating, st, info=info, show_falstaff=show_falstaff))
 
     # -- Schnäppchen gegen den Marktpreis ---------------------------------
+    # Fragwürdige Schnäppchen nach hinten: sie stehen weiterhin drin, führen die
+    # Liste aber nicht an. Sonst gewinnt ein einzelner Preis einer Anlageplattform.
     bargains = sorted(
         [r for r in rows if r.bargain_percent is not None and r.bargain_percent > 0],
-        key=lambda r: -(r.bargain_percent or 0),
+        key=lambda r: (
+            r.bargain_plausibility is DiscountPlausibility.QUESTIONABLE,
+            -(r.bargain_percent or 0),
+        ),
     )
     if bargains:
         story.append(Paragraph(ch(f"Grösste Schnäppchen ({len(bargains)} mit Marktpreis)"), st["h2"]))

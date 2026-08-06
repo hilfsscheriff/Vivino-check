@@ -18,6 +18,7 @@ LEAD_COLUMNS = [
     "price_band",
     "value_score",
     "bargain_percent",
+    "bargain_plausibility",
     "vivino_market_price",
     "vivino_market_price_shop",
     "vivino_market_price_raw",

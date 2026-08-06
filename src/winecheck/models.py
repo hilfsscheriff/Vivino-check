@@ -182,6 +182,14 @@ class PriceConfidence(str, enum.Enum):
     LOW = "low"      # Gebindegrösse unsicher -> NICHT ins Ranking
 
 
+#: Ersparnis über dieser Schwelle gegen den Vivino-Marktpreis gilt als fragwürdig.
+#: Höher als die 45 % bei Eigenmarken-Rabatten, weil eine echte 50%-Aktion gegen
+#: einen fremden Marktpreis durchaus 60 % ergeben kann — jenseits davon steckt aber
+#: meist ein einzelner Preiseintrag eines Sammler- oder Anlageshops dahinter.
+#: Steht hier und nicht in prices.py, weil prices.py dieses Modul importiert.
+QUESTIONABLE_BARGAIN = 65.0
+
+
 class DiscountPlausibility(str, enum.Enum):
     OK = "ok"
     QUESTIONABLE = "questionable"   # >45% auf Eigenmarke
@@ -325,6 +333,26 @@ class WineRow:
             return None
         return round((market - price) / market * 100, 1)
 
+    @property
+    def bargain_plausibility(self) -> DiscountPlausibility:
+        """Ist das Schnäppchen glaubwürdig?
+
+        Analog zur Rabatt-Prüfung bei Eigenmarken: ein Nachlass jenseits von
+        :data:`~winecheck.prices.QUESTIONABLE_BARGAIN` gegen den Marktpreis kommt
+        selten von einer echten Aktion und häufig von einem einzelnen fremden
+        Preiseintrag. Beim ersten Lauf stand ein Bourgogne für CHF 13.95 gegen
+        CHF 80.86 einer Wein-Anlageplattform — 83 % "Ersparnis", die es nicht gibt.
+        Auch ein Marktpreis ohne Schweizer Shop gilt als fragwürdig.
+        """
+        pct = self.bargain_percent
+        if pct is None:
+            return DiscountPlausibility.UNKNOWN
+        v = self.vivino
+        foreign = bool(v and "kein Schweizer Shop" in (v.market_price_note or ""))
+        if pct > QUESTIONABLE_BARGAIN or foreign:
+            return DiscountPlausibility.QUESTIONABLE
+        return DiscountPlausibility.OK
+
     # -- Preis -------------------------------------------------------------
     @property
     def best_price(self) -> float | None:
@@ -426,6 +454,7 @@ class WineRow:
             "price_band": self.price_band,
             "value_score": _fmt_num(self.value_score),
             "bargain_percent": _fmt_num(self.bargain_percent),
+            "bargain_plausibility": self.bargain_plausibility.value,
             "vivino_market_price": _fmt_num(v.market_price) if v else "",
             "vivino_market_price_raw": _fmt_num(v.market_price_raw) if v else "",
             "vivino_market_price_basis": (v.market_price_basis or "") if v else "",

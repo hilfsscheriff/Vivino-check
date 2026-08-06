@@ -178,3 +178,30 @@ def test_two_wines_do_not_match_on_wine_type_alone():
 
     d = match_wine("Irgendwas – Rotwein, Österreich", "Anderes – Rotwein, Österreich")
     assert not d.matched
+
+
+# ------------------------------------------------------------- Alkoholfreies
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Rimuss Rosato Sparkling, dry, alkoholfrei – Schaumwein",
+        "Alkoholfreier Riesling 75 cl",
+        "Entalkoholisierter Merlot, 0.0 %",
+        "Vin mousseux sans alcool 75 cl",
+    ],
+)
+def test_alcohol_free_is_not_wine(name):
+    """Doppelt falsch: kein Wein für den Preisvergleich, und alkoholfreie Getränke
+    unterliegen dem reduzierten MwSt-Satz von 2.6 % statt den 8.1 %, mit denen hier
+    gerechnet wird — der Preis wäre um 5.4 % zu hoch."""
+    from winecheck.adapters.base import looks_like_wine
+
+    assert not looks_like_wine(name)
+
+
+def test_real_wine_still_passes():
+    from winecheck.adapters.base import looks_like_wine
+
+    assert looks_like_wine("Casalforte Ripasso della Valpolicella DOC, 75 cl")
+    assert looks_like_wine("Blauer Zweigelt, Mundart (2022) – Rotwein, Österreich (0.75l)")

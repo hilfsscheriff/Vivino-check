@@ -327,3 +327,10 @@ aktivieren). Schwerpunkte:
 * **Grossgebinde können das Ranking dominieren.** Ein 10-Liter-Bag-in-Box bei Prodega
   ergibt umgerechnet CHF 1.21 pro 75 cl. Rechnerisch korrekt, aber selten das, was
   gesucht ist — solche Positionen tragen `Bag-in-Box` in `source_note`.
+* **Alkoholfreies fliegt raus.** Nicht aus Geschmacksgründen: alkoholfreie Getränke
+  unterliegen in der Schweiz dem *reduzierten* MwSt-Satz von 2.6 %, nicht dem
+  Normalsatz von 8.1 %, mit dem hier gerechnet wird. Ein alkoholfreier Schaumwein
+  bekäme sonst einen um 5.4 % zu hohen Preis. Aufgefallen an einem Rimuss aus dem
+  Aktionis-Sortiment.
+* **Bei Mövenpick gibt es meist kein Schnäppchen-Prozent.** Nicht weil die Angebote
+  schlecht wären, sondern weil Vivino dort denselben Preis kennt — siehe oben.

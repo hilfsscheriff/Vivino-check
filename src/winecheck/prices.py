@@ -16,7 +16,12 @@ from __future__ import annotations
 
 import re
 
-from .models import DiscountPlausibility, NormalizedPrice, PriceConfidence
+from .models import (
+    QUESTIONABLE_BARGAIN,
+    DiscountPlausibility,
+    NormalizedPrice,
+    PriceConfidence,
+)
 
 #: Normalsatz für alkoholische Getränke (nicht der reduzierte Lebensmittelsatz).
 VAT_ALCOHOL = 0.081
@@ -26,6 +31,10 @@ REFERENCE_ML = 750
 
 #: Rabatt über dieser Schwelle auf einer Eigenmarke gilt als konstruiert.
 QUESTIONABLE_DISCOUNT = 45.0
+
+#: Re-Export, damit die Schwelle bei den anderen Preiskonstanten auffindbar bleibt.
+#: Definiert ist sie in models.py — prices.py importiert models, nicht umgekehrt.
+__all__ = ["QUESTIONABLE_BARGAIN"]
 
 _NAMED_VOLUMES = {
     "piccolo": 200,

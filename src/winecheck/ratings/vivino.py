@@ -100,11 +100,20 @@ class _Cand:
                 f"einziger Vivino-Preis stammt von {shops} — derselbe Händler, "
                 f"kein unabhängiger Vergleich möglich"
             )
-        best = min(usable, key=lambda p: p.per_75cl)
-        skipped = len(self.prices) - len(usable)
+        # Schweizer Shops zuerst: verglichen wird mit dem *Schweizer* Detailhandel.
+        # Ausländische Sammler- und Anlageplattformen (cultwinesintl.com,
+        # wineuponatime.com) führen Preise, die ein Vielfaches des Ladenpreises
+        # betragen — als Marktpreis genommen ergäbe das ein Fantasie-Schnäppchen.
+        swiss = [p for p in usable if p.shop.endswith(".ch")]
+        pool = swiss or usable
+        best = min(pool, key=lambda p: p.per_75cl)
+
         note = f"Marktpreis von {best.shop or 'Vivino-Händler'}"
+        skipped = len(self.prices) - len(usable)
         if skipped:
-            note += f" ({skipped} Preis(e) des eigenen Händlers übersprungen)"
+            note += f", {skipped} Preis(e) des eigenen Händlers übersprungen"
+        if not swiss:
+            note += " — kein Schweizer Shop, Vergleich mit Vorsicht"
         return best, note
 
 

@@ -193,3 +193,88 @@ def test_market_price_reaches_the_csv():
         assert col in LEAD_COLUMNS
     assert flat["vivino_market_price"] == "15"
     assert flat["bargain_percent"].startswith("49")
+
+
+# ------------------------------------------- Schweizer Shops und Plausibilität
+
+def test_swiss_shop_is_preferred_over_a_cheaper_foreign_one():
+    """Verglichen wird mit dem *Schweizer* Detailhandel. Ausländische Sammler- und
+    Anlageplattformen führen Preise, die ein Vielfaches des Ladenpreises betragen."""
+    c = _cand([
+        _api_and("https://cultwinesintl.com/x", 80.86),
+        _api_and("https://www.chezgrisoni.ch/x", 24.90),
+    ])
+    price, note = c.market_price(set())
+    assert price.shop == "chezgrisoni.ch"
+    assert "kein Schweizer Shop" not in note
+
+
+def test_swiss_preference_wins_even_when_the_foreign_price_is_lower():
+    c = _cand([
+        _api_and("https://auslandshop.com/x", 12.00),
+        _api_and("https://www.chezgrisoni.ch/x", 24.90),
+    ])
+    price, _ = c.market_price(set())
+    assert price.shop == "chezgrisoni.ch"
+
+
+def test_foreign_only_price_is_used_but_flagged():
+    """Lieber ein Vergleich mit Vorbehalt als keiner — aber der Vorbehalt steht dran."""
+    c = _cand([_api_and("https://cultwinesintl.com/x", 80.86)])
+    price, note = c.market_price(set())
+    assert price is not None
+    assert "kein Schweizer Shop" in note
+
+
+def _row_with_note(price, market, note):
+    from winecheck.models import VivinoResult, VivinoStatus
+
+    o = Offer(retailer="coop", name="Ein Wein", vintage=2022,
+              price_per_bottle_incl_vat=price, price_raw=price,
+              price_raw_basis="pro Flasche, inkl. MwSt")
+    row = merge_offers([o])[0]
+    row.vivino = VivinoResult(
+        status=VivinoStatus.EXACT, query="q", url="https://www.vivino.com/de/x/w/1",
+        note="ok", rating=4.0, rating_count=100, match_confidence="exact",
+        market_price=market, market_price_note=note,
+    )
+    return row
+
+
+def test_huge_bargain_is_flagged_as_questionable():
+    """Der Bourgogne für CHF 13.95 gegen CHF 80.86 einer Anlageplattform — 83 %
+    'Ersparnis', die es nicht gibt."""
+    from winecheck.models import DiscountPlausibility
+
+    row = _row_with_note(13.95, 80.86, "Marktpreis von cultwinesintl.com")
+    assert row.bargain_percent > 80
+    assert row.bargain_plausibility is DiscountPlausibility.QUESTIONABLE
+
+
+def test_foreign_market_price_is_questionable_even_at_moderate_percent():
+    from winecheck.models import DiscountPlausibility
+
+    row = _row_with_note(20.0, 30.0, "Marktpreis von x.com — kein Schweizer Shop, "
+                                     "Vergleich mit Vorsicht")
+    assert row.bargain_percent == pytest.approx(33.3, abs=0.1)
+    assert row.bargain_plausibility is DiscountPlausibility.QUESTIONABLE
+
+
+def test_normal_bargain_from_a_swiss_shop_is_plausible():
+    from winecheck.models import DiscountPlausibility
+
+    row = _row_with_note(5.95, 14.30, "Marktpreis von chezgrisoni.ch")
+    assert row.bargain_percent == pytest.approx(58.4, abs=0.1)
+    assert row.bargain_plausibility is DiscountPlausibility.OK
+
+
+def test_plausibility_is_unknown_without_a_percent():
+    from winecheck.models import DiscountPlausibility
+
+    row = _row_with_note(9.0, None, "kein Preis")
+    assert row.bargain_plausibility is DiscountPlausibility.UNKNOWN
+
+
+def test_plausibility_reaches_the_csv():
+    flat = _row_with_note(13.95, 80.86, "Marktpreis von cultwinesintl.com").to_flat()
+    assert flat["bargain_plausibility"] == "questionable"
