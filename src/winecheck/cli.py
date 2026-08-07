@@ -25,7 +25,12 @@ from .adapters.moevenpick import MoevenpickAdapter
 from .adapters.aligro import AligroAdapter
 from .adapters.prodega import ProdegaAdapter
 from .adapters.shopware import ShopwareAdapter
-from .aggregate import attach_maturity, compute_scores, merge_offers
+from .aggregate import (
+    attach_maturity,
+    compute_scores,
+    merge_offers,
+    resolve_shared_ratings,
+)
 from .cache import Cache
 from .config import SourceConfig, load_registry
 from .fetching import Fetcher
@@ -573,7 +578,8 @@ def _load_rated() -> list[WineRow]:
             row.falstaff = falstaff_from(d["falstaff"])
         row.price_band = price_band(row.best_price)
         rows.append(row)
-    return compute_scores(attach_maturity(rows))
+    # Erst hier, wo alle Zeilen vorliegen: ein Vivino-Wein gehört zu einem Wein.
+    return compute_scores(attach_maturity(resolve_shared_ratings(rows)))
 
 
 if __name__ == "__main__":

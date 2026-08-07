@@ -196,3 +196,55 @@ def test_two_offers_of_the_same_wine_become_one_row_with_both_prices():
     assert rows[0].retailer_count == 2
     assert rows[0].best_price == pytest.approx(9.67)
     assert rows[0].cheapest_retailer == "aligro"
+
+
+def test_one_vivino_wine_belongs_to_one_wine():
+    """Fünf Weine von Rocca di Frassinello — il Frassinello, la Fillirea, la Guardia,
+    la Rocca, la Uni — bekamen alle die 4.2 aus 4'655 Bewertungen des Sammeleintrags
+    „Rocca di Frassinello Maremma Toscana". Vier davon sind falsch, und man sieht es
+    der einzelnen Zeile nicht an; erst der Vergleich über alle Zeilen verrät es."""
+    from winecheck.aggregate import resolve_shared_ratings
+    from winecheck.models import VivinoResult, VivinoStatus
+
+    def zeile(name, konfidenz):
+        o = Offer(retailer="x", name=name, vintage=2024, price_per_bottle_incl_vat=15.0,
+                  price_raw=15.0, price_raw_basis="inkl. MwSt")
+        r = merge_offers([o])[0]
+        r.vivino = VivinoResult(
+            status=VivinoStatus.WINE_LEVEL, query="q",
+            url="https://www.vivino.com/de/rocca/w/11745", note="n",
+            rating=4.2, rating_count=4655, match_confidence=konfidenz,
+            matched_name="Rocca di Frassinello Maremma Toscana",
+        )
+        return r
+
+    a = zeile("Rocca di Frassinello la Guardia Maremma Toscana", "fuzzy")
+    b = zeile("Rocca di Frassinello Maremma Toscana", "exact")
+    resolve_shared_ratings([a, b])
+    assert b.vivino.rating == 4.2, "der beste Treffer behält die Note"
+    assert a.vivino.rating is None, "der schwächere verliert sie"
+    assert "anderen Wein" in a.vivino.note
+
+
+def test_different_vintages_of_one_wine_keep_their_rating():
+    """Gegenprobe: „Legaris Crianza" 2020, 2021 und 2022 teilen sich zu Recht die
+    Weinseite. Unterschieden wird an den unterscheidenden Wörtern — sind sie gleich,
+    ist es derselbe Wein in anderem Jahr."""
+    from winecheck.aggregate import resolve_shared_ratings
+    from winecheck.models import VivinoResult, VivinoStatus
+
+    zeilen = []
+    for jahr in (2020, 2021, 2022):
+        o = Offer(retailer="x", name=f"Ribera del Duero DO Crianza Legaris ({jahr})",
+                  vintage=jahr, price_per_bottle_incl_vat=15.0, price_raw=15.0,
+                  price_raw_basis="inkl. MwSt")
+        r = merge_offers([o])[0]
+        r.vivino = VivinoResult(
+            status=VivinoStatus.WINE_LEVEL, query="q",
+            url="https://www.vivino.com/de/legaris/w/80084", note="n",
+            rating=3.9, rating_count=17387, match_confidence="wine_level",
+            matched_name="Legaris Ribera del Duero Crianza",
+        )
+        zeilen.append(r)
+    resolve_shared_ratings(zeilen)
+    assert all(r.vivino.rating == 3.9 for r in zeilen), "alle drei Jahrgänge behalten die Note"

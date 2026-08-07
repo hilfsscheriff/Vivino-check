@@ -20,9 +20,10 @@ from .models import (
     PriceConfidence,
     Rating,
     RetailerPrice,
+    VivinoStatus,
     WineRow,
 )
-from .names import dedup_key, normalized_name
+from .names import distinctive_tokens, dedup_key, normalized_name
 from .prices import PRICE_BANDS, price_band
 
 
@@ -145,6 +146,72 @@ def attach_maturity(rows: list[WineRow], table=None) -> list[WineRow]:
         return rows
     for row in rows:
         row.maturity = tbl.lookup(row.name, row.vintage)
+    return rows
+
+
+
+#: Rangfolge für die Frage, welcher Wein einen umstrittenen Vivino-Eintrag behalten darf.
+_CONF_RANG = {"exact": 4, "wine_level": 3, "fuzzy": 2, "winery_level": 1, "": 0, "none": 0}
+
+
+def resolve_shared_ratings(rows: list[WineRow]) -> list[WineRow]:
+    """Ein Vivino-Wein gehört zu **einem** Wein.
+
+    Tragen mehrere *verschiedene* Händlerweine denselben Vivino-Eintrag, kann höchstens
+    einer davon stimmen. Aufgefallen an „Rocca di Frassinello": fünf Weine des Guts —
+    il Frassinello, la Fillirea, la Guardia, la Rocca, la Uni — bekamen alle die 4.2 aus
+    4'655 Bewertungen des Sammeleintrags „Rocca di Frassinello Maremma Toscana". Vier
+    davon sind falsch, und man sieht es der einzelnen Zeile nicht an; erst der Vergleich
+    über alle Zeilen verrät es.
+
+    Verschiedene **Jahrgänge** desselben Weins sind dagegen in Ordnung und müssen
+    bleiben: „Legaris Crianza" 2020, 2021 und 2022 teilen sich zu Recht die Weinseite.
+    Unterschieden wird darum an den *unterscheidenden* Wörtern — sind sie gleich, ist es
+    derselbe Wein in anderem Jahr; unterscheiden sie sich, sind es andere Weine.
+
+    Der beste Treffer behält die Note. Die übrigen verlieren sie und bekommen eine
+    Begründung, die den Gewinner nennt — eine Lücke mit Erklärung ist brauchbarer als
+    eine Zahl, die zu einem anderen Wein gehört.
+    """
+    nach_wein: dict[str, list[WineRow]] = {}
+    for row in rows:
+        v = row.vivino
+        if v is None or v.rating is None or not v.url or "/w/" not in v.url:
+            continue
+        wein_id = v.url.split("/w/")[-1].split("?")[0].split("/")[0]
+        nach_wein.setdefault(wein_id, []).append(row)
+
+    for gruppe in nach_wein.values():
+        if len(gruppe) < 2:
+            continue
+        # Gleiche unterscheidende Wörter = derselbe Wein in anderem Jahrgang.
+        signaturen = {frozenset(distinctive_tokens(r.name)) for r in gruppe}
+        if len(signaturen) < 2:
+            continue
+
+        def guete(r: WineRow) -> tuple[int, int]:
+            v = r.vivino
+            konf = _CONF_RANG.get((v.match_confidence or "") if v else "", 0)
+            # Bei gleichem Rang gewinnt, wessen Name im Fundnamen am besten aufgeht.
+            eigen = set(distinctive_tokens(r.name))
+            gefunden = set(distinctive_tokens((v.matched_name or "") if v else ""))
+            return (konf, len(eigen & gefunden) - len(eigen - gefunden))
+
+        sieger = max(gruppe, key=guete)
+        for row in gruppe:
+            if row is sieger or row.vivino is None:
+                continue
+            v = row.vivino
+            v.rating = None
+            v.rating_count = None
+            v.status = VivinoStatus.NO_ENTRY
+            v.match_confidence = "none"
+            v.note = (
+                f"Eintrag '{v.matched_name}' gehört zu einem anderen Wein dieses "
+                f"Produzenten ({sieger.name[:44]}) — hier keine eigene Bewertung "
+                f"gefunden. Suche öffnen"
+            )
+            v.matched_name = ""
     return rows
 
 
