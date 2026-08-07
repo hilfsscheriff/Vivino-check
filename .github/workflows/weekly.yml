@@ -66,6 +66,46 @@ jobs:
           uv run wine-check report --out ./output
           uv run wine-check site --out ./docs
 
+      # Reissleine. Der erste automatische Lauf holte die Preise fehlerfrei, bekam
+      # aber nach 13 Vivino-Abfragen für 465 von 478 Weinen ein "blocked" — Vivino
+      # sperrt Rechenzentrums-IPs. Eingecheckt worden wären 5 statt 174 bewertete
+      # Weine. Ausgeliefert wurde es nur deshalb nicht, weil Pushes mit dem
+      # Standard-Token keine weiteren Workflows auslösen; darauf darf man sich nicht
+      # verlassen. Ein Lauf, der die Datenlage verschlechtert, bricht ab.
+      - name: Datenlage prüfen
+        run: |
+          uv run python - <<'PY'
+          import csv, subprocess, sys, io
+
+          def quote(text):
+              rows = list(csv.DictReader(io.StringIO(text), delimiter=";"))
+              bew = sum(1 for r in rows if r.get("vivino_rating"))
+              return len(rows), bew
+
+          rows = list(csv.DictReader(open("output/results.csv", encoding="utf-8-sig"),
+                                     delimiter=";"))
+          bew = sum(1 for r in rows if r.get("vivino_rating"))
+          blockiert = sum(1 for r in rows if r.get("vivino_status") == "blocked")
+
+          alt = subprocess.run(["git", "show", "HEAD:docs/index.html"],
+                               capture_output=True, text=True).stdout
+          alt_bew = alt.count('"r":')
+          print(f"{len(rows)} Weine, {bew} bewertet, {blockiert} blockiert "
+                f"| bisher ausgeliefert: {alt_bew} bewertet")
+
+          # Das eindeutige Signal: eine Bewertungsquelle hat dichtgemacht. Ein
+          # Sortimentswechsel kann die Trefferquote legitim drücken, ein Sperrmuster
+          # nicht — beim ersten CI-Lauf waren es 465 von 478.
+          if blockiert > len(rows) * 0.2:
+              sys.exit(f"Abbruch: {blockiert} von {len(rows)} Weinen blockiert. "
+                       "Der alte Stand bleibt stehen.")
+
+          # Rückfallebene, falls eine Quelle still leer liefert statt zu blocken.
+          if alt_bew >= 20 and bew < alt_bew * 0.66:
+              sys.exit(f"Abbruch: nur {bew} bewertete Weine gegenüber {alt_bew} bisher. "
+                       "Der alte Stand bleibt stehen.")
+          PY
+
       # Zusammenfassung ins Actions-Protokoll, damit man ohne Download sieht, was
       # herauskam — und ob eine Quelle stillschweigend nichts mehr liefert.
       - name: Zusammenfassung
