@@ -38,33 +38,15 @@ from .formatting import chf, datetime_ch
 #: Reihenfolge der Trinkreife-Filter: von „jetzt" nach „später".
 MATURITY_FILTER_ORDER = ("*", "k", "m", "g", "-")
 
-#: Händlerfarben, hell und dunkel. Die Farbe ist im Diagramm das **einzige**
-#: Händlersignal — sie muss darum in beiden Farbschemata sichtbar und untereinander
-#: unterscheidbar sein. Beides war vorher nicht der Fall: vier Werte lagen im
-#: Dunkelmodus unter 3:1 gegen die Kartenfläche, und dieselben vier Werte standen
-#: gleichzeitig für eine Trinkreife (Grün hiess „Mövenpick" *und* „jetzt trinken").
-#:
-#: Die Trinkreife hat den Farbkanal darum abgegeben: ihre Farbe wurde an genau einer
-#: Stelle getragen — dem Punkt in ihrem eigenen Filter-Chip, direkt neben der
-#: Beschriftung, die dasselbe schon sagte. Damit steht das ganze Hue-Rad den
-#: Händlern zur Verfügung; der geringste Paarabstand der ersten acht Farben steigt
-#: von ΔE 30 auf 42, und jeder Wert erreicht >= 3:1 gegen seine Fläche.
-#:
-#: Reihenfolge = alphabetische Händlerliste. Die letzten zwei sind Reserve für neue
-#: Händler; ``_check_palette`` sichert die Zusage ab, damit ein neunter Händler nicht
-#: still eine unsichtbare Farbe bekommt.
-_SHOP_LIGHT = [
-    "#6b1030", "#2f9d2f", "#2525a7", "#258da7", "#a77a25",
-    "#283167", "#a72594", "#286741", "#a73f25", "#674428",
-]
-_SHOP_DARK = [
-    "#c41d58", "#2f9d2f", "#5454d9", "#258da7", "#a77a25",
-    "#4f5ebb", "#b4289f", "#2c7248", "#af4227", "#8c5c36",
-]
+#: „Gut und günstig" ist eine feste Regel, kein Abstand zur Trendlinie: ab dieser
+#: Note und bis zu diesem Preis. Nur dieser Bereich. Absolut zu rechnen ist der
+#: schärfere Filter — „besser als üblich fürs Geld" trifft auch eine mittelmässige
+#: Flasche für CHF 8.
+GOOD_RATING_MIN = 4.2
+GOOD_PRICE_MAX = 20.0
 
-#: Flächen, auf denen die Punkte und Chip-Punkte liegen — Bezug für den Kontrast.
-_PANEL_LIGHT, _PANEL_DARK = "#f8f4f5", "#1e181a"
-
+#: Flächen, gegen die Farben geprüft werden (hell, dunkel).
+_GROUND_LIGHT, _GROUND_DARK = "#faf9f7", "#141114"
 
 #: Ab so vielen Vivino-Bewertungen zählt die Abweichung vom Preisniveau voll. Darunter
 #: wird sie anteilig gedämpft: bei einer Streuung von rund 0.16 Notenpunkten führt sonst
@@ -154,11 +136,6 @@ def display_name(name: str) -> str:
     return re.sub(r"\s{2,}", " ", out).strip(" ,;–—-")
 
 
-def _css_ident(key: str) -> str:
-    """Händlerschlüssel in einen CSS-taugliches Bezeichnerteil überführen."""
-    return re.sub(r"[^a-z0-9]+", "-", key.lower()).strip("-")
-
-
 def _relative_luminance(colour: str) -> float:
     raw = colour.lstrip("#")
     parts = [int(raw[i:i + 2], 16) / 255 for i in (0, 2, 4)]
@@ -176,23 +153,42 @@ def contrast(a: str, b: str) -> float:
 MIN_UI_CONTRAST = 3.0
 
 
-def _check_palette() -> list[str]:
-    """Prüft die Zusage der Palette. Leere Liste heisst: alles gut.
+#: Textfarben der Etikette-Richtung, je Schema, mit ihrem Zweck. Grossgrade dürfen
+#: bei 3:1 liegen (WCAG-Schwelle für grosse Schrift), Kleintext braucht 4.5:1.
+_TOKEN_CONTRAST = {
+    "hell": (_GROUND_LIGHT, {
+        "--ink": ("#1a1719", 4.5), "--muted": ("#6b6668", 4.5),
+        "--faint": ("#78716d", 4.5), "--accent": ("#6d1834", 4.5),
+        "--goldtx": ("#8a6a3d", 4.5), "--gold": ("#9a7b4f", 3.0),
+        "--good": ("#2e7d32", 4.5), "--bad": ("#c62828", 4.5),
+        "--line-strong": ("#8f8a86", 3.0),
+    }),
+    "dunkel": (_GROUND_DARK, {
+        "--ink": ("#f0ebec", 4.5), "--muted": ("#a49da0", 4.5),
+        "--faint": ("#8b8488", 4.5), "--accent": ("#e0879f", 4.5),
+        "--goldtx": ("#d4b587", 4.5), "--gold": ("#c9a877", 3.0),
+        "--good": ("#7cc47f", 4.5), "--bad": ("#ef9a9a", 4.5),
+        "--line-strong": ("#6f6a6e", 3.0),
+    }),
+}
 
-    Läuft im Test, nicht im Build — eine kaputte Farbe soll auffallen, bevor sie
-    ausgeliefert wird, aber den Seitenbau nicht anhalten.
+
+def check_tokens() -> list[str]:
+    """Prüft die Farbzusage der Seite. Leere Liste heisst: alles gut.
+
+    Läuft im Test, nicht im Build — eine zu blasse Farbe soll auffallen, bevor sie
+    ausgeliefert wird, aber den Seitenbau nicht anhalten. Gold ist mit 3:1 bewusst
+    milder geprüft: es trägt nur Grossgrade und Flächen, für Kleintext gibt es
+    ``--goldtx``.
     """
     problems = []
-    if len(_SHOP_LIGHT) != len(_SHOP_DARK):
-        problems.append("hell und dunkel haben unterschiedlich viele Farben")
-    for scheme, palette, panel in (
-        ("hell", _SHOP_LIGHT, _PANEL_LIGHT), ("dunkel", _SHOP_DARK, _PANEL_DARK),
-    ):
-        for colour in palette:
-            got = contrast(colour, panel)
-            if got < MIN_UI_CONTRAST:
+    for scheme, (ground, tokens) in _TOKEN_CONTRAST.items():
+        for name, (value, target) in tokens.items():
+            got = contrast(value, ground)
+            if got < target:
                 problems.append(
-                    f"{colour} erreicht {scheme} nur {got:.2f}:1 gegen {panel}"
+                    f"{scheme}: {name} ({value}) erreicht {got:.2f}:1, "
+                    f"gefordert {target}:1 gegen {ground}"
                 )
     return problems
 
@@ -308,19 +304,8 @@ def build(
 
     info = retailer_info or {}
     retailers = sorted({r for run in runs for w in run["wines"] for r in w["retailers"]})
-    # Die Farbe steht als CSS-Variable im Dokument, nicht als Hexwert in der JSON:
-    # nur so kann sie im Dunkelmodus einen anderen Wert haben. Der Name der Variable
-    # geht in die Payload, den Wert setzt das Stylesheet.
-    light = {r: _SHOP_LIGHT[i % len(_SHOP_LIGHT)] for i, r in enumerate(retailers)}
-    dark = {r: _SHOP_DARK[i % len(_SHOP_DARK)] for i, r in enumerate(retailers)}
-    var = {r: f"--shop-{_css_ident(r) or f'n{i}'}" for i, r in enumerate(retailers)}
-    colour_css = (
-        ":root {"
-        + "".join(f"{var[r]}:{light[r]};" for r in retailers)
-        + "}\n  @media (prefers-color-scheme: dark) { :root {"
-        + "".join(f"{var[r]}:{dark[r]};" for r in retailers)
-        + "} }"
-    )
+    # Kein Farbwert je Händler mehr: in dieser Richtung trägt der Händler keine
+    # Farbe, sondern seinen Namen. Farbe bleibt für Akzent, Urteil und Gold.
     names = {r: (info.get(r) or {}).get("name") or r for r in retailers}
     channels = {r: (info.get(r) or {}).get("channel") or "" for r in retailers}
 
@@ -338,7 +323,7 @@ def build(
             for r in runs
         ],
         "retailers": [
-            {"key": r, "name": names[r], "var": var[r], "channel": channels[r]}
+            {"key": r, "name": names[r], "channel": channels[r]}
             for r in retailers
         ],
         "styles": [{"key": s, "label": STYLE_LABELS[s]} for s in styles],
@@ -349,11 +334,11 @@ def build(
             {"key": m, "label": MATURITY_SHORT[m], "text": MATURITY[m]}
             for m in maturities
         ],
+        "good": {"rating": GOOD_RATING_MIN, "price": GOOD_PRICE_MAX},
         "generated": datetime_ch(),
     }
 
-    doc = _TEMPLATE.replace("__COLOURCSS__", colour_css)
-    doc = doc.replace("__PAYLOAD__", json.dumps(payload, ensure_ascii=False))
+    doc = _TEMPLATE.replace("__PAYLOAD__", json.dumps(payload, ensure_ascii=False))
     doc = doc.replace("__TITLE__", html.escape(title))
     doc = doc.replace("__SOURCE_NAME__", html.escape(SOURCE_NAME))
     doc = doc.replace("__SOURCE_PAGE__", html.escape(SOURCE_PAGE))
@@ -372,198 +357,258 @@ _TEMPLATE = r"""<!doctype html>
 <title>__TITLE__</title>
 <style>
   :root {
-    --ink:#241f20; --muted:#5f5658; --line:#e2dadd; --brand:#6b1030;
-    --bg:#fffdfd; --panel:#f8f4f5; --chip:#efe8ea; --accent:#6b1030;
-    /* Zwei Linienstärken nach Zweck: --line trennt (Tabellenzeilen, Kartenrand)
-       und darf leise sein, --line-strong umrandet Bedienelemente und muss sich
-       vom Hintergrund abheben — sonst liest sich ein Chip als Beschriftung
-       statt als Schalter. Gemessen >= 3:1 gegen Seitenhintergrund, Karte und
-       Chipfläche — der jeweils hellste Wert, der das noch schafft. */
-    --line-strong:#918085;
-    /* Mindesthöhe für Bedienelemente. Auf Zeigergeräten kompakt, auf Touch
-       44 px — dort entscheidet die Treffgenauigkeit, hier die Dichte. */
+    /* ---------------------------------------------------------------- Etikette
+       Nach der Weinetikette gebaut: gestochener Serif, Linien statt Kästen, viel
+       Ruhe, eine tiefe Farbe. Gold trägt den Wert — die Kennzahl, das markierte
+       Feld — und sonst nichts.
+
+       Farbe hat drei Aufgaben und keine vierte: Akzent (bedienbar), Urteil
+       (gut/schwach), Gold (Wert). Der Händler bekommt keine Farbe mehr: er stand
+       nur im Diagramm als Punktfarbe, und dieselben Töne mussten dort gleichzeitig
+       die Trinkreife tragen. Jetzt steht sein Name im Tooltip und in der Tabelle.
+
+       Alle Textwerte gegen beide Gründe auf >= 4.5:1 geprüft, Grossgrade auf 3:1,
+       Ränder von Bedienelementen auf 3:1. */
+    --ink:#1a1719; --muted:#6b6668; --faint:#78716d;
+    --line:#e2dedc; --line-strong:#8f8a86;
+    --bg:#faf9f7; --panel:#f4f2ef; --chip:transparent;
+    --brand:#6d1834; --accent:#6d1834;
+    /* Gold erreicht auf dem hellen Grund nur 3.75:1 — es trägt darum ausschliesslich
+       Grossgrade und Flächen. Kleintext in Gold nimmt --goldtx mit 4.74:1. */
+    --gold:#9a7b4f; --goldtx:#8a6a3d;
+    --good:#2e7d32; --bad:#c62828;
+    /* Didot ist die Etikettenschrift, Optima der humanistische Begleiter, Menlo
+       hält die Zahlenspalten. Nichts wird geladen: die Seite bleibt ohne
+       Drittanbieter, und jede Stufe hat einen breit vorhandenen Ersatz. */
+    --serif:Didot, "Didot LT STD", "Hoefler Text", Garamond, "Times New Roman", serif;
+    --sans:Optima, Candara, "Gill Sans", "Gill Sans MT", "Trebuchet MS", "Segoe UI", sans-serif;
+    --mono:Menlo, "SF Mono", Consolas, monospace;
+    /* Mindesthöhe für Bedienelemente. Auf Zeigergeräten kompakt, auf Touch 44 px —
+       dort entscheidet die Treffgenauigkeit, hier die Dichte. */
     --control-h:36px;
-    /* Fünf Textrollen statt dreizehn Einzelwerte. Vorher lagen zwischen 11 und
-       13.6 px zehn Grössen, mehrere weniger als 0.5 px auseinander — nicht zu
-       sehen, aber dreifach zu pflegen. Gleichzeitig teilten verschiedene Rollen
-       dieselbe Grösse (.sub und .reset, .count und td), die Hierarchie war also
-       zugleich zu fein und zu grob. Der Lesetext liegt jetzt auf 16 px statt
-       13.6 px: die Tabelle ist die am längsten gelesene Fläche der Seite. */
-    --fs-page-title:1.5rem;   /* h1 */
-    --fs-title:1.125rem;      /* Kartentitel */
+    /* Fünf Textrollen. Der Lesetext liegt auf 16 px: die Tabelle ist die am
+       längsten gelesene Fläche der Seite. */
+    --fs-page-title:2rem;     /* h1, Didot */
+    --fs-title:1.25rem;       /* Abschnittstitel, Didot */
     --fs-body:1rem;           /* Tabelle, Suchfeld, Tooltip */
     --fs-body-sm:.875rem;     /* Metatext, Chips, Zähler, Footer, Hinweise */
-    --fs-label:.75rem;        /* Legenden, Spaltenköpfe, Pills — uppercase/600 */
-    --lh-tight:1.25;
+    --fs-label:.75rem;        /* Legenden, Spaltenköpfe, Pills — gesperrte Versalien */
   }
   @media (prefers-color-scheme: dark) {
-    :root { --ink:#eee8ea; --muted:#a89fa2; --line:#393134; --brand:#eaa6bd;
-            --bg:#151113; --panel:#1e181a; --chip:#2a2225; --accent:#eaa6bd;
-            --line-strong:#7b6f73; }
+    :root { --ink:#f0ebec; --muted:#a49da0; --faint:#8b8488;
+            --line:#2b262a; --line-strong:#6f6a6e;
+            --bg:#141114; --panel:#1c181c; --chip:transparent;
+            --brand:#e0879f; --accent:#e0879f;
+            --gold:#c9a877; --goldtx:#d4b587;
+            --good:#7cc47f; --bad:#ef9a9a; }
   }
   @media (pointer: coarse) { :root { --control-h:44px; } }
-  /* Händlerfarben, je Schema ein Wert — im Generator erzeugt. */
-  __COLOURCSS__
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   /* Ein Fokusstil für alles Bedienbare — vorher hing das Aussehen am Browser. */
-  :focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   html { -webkit-text-size-adjust:100%; }
   body { margin:0; background:var(--bg); color:var(--ink);
-         font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         font:16px/1.55 var(--sans);
          padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-  .wrap { max-width:1180px; margin:0 auto; padding:16px 14px 48px; }
-  h1 { font-size:var(--fs-page-title); margin:0 0 2px; color:var(--brand); letter-spacing:-.01em; }
-  .sub { color:var(--muted); font-size:var(--fs-body-sm); margin:0 0 14px; }
-  /* ---- Suche und Filter ---- */
+  .wrap { max-width:1080px; margin:0 auto; padding:26px 18px 56px; }
+  h1 { font-family:var(--serif); font-size:var(--fs-page-title); font-weight:400;
+       margin:6px 0 0; letter-spacing:-.01em; line-height:1.05; }
+  .sub { color:var(--muted); font-size:var(--fs-body-sm); margin:9px 0 0; }
+  /* Die Haarlinie unter dem Kopf ist das Etikettenmotiv: getrennt wird mit Linien,
+     nicht mit Flächen. */
+  .rule { height:1px; background:var(--ink); opacity:.8; margin:15px 0 0; }
+  /* ---- Suche und Filter ---------------------------------------------------- */
+  /* Suchfeld, Treffermenge und Rückweg bleiben stehen: wer in der Liste liest und
+     die Auswahl ändern will, soll nicht nach oben zurück müssen. */
   .search { position:sticky; top:0; z-index:5; background:var(--bg);
-            padding:8px 0 8px; margin-bottom:2px;
-            border-bottom:1px solid var(--line); }
-  .search .bar { margin:8px 0 0; }
-  .search input { width:100%; font-size:var(--fs-body); padding:11px 13px; border-radius:11px;
-                  border:1px solid var(--line-strong); background:var(--panel); color:var(--ink); }
-  .search input::placeholder { color:var(--muted); }
-  fieldset { border:0; margin:0 0 10px; padding:0; }
-  legend { font-size:var(--fs-label); text-transform:uppercase; letter-spacing:.06em;
-           color:var(--muted); margin-bottom:5px; padding:0; }
-  .chips { display:flex; flex-wrap:wrap; gap:6px; }
-  .chip { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line-strong);
-          background:var(--chip); color:inherit; font:inherit; font-size:var(--fs-body-sm);
-          padding:7px 11px; border-radius:999px; cursor:pointer;
-          min-height:var(--control-h); }
-  .chip[aria-pressed="true"] { background:var(--accent); color:var(--bg);
-                               border-color:var(--accent); font-weight:600; }
-  .chip .dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
-  .chip .n { color:var(--muted); font-variant-numeric:tabular-nums; font-size:var(--fs-label); }
-  .chip[aria-pressed="true"] .n { color:var(--bg); opacity:.8; }
-  .bar { display:flex; align-items:center; justify-content:space-between; gap:12px;
-         flex-wrap:wrap; margin:6px 0 12px; }
+            padding:12px 0 10px; border-bottom:1px solid var(--line); }
+  .search input { width:100%; font:400 var(--fs-title)/1.35 var(--serif);
+                  padding:5px 0 8px; background:transparent; color:var(--ink);
+                  border:0; border-bottom:1px solid var(--ctl, var(--line-strong)); }
+  .search input::placeholder { color:var(--faint); font-family:var(--serif); }
+  .search input:focus { outline:0; border-bottom:2px solid var(--accent); padding-bottom:7px; }
+  .search .bar { margin:9px 0 0; }
+  .bar { display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+         flex-wrap:wrap; }
   .count { font-size:var(--fs-body-sm); color:var(--muted); }
-  .count b { color:var(--ink); }
-  .reset { background:none; border:0; color:var(--brand); font:inherit;
-           font-size:var(--fs-body-sm); cursor:pointer; padding:6px 0; text-decoration:underline;
-           min-height:var(--control-h); }
-  /* ---- Diagramm ---- */
-  .card { border:1px solid var(--line); border-radius:14px; background:var(--panel);
-          padding:12px; margin-bottom:16px; }
-  .card h2 { font-size:var(--fs-title); margin:0 0 8px; color:var(--brand); }
-  svg { width:100%; height:auto; display:block; overflow:visible; touch-action:manipulation; }
-  .grid { stroke:var(--line); stroke-dasharray:2 3; }
-  .axis { stroke:var(--line); stroke-width:1.2; }
-  .tick { fill:var(--muted); font-size:11px; }
-  .alabel { fill:var(--muted); font-size:12px; }
-  .hint { fill:var(--brand); font-size:11px; }
-  /* fill-opacity statt voller Deckung: übereinanderliegende Punkte werden dunkler
-     statt sich zu verdecken. Der Umriss in Kartenfarbe trennt sie zusätzlich. */
-  .pt { stroke:var(--panel); stroke-width:1.2; cursor:pointer; fill-opacity:.82;
-        transition:opacity .12s; }
-  .pt:hover, .pt:focus-visible { fill-opacity:1; stroke:var(--ink); stroke-width:1.6; }
-  .pt.off { display:none; }
-  .empty { color:var(--muted); font-size:var(--fs-body-sm); padding:22px 4px; text-align:center; }
-  /* ---- Tabelle als Karten auf dem Handy ---- */
-  table { width:100%; border-collapse:collapse; font-size:var(--fs-body); }
-  th { text-align:left; font-size:var(--fs-label); text-transform:uppercase; letter-spacing:.05em;
-       color:var(--muted); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--line); }
-  td { padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
-  tr:last-child td { border-bottom:0; }
-  a { color:#1a4f8a; }
-  @media (prefers-color-scheme: dark) { a { color:#8fb8e8; } }
-  .wine { font-weight:600; }
-  .meta { color:var(--muted); font-size:var(--fs-body-sm); }
-  .num { font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .good { color:#2e7d32; font-weight:650; }
-  .bad { color:#c62828; }
-  .warn { color:var(--brand); }
-  .matched { color:var(--muted); font-size:.78em; }
-  /* Alle Filter in einer Karte, damit sofort sichtbar ist, was zusammen wirkt.
-     Vorher lagen Chips oben und Feinauswahl unten bei der Tabelle — wer die Note
-     einschränken wollte, musste am Diagramm vorbeiscrollen und wieder zurück. */
-  .filters { padding:14px 16px 10px; margin-bottom:14px; }
-  .filters fieldset + fieldset { margin-top:11px; }
-  /* display:flex nimmt der Summary ihr Standard-Dreieck — ohne Ersatz sieht man
-     nicht, dass sich das aufklappen lässt. */
-  #filterBox > summary { font-size:var(--fs-body-sm); color:var(--brand); cursor:pointer;
-                         display:flex; align-items:center; gap:7px;
-                         min-height:var(--control-h); font-weight:600;
-                         list-style:none; }
+  .count b { color:var(--ink); font-family:var(--mono); font-weight:600;
+             font-variant-numeric:tabular-nums; }
+  .reset { background:none; border:0; color:var(--accent); font:inherit;
+           font-size:var(--fs-body-sm); cursor:pointer; padding:6px 0;
+           text-decoration:underline; min-height:var(--control-h); }
+  fieldset { border:0; margin:0; padding:0; }
+  fieldset + fieldset { margin-top:15px; }
+  legend { font-size:var(--fs-label); text-transform:uppercase; letter-spacing:.2em;
+           color:var(--faint); margin-bottom:8px; padding:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; }
+  /* Pillen behalten ihren Umriss: sie sind schaltbar, dort ist der Rahmen
+     Information und keine Dekoration. */
+  .chip { display:inline-flex; align-items:center; gap:7px;
+          border:1px solid var(--line-strong); background:var(--chip); color:var(--muted);
+          font:inherit; font-size:var(--fs-body-sm); padding:8px 14px; border-radius:999px;
+          cursor:pointer; min-height:var(--control-h); }
+  .chip[aria-pressed="true"] { background:var(--accent); border-color:var(--accent);
+                               color:var(--bg); font-weight:600; }
+  .chip .n { color:var(--faint); font-family:var(--mono); font-size:var(--fs-label);
+             font-variant-numeric:tabular-nums; }
+  .chip[aria-pressed="true"] .n { color:var(--bg); opacity:.85; }
+  /* Kein eigener Oberstrich: die sticky Leiste darüber hat schon einen, sonst
+     stehen zwei Linien mit einer leeren Lücke dazwischen. */
+  .filters { padding:16px 0 0; margin-top:0; border-top:0; }
+  #filterBox > summary { font-size:var(--fs-label); letter-spacing:.16em;
+                         text-transform:uppercase; color:var(--accent); cursor:pointer;
+                         display:flex; align-items:center; gap:9px;
+                         min-height:var(--control-h); list-style:none; }
   #filterBox > summary::-webkit-details-marker { display:none; }
-  #filterBox > summary::after { content:"▾"; margin-left:auto; font-size:.9em;
+  #filterBox > summary::after { content:"▾"; margin-left:auto; font-size:1.1em;
                                 transition:transform .15s; }
   #filterBox[open] > summary::after { transform:rotate(180deg); }
-  #filterBox > summary .n { color:var(--muted); font-weight:400; }
-  .coverage { font-size:var(--fs-body-sm); color:var(--muted); margin:11px 0 0;
-              padding-top:10px; border-top:1px solid var(--line); }
-  #filterBox[open] > summary { margin-bottom:4px; }
+  #filterBox > summary .n { color:var(--faint); letter-spacing:0; text-transform:none;
+                            font-size:var(--fs-body-sm); }
+  #filterBox[open] > summary { margin-bottom:10px; }
   /* Am Desktop ist Platz — dort sind die Filter immer offen und der Aufklapper
      wäre nur ein zusätzlicher Klick. */
   @media (min-width: 721px) { #filterBox > summary { display:none; } }
-  .filters .fine { border-top:1px solid var(--line); padding-top:11px; margin-top:13px; }
-  .controls { display:flex; flex-wrap:wrap; gap:9px 14px; align-items:center;
+  .fine { border-top:1px solid var(--line); padding-top:15px; margin-top:16px; }
+  .controls { display:flex; flex-wrap:wrap; gap:14px 26px; align-items:flex-end;
               font-size:var(--fs-body-sm); color:var(--muted); }
-  .controls label { display:flex; gap:6px; align-items:center; white-space:nowrap;
+  /* Auswahlfelder sind unterstrichen, nicht umkastet — Etiketten arbeiten mit Linien. */
+  .controls label { display:flex; flex-direction:column; gap:5px; white-space:nowrap;
                     min-height:var(--control-h); }
-  .controls select { font:inherit; color:var(--ink); background:var(--bg);
-                     border:1px solid var(--line-strong); border-radius:8px;
-                     padding:5px 7px; max-width:100%; min-height:var(--control-h); }
-  .controls .cb { cursor:pointer; }
-  .controls input[type=checkbox] { accent-color:var(--brand); width:20px; height:20px;
+  .controls label > span { font-size:var(--fs-label); letter-spacing:.2em;
+                           text-transform:uppercase; color:var(--faint); }
+  .controls select { font:400 var(--fs-body)/1 var(--serif); color:var(--ink);
+                     background:transparent; border:0;
+                     border-bottom:1px solid var(--line-strong);
+                     padding:4px 16px 6px 0; min-height:var(--control-h); cursor:pointer;
+                     appearance:none; max-width:100%; }
+  .controls .cb { flex-direction:row; align-items:center; gap:9px; cursor:pointer; }
+  .controls input[type=checkbox] { accent-color:var(--accent); width:19px; height:19px;
                                    flex:0 0 auto; }
-  /* Erklärt die Standardsortierung — muss auf jeder Breite lesbar bleiben. */
-  .tblnote { font-size:var(--fs-body-sm); color:var(--muted); margin:0 0 10px; }
-  /* Nur der Hinweis auf die Spaltenköpfe ist am Handy falsch: dort ist thead weg. */
-  .colhint { font-size:var(--fs-body-sm); color:var(--muted); }
-  .more { margin:12px 0 0; text-align:center; }
-  .more button { font:inherit; font-size:var(--fs-body-sm); color:var(--brand); cursor:pointer;
-                 background:var(--bg); border:1px solid var(--line-strong);
-                 border-radius:999px; padding:9px 18px; min-height:var(--control-h); }
-  .more button:hover { border-color:var(--brand); }
-  .more .meta { display:block; margin-top:6px; }
-  /* Farbe und Füllung sind die beiden Kodierungen im Diagramm. Ohne diese Zeile
-     ist die Händlerfarbe nur über die Filter-Chips zu erraten und der hohle
-     Kreis gar nicht zu deuten. Anders als .colhint auch unter 767 px sichtbar:
-     das Diagramm selbst verschwindet erst bei 720 px. */
-  .legend { font-size:var(--fs-body-sm); color:var(--muted); margin:0 0 8px; }
-  .legend .ring { display:inline-block; width:9px; height:9px; border-radius:50%;
-                  border:1.8px solid var(--muted); vertical-align:baseline; }
-  /* Auf dem Handy ist thead ausgeblendet — dort ist der Hinweis schlicht falsch.
-     Derselbe Breakpoint wie fuer Kartenansicht und Diagramm: 720 px. */
-  @media (max-width: 720px) {
-    .colhint { display:none; }
-    .controls { gap:8px 10px; }
-    .controls label { font-size:var(--fs-body-sm); }
-  }
+  .coverage { font-size:var(--fs-body-sm); color:var(--faint); margin:15px 0 0;
+              padding-top:12px; border-top:1px solid var(--line); }
+  /* ---- Abschnitte: Haarlinie statt Karte --------------------------------- */
+  .card { border:0; border-radius:0; background:transparent; padding:24px 0 0;
+          margin:22px 0 0; border-top:1px solid var(--ink); }
+  .card h2 { font-family:var(--serif); font-size:var(--fs-title); font-weight:400;
+             margin:0 0 4px; letter-spacing:-.005em; }
+  /* ---- Diagramm ---------------------------------------------------------- */
+  svg { width:100%; height:auto; display:block; overflow:visible;
+        touch-action:manipulation; }
+  .grid { stroke:var(--line); }
+  .axis { stroke:var(--line); stroke-width:1; }
+  .tick { fill:var(--faint); font-size:10px; font-family:var(--sans); }
+  .alabel { fill:var(--faint); font-size:10px; font-family:var(--sans); }
+  /* Der Vektor zeigt die Abweichung vom Preisniveau, der Punkt sitzt an seiner
+     Spitze. Im markierten Feld ist er gefüllt und golden, sonst hohl und leise. */
+  /* Die Trendlinie muss so aussehen wie ihr Symbol in der Legende — sonst sagen
+     Diagramm und Legende Unterschiedliches. */
+  .trend { stroke:var(--muted); stroke-width:1.1; opacity:.55; }
+  .vec { stroke:var(--muted); stroke-width:1; opacity:.5; }
+  .vec.good { stroke:var(--gold); stroke-width:1.5; opacity:.95; }
+  .pt { fill:none; stroke:var(--muted); stroke-width:1.1; opacity:.55;
+        cursor:pointer; }
+  .pt.good { fill:var(--gold); stroke:var(--gold); opacity:.95; }
+  .pt:hover, .pt:focus-visible { stroke:var(--ink); stroke-width:1.8; opacity:1; }
+  .zone { fill:var(--gold); fill-opacity:.14; }
+  .zone-edge { fill:none; stroke:var(--gold); stroke-width:1.3; stroke-dasharray:5 3; }
+  .zone-t { fill:var(--goldtx); font-family:var(--sans); font-size:9.5px;
+            font-weight:600; letter-spacing:1.6px; }
+  .zone-s { fill:var(--goldtx); font-family:var(--sans); font-size:9px; opacity:.9; }
+  .lead { fill:none; stroke:var(--goldtx); stroke-width:.9; }
+  .lead-t { fill:var(--ink); font-family:var(--sans); font-size:10.5px; }
+  .legend { font-size:var(--fs-body-sm); color:var(--muted); margin:8px 0 12px;
+            display:flex; flex-wrap:wrap; gap:8px 22px; }
+  .legend span { display:flex; align-items:center; gap:7px; }
+  .legend svg { flex:0 0 auto; width:auto; }
+  .empty { color:var(--muted); font-size:var(--fs-body-sm); padding:24px 2px;
+           text-align:center; }
+  /* ---- Tabelle: Linien, Serif für Namen, Mono für Zahlen ----------------- */
+  table { width:100%; border-collapse:collapse; font-size:var(--fs-body); }
+  th { text-align:left; font-size:var(--fs-label); text-transform:uppercase;
+       letter-spacing:.18em; color:var(--faint); font-weight:400; padding:0 9px 9px;
+       border-bottom:1px solid var(--ink); background:transparent; }
+  td { padding:13px 9px; border-bottom:1px solid var(--line); vertical-align:baseline;
+       background:transparent; }
+  tr:last-child td { border-bottom:0; }
+  a { color:var(--accent); }
+  .wine { font-family:var(--serif); font-size:1.28em; line-height:1.25; }
+  .meta { color:var(--faint); font-size:var(--fs-body-sm); }
+  .num { font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap;
+         text-align:right; font-size:.92em; }
+  /* Die Kennzahl ist der Anker der Seite: Didot, gross, gold. */
+  .pl { font-family:var(--serif); font-size:1.55em; line-height:1; color:var(--gold);
+        text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .pl.neg { color:var(--muted); }
+  .good { color:var(--good); font-weight:600; }
+  .bad { color:var(--bad); }
+  .warn { color:var(--accent); }
+  .matched { color:var(--faint); font-size:.78em; }
+  /* Sorte und Trinkreife als gesperrte Versalien, nicht als gefüllte Pillen —
+     Flächen gehören in dieser Richtung nicht ins Bild. */
+  .pill { display:inline-block; font-size:var(--fs-label); letter-spacing:.14em;
+          text-transform:uppercase; color:var(--faint); }
+  .pill + .pill::before { content:"·"; margin:0 6px 0 2px; opacity:.6; }
+  /* Die Markierung sagt, dass ein Wein die Regel erfüllt. Sie steht bei den Fakten,
+     nicht in der Zahlenspalte: dort bräche sie auf drei Zeilen. */
+  .marker { display:inline-flex; align-items:center; gap:5px; font-size:var(--fs-label);
+            letter-spacing:.13em; text-transform:uppercase; color:var(--goldtx);
+            border:1px solid var(--gold); border-radius:999px; padding:4px 9px;
+            margin-top:7px; }
   th .sortbtn { font:inherit; color:inherit; background:none; border:0; padding:0;
                 cursor:pointer; letter-spacing:inherit; text-transform:inherit; }
-  th .sortbtn:hover { color:var(--brand); }
-  th.sorted { color:var(--brand); }
+  th .sortbtn:hover { color:var(--accent); }
+  th.sorted { color:var(--ink); }
   th.num .sortbtn { width:100%; text-align:right; }
-  @media (prefers-color-scheme: dark){ .good{color:#7cc47f} .bad{color:#ef9a9a} }
-  .pill { display:inline-block; font-size:var(--fs-label); font-weight:600; padding:2px 7px; border-radius:999px;
-          background:var(--chip); color:var(--muted); }
-  @media (max-width:720px) {
+  .tblnote { font-size:var(--fs-body-sm); color:var(--muted); margin:0 0 14px; }
+  .chartnote { font-size:var(--fs-body-sm); color:var(--muted); margin:0 0 10px;
+               max-width:78ch; }
+  .colhint { font-size:var(--fs-body-sm); color:var(--faint); }
+  .more { margin:16px 0 0; text-align:center; }
+  .more button { font:inherit; font-size:var(--fs-body-sm); color:var(--accent);
+                 cursor:pointer; background:transparent;
+                 border:1px solid var(--line-strong); border-radius:999px;
+                 padding:9px 20px; min-height:var(--control-h); }
+  .more button:hover { border-color:var(--accent); }
+  .more .meta { display:block; margin-top:7px; }
+  /* Auf dem Handy ist thead ausgeblendet — dort ist der Hinweis schlicht falsch.
+     Derselbe Breakpoint wie für Kartenansicht und Diagramm: 720 px. */
+  @media (max-width: 720px) {
+    .colhint { display:none; }
+    h1 { font-size:1.6rem; }
+    .wrap { padding:20px 15px 44px; }
     thead { display:none; }
-    tr { display:block; border-bottom:1px solid var(--line); padding:10px 2px; }
-    td { display:block; border:0; padding:2px 0; }
-    td[data-l]::before { content:attr(data-l) " "; color:var(--muted); font-size:var(--fs-label); }
+    tr { display:block; border-bottom:1px solid var(--line); padding:14px 0; }
+    td { display:block; border:0; padding:2px 0; text-align:left; }
+    td[data-l]::before { content:attr(data-l) " "; color:var(--faint);
+                         font-size:var(--fs-label); letter-spacing:.1em;
+                         text-transform:uppercase; }
     /* In der Tabelle hält ein "—" die Spalte ausgerichtet. In der Kartenansicht
        gibt es keine Spalte mehr — dort ist es nur eine Zeile ohne Inhalt, und
        beim Marktpreis betrifft das die Mehrheit der Weine. */
     td.noval { display:none; }
+    .num, .pl { text-align:left; }
+    .pl { font-size:1.7em; }
+    /* Das Diagramm braucht Breite, die es hier nicht hat. Die Liste ist auf dieser
+       Breite die vollständigere Ansicht. */
     .chart { display:none; }
   }
-  #tip { position:fixed; z-index:20; pointer-events:none; opacity:0; transition:opacity .1s;
-         max-width:300px; background:var(--panel); border:1px solid var(--line);
-         border-radius:10px; padding:9px 11px; font-size:var(--fs-body-sm); line-height:1.45;
-         box-shadow:0 8px 26px rgba(0,0,0,.18); }
+  #tip { position:fixed; z-index:20; pointer-events:none; opacity:0;
+         transition:opacity .1s; max-width:320px; background:var(--bg);
+         border:1px solid var(--line-strong); border-radius:2px; padding:12px 14px;
+         font-size:var(--fs-body-sm); line-height:1.45;
+         box-shadow:0 10px 30px rgba(0,0,0,.16); }
   #tip.on { opacity:1; }
-  #tip .n { font-weight:650; display:block; margin-bottom:3px; }
-  #tip .r { display:flex; justify-content:space-between; gap:12px; }
-  #tip .k { color:var(--muted); }
-  #tip .also { margin-top:7px; padding-top:6px; border-top:1px solid var(--line); }
-  #tip .also b { display:block; margin-bottom:3px; }
-  #tip { max-width:320px; }
-  footer { color:var(--muted); font-size:var(--fs-body-sm); border-top:1px solid var(--line);
-           padding-top:12px; margin-top:8px; }
-  footer p { margin:.4em 0; }
+  #tip .n { font-family:var(--serif); font-size:1.15em; display:block;
+            margin-bottom:7px; line-height:1.25; }
+  #tip .r { display:flex; justify-content:space-between; gap:14px; }
+  #tip .k { color:var(--faint); }
+  #tip .also { margin-top:9px; padding-top:7px; border-top:1px solid var(--line); }
+  #tip .also b { display:block; margin-bottom:4px; font-weight:600; }
+  footer { color:var(--faint); font-size:var(--fs-body-sm);
+           border-top:1px solid var(--line); padding-top:16px; margin-top:32px; }
+  footer p { margin:.5em 0; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
 </style>
 </head>
 <body>
@@ -641,8 +686,21 @@ _TEMPLATE = r"""<!doctype html>
 
   <div class="card chart">
     <h2>Vivino-Bewertung gegen Preis</h2>
-    <p class="legend">Farbe = Händler · <span class="ring"></span> hohler Kreis =
-       Vivino-Treffer unsicher, die Note kann zu einem anderen Wein gehören</p>
+    <p class="chartnote">Die Linie ist die Note, die für diesen Preis üblich ist. Jeder
+       Vektor zeigt, wie weit ein Wein davon abweicht — nach oben mehr Note fürs Geld,
+       nach unten weniger. Getrennt davon markiert ist die feste Regel für
+       <b>gut und günstig</b>: ab Note 4.2 und bis CHF 20.</p>
+    <p class="legend">
+      <span><svg width="26" height="12" aria-hidden="true"><line x1="1" y1="6" x2="25" y2="6"
+        stroke="var(--muted)" stroke-width="1.1" opacity=".55"/></svg> üblich für den Preis</span>
+      <span><svg width="16" height="20" aria-hidden="true"><line x1="8" y1="17" x2="8" y2="6"
+        stroke="var(--gold)" stroke-width="1.5"/><circle cx="8" cy="5" r="4"
+        fill="var(--gold)"/></svg> gut und günstig</span>
+      <span><svg width="16" height="20" aria-hidden="true"><line x1="8" y1="3" x2="8" y2="14"
+        stroke="var(--muted)" stroke-width="1" opacity=".5"/><circle cx="8" cy="15" r="4"
+        fill="none" stroke="var(--muted)" stroke-width="1.1" opacity=".55"/></svg>
+        ausserhalb der Regel</span>
+      <span>Länge = Abweichung in Notenpunkten</span></p>
     <div id="chart"></div>
   </div>
 
@@ -713,6 +771,12 @@ const chf = v => v == null ? "" : "CHF " + Number(v).toFixed(2)
 /* Die Händlernamen tragen den Jahrgang meist schon in sich ("Pomerol AOC 2007
    Château Lafleur"). Ihn dann noch anzuhängen, druckt ihn zweimal — bei den
    allermeisten Weinen. Nur anhängen, wenn er im Namen fehlt. */
+/* Für die Etiketten im Diagramm: die ersten Wörter genügen, der Tooltip hat den Rest. */
+const kurz = n => { const w = String(n).split(" ");
+  return w.slice(0, 3).join(" ") + (w.length > 3 ? "…" : ""); };
+/* Dieselbe Regel wie im Diagramm: ab Note 4.2 und bis CHF 20, nur dieser Bereich. */
+const istGut = w => w.rating != null && w.rating >= D.good.rating
+  && w.price > 0 && w.price <= D.good.price;
 const vintageSuffix = w => (w.vintage && !String(w.name).includes(String(w.vintage)))
   ? " " + w.vintage : "";
 /* Der Wert, nach dem standardmässig sortiert wird, muss auch dastehen — sonst ist die
@@ -720,9 +784,7 @@ const vintageSuffix = w => (w.vintage && !String(w.name).includes(String(w.vinta
 const valueText = w => {
   if (w.valueScore == null) return '<span class="meta">—</span>';
   const v = w.valueScore;
-  const cls = v > 0.05 ? "good" : v < -0.05 ? "bad" : "meta";
-  return `<span class="${cls}">${v > 0 ? "+" : v < 0 ? "−" : "±"}`
-    + Math.abs(v).toFixed(2) + "</span>";
+  return (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(2);
 };
 
 function currentRun() { return D.runs.find(r => r.id === S.run) || D.runs[0]; }
@@ -794,32 +856,73 @@ function chart(list) {
     g += `<line class="grid" x1="${L}" y1="${sy(v)}" x2="${L+pw}" y2="${sy(v)}"/>`
        + `<text class="tick" x="${L-7}" y="${sy(v)+4}" text-anchor="end">${v.toFixed(1)}</text>`;
   }
-  /* Im dichten Bereich (CHF 5–20, Note 3.9–4.2) lagen bei 127 Punkten 24 ganz oder
-     teilweise hinter anderen — deren Tooltip war unerreichbar. Kleinerer Radius und
-     Teiltransparenz machen Häufungen als dunklere Fläche lesbar, statt sie zu
-     verdecken; der Umriss trennt die Punkte weiter voneinander. */
-  const shopVar = Object.fromEntries(D.retailers.map(r => [r.key, r.var]));
-  // Unbestätigte Namensabgleiche werden hohl gezeichnet. Farbe immer per style, nie
-  // als Präsentationsattribut: fill="..." nimmt kein var(), und die Regel
-  // .pt { stroke: ... } würde ein stroke-Attribut überstimmen.
+  /* Trendlinie: die Note, die man für diesen Preis üblicherweise bekommt. Aus dem
+     Lauf geschätzt, nicht geraten — dieselbe Regression, aus der der
+     Preis-Leistungs-Wert kommt. */
+  const fit = (() => {
+    const lx = pts.map(p => Math.log10(p.price)), ly = pts.map(p => p.rating);
+    const n = lx.length, mx = lx.reduce((s, v) => s + v, 0) / n,
+          my = ly.reduce((s, v) => s + v, 0) / n;
+    const sxx = lx.reduce((s, x) => s + (x - mx) ** 2, 0);
+    if (!sxx) return null;
+    const bb = lx.reduce((s, x, i) => s + (x - mx) * (ly[i] - my), 0) / sxx;
+    return { a: my - bb * mx, b: bb };
+  })();
+  const erwartet = v => fit ? fit.a + fit.b * Math.log10(v) : null;
+
+  /* Das markierte Feld ist eine feste Regel: ab Note 4.2 und bis CHF 20, nur dieser
+     Bereich. Als Rechteck, weil die Regel absolut ist — nicht als Fläche über der
+     Trendlinie: „besser als üblich fürs Geld" trifft auch eine mittelmässige Flasche
+     für CHF 8. Die Regel ist eng; ist das Feld leer, sagt es das selbst. */
+  const gRating = D.good.rating, gPrice = D.good.price;
+  const gut = p => p.rating >= gRating && p.price > 0 && p.price <= gPrice;
+  const imFeld = pts.filter(gut);
+  const zx = Math.min(L + pw, Math.max(L, sx(gPrice)));
+  const zy = Math.min(T + ph, Math.max(T, sy(gRating)));
+  const zone = (zx > L + 4 && zy > T + 4)
+    ? `<rect class="zone" x="${L}" y="${T}" width="${(zx - L).toFixed(1)}" height="${(zy - T).toFixed(1)}"/>`
+      + `<path class="zone-edge" d="M ${L} ${zy.toFixed(1)} L ${zx.toFixed(1)} ${zy.toFixed(1)} L ${zx.toFixed(1)} ${T}"/>`
+      + `<text class="zone-t" x="${L + 8}" y="${T + 16}">GUT UND GÜNSTIG</text>`
+      + `<text class="zone-s" x="${L + 8}" y="${T + 29}">ab Note ${gRating.toFixed(1)} · bis CHF ${gPrice.toFixed(0)}</text>`
+      + `<text class="zone-s" x="${L + 8}" y="${(zy - 9).toFixed(1)}">${imFeld.length} von ${pts.length} Weinen</text>`
+    : "";
+
+  const trend = fit
+    ? `<line class="trend" x1="${sx(Math.pow(10, x0)).toFixed(1)}" y1="${sy(erwartet(Math.pow(10, x0))).toFixed(1)}"`
+      + ` x2="${sx(Math.pow(10, x1)).toFixed(1)}" y2="${sy(erwartet(Math.pow(10, x1))).toFixed(1)}"/>`
+    : "";
+
+  /* Je Wein ein Vektor von der Trendlinie zu seinem Punkt: Richtung = mehr oder
+     weniger Note fürs Geld, Länge = wie viel. Der Punkt sitzt an der Spitze. Weine im
+     markierten Feld sind gefüllt und golden, alle anderen hohl und leise — die
+     Kennung hängt damit nicht an der Farbe allein, das Feld ist beschriftet. */
   const circles = pts.map((p, i) => {
-    const c = `var(${shopVar[p.cheapest] || "--brand"})`;
-    const paint = p.fuzzy
-      ? `style="fill:none;stroke:${c};stroke-width:1.8"`
-      : `style="fill:${c}"`;
-    return `<circle class="pt" data-i="${i}" cx="${sx(p.price).toFixed(1)}"`
-      + ` cy="${sy(p.rating).toFixed(1)}" r="5" ${paint}/>`;
+    const x = sx(p.price).toFixed(1), yP = sy(p.rating).toFixed(1);
+    const yE = fit ? sy(erwartet(p.price)).toFixed(1) : yP;
+    const cls = gut(p) ? " good" : "";
+    return `<line class="vec${cls}" x1="${x}" y1="${yE}" x2="${x}" y2="${yP}"/>`
+      + `<circle class="pt${cls}" data-i="${i}" cx="${x}" cy="${yP}" r="4"/>`;
+  }).join("");
+
+  /* Benannt werden die Weine, die die Regel erfüllen — sie sind der Punkt der
+     Markierung. Die Etiketten sitzen rechts der Zonenkante, damit sie deren
+     Beschriftung nicht überschreiben, und gestaffelt gegen sich selbst. */
+  const labels = imFeld.slice(0, 4).map((p, i) => {
+    const ax = sx(p.price), ay = sy(p.rating);
+    const tx = zx + 20, ty = T + 26 + i * 16;
+    return `<path class="lead" d="M ${(ax + 5).toFixed(1)} ${ay.toFixed(1)} L ${(zx + 9).toFixed(1)} ${ty.toFixed(1)} L ${tx.toFixed(1)} ${ty.toFixed(1)}"/>`
+      + `<text class="lead-t" x="${(tx + 3).toFixed(1)}" y="${(ty + 3.5).toFixed(1)}">${esc(kurz(p.name))}`
+      + ` <tspan fill="var(--goldtx)">${p.rating.toFixed(1)} · ${chf(p.price)}</tspan></text>`;
   }).join("");
 
   box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img"
-      aria-label="Vivino-Bewertung gegen Preis, ${pts.length} Weine">
-    ${g}
+      aria-label="Vivino-Note gegen Preis, ${pts.length} Weine. Eine Trendlinie zeigt die Note, die für diesen Preis üblich ist; je Wein zeigt ein Vektor die Abweichung davon. Markiert ist der Bereich ab Note ${gRating.toFixed(1)} bis CHF ${gPrice.toFixed(0)}: ${imFeld.length} von ${pts.length} Weinen.">
+    ${zone}${g}
     <line class="axis" x1="${L}" y1="${T+ph}" x2="${L}" y2="${T}"/>
     <line class="axis" x1="${L}" y1="${T+ph}" x2="${L+pw}" y2="${T+ph}"/>
     <text class="alabel" x="${L+pw/2}" y="${H-8}" text-anchor="middle">Preis pro 75 cl inkl. MwSt (CHF, logarithmisch)</text>
-    <text class="alabel" transform="rotate(-90 14 ${T+ph/2})" x="14" y="${T+ph/2}" text-anchor="middle">Vivino-Bewertung (1–5)</text>
-    <text class="hint" x="${L}" y="${T-10}">oben links = gut und günstig</text>
-    <g id="pts">${circles}</g></svg>`;
+    <text class="alabel" transform="rotate(-90 14 ${T+ph/2})" x="14" y="${T+ph/2}" text-anchor="middle">Vivino-Note (1–5)</text>
+    ${trend}<g id="pts">${circles}</g>${labels}</svg>`;
 
   const tip = document.getElementById("tip"), host = box.querySelector("#pts");
   /* Gerenderte Lage je Punkt, um Häufungen zu finden. Ein kleinerer Radius löst das
@@ -960,9 +1063,12 @@ function table(list) {
     return `<tr>
       <td data-l="Wein"><span class="wine">${esc(w.name)}</span>
         ${vs ? `<span class="meta">${vs}</span>` : ""}
-        ${w.styleLabel ? `<br><span class="pill">${esc(w.styleLabel)}</span>` : ""}
-        ${w.maturityShort ? ` <span class="pill">${esc(w.maturityShort)}</span>` : ""}</td>
-      <td data-l="Preis-Leistung" class="num${w.valueScore == null ? " noval" : ""}">${valueText(w)}</td>
+        ${w.styleLabel || w.maturityShort ? "<br>" : ""}
+        ${w.styleLabel ? `<span class="pill">${esc(w.styleLabel)}</span>` : ""}
+        ${w.maturityShort ? `<span class="pill">${esc(w.maturityShort)}</span>` : ""}
+        ${istGut(w) ? `<br><span class="marker">◆ gut und günstig</span>` : ""}</td>
+      <td data-l="Preis-Leistung" class="pl${w.valueScore == null ? " noval" : ""}${
+        (w.valueScore ?? 0) < 0 ? " neg" : ""}">${valueText(w)}</td>
       <td data-l="Vivino">${vivino}</td>
       <td data-l="Preis/75cl" class="num">${chf(w.price)}</td>
       <td data-l="Wo kaufen">${shop}</td>
@@ -1038,9 +1144,9 @@ function buildFilters() {
   D.styles.forEach(s => st.append(chip(s.label, S.style.has(s.key), toggle(S.style, s.key))));
 
   const sh = document.getElementById("fShop"); sh.innerHTML = "";
+  // Ohne Farbpunkt: der Händler trägt hier keine Farbe, nur seinen Namen.
   D.retailers.forEach(r => sh.append(chip(
-    r.name, S.shop.has(r.key), toggle(S.shop, r.key),
-    `<span class="dot" style="background:var(${r.var})"></span>`)));
+    r.name, S.shop.has(r.key), toggle(S.shop, r.key))));
 }
 
 /* Am Desktop ist der Aufklapper ausgeblendet — dort muss <details> offen sein, sonst

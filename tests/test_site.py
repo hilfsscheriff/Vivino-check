@@ -13,12 +13,11 @@ import re
 import pytest
 
 from winecheck.report.site import (
-    MIN_UI_CONTRAST,
-    _SHOP_DARK,
-    _SHOP_LIGHT,
-    _check_palette,
+    GOOD_PRICE_MAX,
+    GOOD_RATING_MIN,
     _wine_from_snapshot,
     build,
+    check_tokens,
     contrast,
 )
 
@@ -168,7 +167,7 @@ def test_touch_targets_grow_on_coarse_pointer(doc):
 def test_single_focus_style_for_everything(doc):
     """Vorher hing der Fokusring am Browser."""
     text = doc()
-    assert ":focus-visible { outline:2px solid var(--brand); outline-offset:2px; }" in text
+    assert ":focus-visible { outline:2px solid var(--accent); outline-offset:2px; }" in text
 
 
 # ------------------------------------------------------------- Semantik
@@ -188,11 +187,13 @@ def test_tooltip_has_no_dangling_role(doc):
     assert not re.search(r"<[^!>]*role=\"tooltip\"", text)
 
 
-def test_chart_legend_explains_both_encodings(doc):
-    """Farbe und Füllung waren nirgends erklärt."""
+def test_chart_legend_explains_its_encodings(doc):
+    """Trendlinie, Vektor und Markierung müssen benannt sein — sonst sind sie Deko."""
     text = doc()
-    assert "Farbe = Händler" in text
-    assert "hohler Kreis" in text
+    legend = text.split('class="legend"', 1)[1].split("</p>", 1)[0]
+    for begriff in ("üblich für den Preis", "gut und günstig", "ausserhalb der Regel",
+                    "Abweichung in Notenpunkten"):
+        assert begriff in legend, begriff
 
 
 def test_single_run_hides_the_run_filter(doc):
@@ -323,7 +324,7 @@ def test_value_column_is_visible_and_explained(doc):
     assert "wie viel besser die Note ist" in text
     # Die Erklärung darf nicht mit dem Sortierhinweis am Handy verschwinden.
     note = text.split('class="tblnote"', 1)[1].split("</p>", 1)[0]
-    assert "Preis-Leistung" in note
+    assert "Preis-Leistung" in note, "die Tabellen-Erklärung zeigt auf den falschen Absatz"
 
 
 # ------------------------------------------------------------ Paginierung (F-02/F-03)
@@ -398,69 +399,95 @@ def test_summary_keeps_an_affordance(doc):
     assert "details-marker { display:none; }" in text
 
 
-# ------------------------------------------------------------------- Farben
+# ------------------------------------------------------- Farbe und Regel (02)
 
-def test_palette_keeps_its_contrast_promise():
-    """Die Zusage, nicht die Auswahl: jede Händlerfarbe >= 3:1, hell und dunkel.
+def test_tokens_keep_their_contrast_promise():
+    """Die Zusage, nicht die Auswahl: jede Textfarbe erreicht ihr Ziel, hell und dunkel.
 
-    Sichert vor allem den Fall ab, dass jemand einen Händler ergänzt oder eine
-    Farbe austauscht — vorher lagen im Dunkelmodus vier Werte unter 3:1.
+    Gold ist mit 3:1 milder geprüft — es trägt nur Grossgrade und Flächen. Für
+    Kleintext gibt es ``--goldtx`` mit 4.5:1.
     """
-    assert _check_palette() == []
+    assert check_tokens() == []
 
 
-def test_shop_palette_has_a_value_per_scheme():
-    assert len(_SHOP_LIGHT) == len(_SHOP_DARK)
-    # Gleiche Farbe in beiden Schemata ist erlaubt, wenn sie beides schafft —
-    # aber die dunklen Flächen brauchen bei tiefen Tönen einen eigenen Wert.
-    assert _SHOP_LIGHT != _SHOP_DARK
+def test_retailer_no_longer_carries_colour(doc):
+    """In dieser Richtung trägt der Händler seinen Namen, keine Farbe.
 
-
-def test_maturity_no_longer_spends_colour(doc):
-    """Trinkreife hat den Farbkanal abgegeben — sonst heisst eine Farbe zweierlei."""
-    text = doc()
-    payload = _payload(text)
-    for m in payload["maturities"]:
-        assert "colour" not in m, "Trinkreife trägt wieder eine eigene Farbe"
-    assert 'id="fMat"' in text
-    # Der Chip-Punkt wird nur noch für Händler erzeugt.
-    assert text.count('class="dot" style="background:var(') == 1
-
-
-def test_shop_colour_travels_as_css_variable(doc):
-    """Als Hexwert in der JSON könnte die Farbe nicht auf das Schema reagieren."""
-    text = doc()
-    payload = _payload(text)
-    for r in payload["retailers"]:
-        assert r["var"].startswith("--shop-"), r
-        assert "colour" not in r, "Hexwert zurück in der Payload"
-    assert "--shop-moevenpick:" in text
-    assert "@media (prefers-color-scheme: dark) { :root {--shop-" in text
-
-
-def test_chart_paints_by_style_not_attribute(doc):
-    """``fill="var(--x)"`` funktioniert nicht — Präsentationsattribute nehmen kein var()."""
-    text = doc()
-    assert 'style="fill:${c}"' in text
-    assert 'fill="${c}"' not in text
-
-
-def test_no_colour_serves_two_meanings():
-    """Der Kern von F-05: keine Farbe steht in zwei Legenden.
-
-    Die Trinkreife hat keine Farben mehr, darum kann die Schnittmenge nur leer sein.
-    Der Test hält das fest, damit ein Rückbau auffällt.
+    Vorher war Farbe im Diagramm das einzige Händlersignal — und dieselben Töne
+    mussten gleichzeitig die Trinkreife tragen.
     """
+    text = doc()
+    for r in _payload(text)["retailers"]:
+        assert "var" not in r and "colour" not in r, r
+    assert "--shop-" not in text
+    assert 'class="dot"' not in text, "Farbpunkt an den Chips ist zurück"
+
+
+def test_colour_has_three_jobs_only(doc):
+    """Akzent, Urteil, Gold — keine vierte Aufgabe."""
+    text = doc()
+    style = text.split("<style>", 1)[1].split("</style>", 1)[0]
+    # Keine erzeugte Palette, keine Trinkreife-Farbe.
+    assert "@media (prefers-color-scheme: dark)" in style
     import winecheck.report.site as site
-    assert not hasattr(site, "_MATURITY_COLOURS"), \
-        "Trinkreife-Palette ist zurück — dann bitte gegen _SHOP_* auf Kollisionen prüfen"
+    assert not hasattr(site, "_MATURITY_COLOURS")
+    assert not hasattr(site, "_SHOP_LIGHT")
+    for m in _payload(text)["maturities"]:
+        assert "colour" not in m
 
 
-def test_new_retailer_cannot_get_an_invisible_colour():
-    """Ein neunter Händler greift auf die Reserve zu, nicht auf Zufall."""
-    assert len(_SHOP_LIGHT) >= 10
-    for colour, panel in [(_SHOP_LIGHT[-1], "#f8f4f5"), (_SHOP_DARK[-1], "#1e181a")]:
-        assert contrast(colour, panel) >= MIN_UI_CONTRAST
+def test_good_and_cheap_is_an_absolute_rule(doc):
+    """Ab Note 4.2 und bis CHF 20, nur dieser Bereich — nicht der Abstand zur Linie."""
+    assert (GOOD_RATING_MIN, GOOD_PRICE_MAX) == (4.2, 20.0)
+    text = doc()
+    payload = _payload(text)
+    assert payload["good"] == {"rating": 4.2, "price": 20.0}
+    # Tabelle und Diagramm müssen dieselbe Regel benutzen.
+    assert "const istGut = w =>" in text
+    assert "const gut = p => p.rating >= gRating" in text
+    assert "D.good.rating" in text and "D.good.price" in text
+
+
+def test_rule_marks_only_matching_wines(doc):
+    """Gegenprobe an den Grenzen: 4.2/20.00 zählt, 4.1 und 20.01 nicht."""
+    from winecheck.report.site import GOOD_PRICE_MAX as pmax, GOOD_RATING_MIN as rmin
+    treffer = [(rmin, pmax), (4.5, 9.9)]
+    daneben = [(rmin - 0.1, pmax), (rmin, pmax + 0.01), (4.0, 5.0)]
+    for r, pr in treffer:
+        assert r >= rmin and 0 < pr <= pmax
+    for r, pr in daneben:
+        assert not (r >= rmin and 0 < pr <= pmax)
+    # Die Markierung hängt im Dokument an derselben Bedingung.
+    text = doc()
+    assert "istGut(w) ?" in text and "gut und günstig" in text
+
+
+def test_zone_names_its_rule_and_count(doc):
+    """Der Bereich ist eng — er muss selbst sagen, wie viele Weine darin liegen."""
+    text = doc()
+    assert "GUT UND GÜNSTIG" in text
+    assert "ab Note ${gRating.toFixed(1)}" in text
+    assert "${imFeld.length} von ${pts.length} Weinen" in text
+
+
+def test_chart_draws_vectors_from_the_trend_line(doc):
+    """Der Abstand zur Linie ist die Grösse, nach der sortiert wird — er wird gezeichnet."""
+    text = doc()
+    assert 'class="vec' in text
+    assert "const erwartet = v => fit" in text
+    assert "const fit = (() => {" in text
+
+
+def test_typography_uses_the_label_faces(doc):
+    """Didot für Namen und Kennzahl, Menlo für Zahlen, Optima im Text."""
+    text = doc()
+    assert "--serif:Didot" in text
+    assert "Menlo" in text
+    assert "Optima" in text
+    wine = re.search(r"\n  \.wine \{[^}]*\}", text).group(0)
+    assert "var(--serif)" in wine
+    num = re.search(r"\n  \.num \{[^}]*\}", text).group(0)
+    assert "var(--mono)" in num
 
 
 # ------------------------------------------------------------- Grundlagen
@@ -489,7 +516,7 @@ def test_only_five_text_roles_exist(doc):
     style = text.split("<style>", 1)[1].split("</style>", 1)[0]
     # SVG-Text darf in px bleiben: er skaliert über die viewBox mit der Diagrammbreite.
     # em-Werte sind relativ zur Umgebung und definieren keine eigene Rolle (Chevron).
-    svg_px = {"11px", "12px"}
+    svg_px = {"9px", "9.5px", "10px", "10.5px"}
     literal = set(re.findall(r"font-size:\s*([^;}]+)", style))
     tokens = {v for v in literal if v.startswith("var(--fs-")}
     rest = {v for v in literal

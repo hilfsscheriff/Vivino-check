@@ -197,6 +197,42 @@ Bereinigt wird nur die **Anzeige**: gematcht und dedupliziert wurde vorher mit d
 | schlechtester Händlerkontrast | 1.45:1 (dunkel) | **3.22:1** |
 | unerreichbare Weine | 223 | **0** |
 
+## 2e. Vierter Durchgang: Richtung „Etikette" umgesetzt
+
+Nach drei Durchgängen an Struktur und Verhalten hat die Seite ein Designsystem bekommen — Richtung 02 aus den Vorschlägen, nach der Weinetikette gebaut. **Funktion und Verhalten bleiben unverändert:** Preis-Leistung als Standardsortierung, Paginierung, einklappbare Filter, sticky Zähler, Leerzustände, Fokusstil, Landmarken. Neu ist die visuelle Sprache.
+
+| | vorher | jetzt |
+|---|---|---|
+| Schrift | eine System-Sans für alles | **Didot** (Titel, Weinnamen, Kennzahl) · **Optima** (Text) · **Menlo** (Zahlen) |
+| Trennung | gefüllte Karten mit Radius | **Haarlinien**, keine Flächen |
+| Bedienelemente | umkastete Felder | **unterstrichen**; nur Pillen behalten ihren Umriss, weil sie schaltbar sind |
+| Kennzahl | 14 px Mono, grün/rot | **Didot 1.55 em in Gold** — der Anker der Seite |
+| Sorte/Trinkreife | gefüllte Pills | gesperrte Versalien |
+
+**Farbe hat drei Aufgaben und keine vierte:** Akzent (bedienbar), Urteil (gut/schwach), Gold (Wert). Der Händler hat seine Farbe **abgegeben** — er stand nur im Diagramm als Punktfarbe, und dieselben Töne mussten dort gleichzeitig die Trinkreife tragen. Jetzt steht sein Name in der Tabelle und im Tooltip. Damit entfallen die erzeugten `--shop-*`-Variablen und die Palettenprüfung ersatzlos; an ihre Stelle tritt `check_tokens()`, das jede Textfarbe gegen ihren Grund prüft.
+
+Gold ist der Sonderfall: `#9a7b4f` erreicht auf dem hellen Grund nur **3.75:1**. Es trägt darum ausschliesslich Grossgrade und Flächen — die Kennzahl, die Zonenkante. Kleintext in Gold nimmt `--goldtx` mit 4.74:1. Das ist im Test als milderes Ziel (3:1) festgehalten, mit Begründung.
+
+### Das Diagramm zeigt jetzt zwei Dinge getrennt
+
+- **Der Vektor** läuft von der Trendlinie zum Punkt: Richtung = mehr oder weniger Note fürs Geld, Länge = wie viel. Das ist genau die Grösse, nach der die Liste sortiert ist — vorher musste man den Abstand zur Linie schätzen.
+- **Das markierte Feld** ist eine feste Regel: **ab Note 4.2 und bis CHF 20**, nur dieser Bereich. Absolut, nicht relativ zur Trendlinie: „besser als üblich fürs Geld" trifft auch eine mittelmässige Flasche für CHF 8.
+
+Die Regel ist eng — im Lauf vom 7.8. erfüllen sie **2 von 174 bewerteten Weinen**. Das Feld nennt seine Regel und die Trefferzahl selbst („2 von 174 Weinen"), damit die Leere nicht wie ein Fehler wirkt, und die erfüllenden Weine sind direkt beschriftet. In der Tabelle tragen sie „◆ gut und günstig". Tabelle und Diagramm benutzen dieselbe Funktion, und die Schwellen stehen als `GOOD_RATING_MIN`/`GOOD_PRICE_MAX` in der Payload — eine Zahl, eine Wahrheit.
+
+### Vier Mängel, beim Prüfen der eigenen Arbeit gefunden
+
+1. **Das Auswahlfeld hatte eine feste Höhe** (`min-height:32px`) statt des Tokens — auf Touch also 32 px statt 44. Der Test für die Touch-Ziele hat es gefangen.
+2. **Der Diagrammtext benutzte `.tblnote`**, die Klasse der Tabellenerklärung. Damit zeigte die Prüfung auf den falschen Absatz; jetzt hat er `.chartnote`.
+3. **Die Trendlinie war heller als ihr Legendensymbol** — sie lief unter `.axis` (`--line`), das Symbol unter `--muted`. Diagramm und Legende sagten Unterschiedliches; die Linie hat jetzt `.trend`.
+4. **Zwei Trennlinien übereinander** zwischen sticky Leiste und Filterkarte, mit leerer Lücke dazwischen.
+
+Kontrolle am gerenderten Ergebnis: **null Kontrastverstösse** in hell und dunkel (4.5:1 Kleintext, 3:1 Grossschrift, Alpha-Kompositing berücksichtigt), kein horizontales Scrollen bei 375 und 1180 px. Suite grün, `tests/test_site.py` auf die Richtung nachgezogen: die Palettentests sind entfallen, dazugekommen sind Tokenzusage, Regelgrenzen, Vektor- und Legendenprüfung sowie ein Test, dass der Händler keine Farbe mehr trägt.
+
+### Was diese Richtung kostet
+
+Didot bricht unter etwa 16 px weg und darf nur gross gesetzt werden — das kostet Höhe. Und die Richtung ist beim Scannen die langsamste der drei Vorschläge: für „schnell im Laden nachsehen" wäre Board 03 oder 04 stärker gewesen. Die Wahl ist getroffen; das bleibt der bewusste Preis.
+
 ### Noch offen — und ein Hinweis zur Commit-Nachricht
 
 Die Nachricht von `457c8df` nennt „vier Farbverwechslungen behoben". **F-05 ist im Code unverändert:** `_PALETTE` und `_MATURITY_COLOURS` teilen weiterhin dieselben Werte ([site.py:40–47](src/winecheck/report/site.py#L40)). Im neu erzeugten `docs/index.html` sind es weiterhin **genau vier Kollisionen** — sie sind durch den neuen Händler Aligro nur *umverteilt*, weil `_PALETTE` nach sortierter Händlerreihenfolge indexiert wird:
