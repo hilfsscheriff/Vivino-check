@@ -132,7 +132,15 @@ def fetch(
             # diff.md kann nie anschlagen. Ersetzt wird nur bei erfolgreichem Lauf —
             # eine blockierte Quelle darf ihren letzten guten Stand behalten.
             if report.status == "ok" and report.offers:
-                cache.clear_offers(cfg.key)
+                # Auch die Händler leeren, unter denen dieser Adapter ablegt.
+                # Aktionis ist ein Aggregator: seine Funde landen unter "coop",
+                # "ottos", "spar", "volg" — beim Leeren nur des eigenen Schlüssels
+                # sammelten sich deren Angebote an und liefen nie ab. Coop stand mit
+                # 210 Positionen im Cache, während Aktionis 112 listete; die
+                # Differenz waren abgelaufene Aktionen, die im Report weiterlebten
+                # und deren Detailseite "Angebot ist abgelaufen" meldete.
+                for key in {cfg.key} | {o.retailer for o in report.offers if o.retailer}:
+                    cache.clear_offers(key)
             for offer in report.offers:
                 cache.put_offer(cfg.key, offer.name, offer.vintage, _offer_payload(offer))
             _echo(f"  {cfg.key:<14} {report.status:<8} {report.count:>4} Positionen  {report.message[:90]}")

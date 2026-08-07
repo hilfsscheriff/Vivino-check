@@ -351,6 +351,64 @@ Mazis-Chambertin Grand Cru; der schlichte Gevrey-Chambertin steht weit hinten. N
 `ratings_count` sortiert steht er vorne — viele Leute trinken ihn, die Grand Crus fast
 niemand. Der Versuch läuft als dritter, nach kurzer und langer Abfrage.
 
+### Sechserpakete zum Paketpreis
+
+Vier Meldungen an einem Nachmittag, alle derselbe Fehler: ein Gebinde galt als eine
+Flasche, der Preis war um **Faktor sechs** zu hoch.
+
+| Wein | angezeigt | richtig |
+|---|---|---|
+| A Mano Primitivo (6 × 75 cl) | CHF 39.90 | **6.65** |
+| Côtes-du-Rhône La Renjardière | CHF 20.70 | **3.45** |
+| Asinone Anniversary Set (2×2013, 2×2016, 2×2018) | CHF 290 | **48.33** |
+
+Zwei verschiedene Ursachen:
+
+* **Aktionis** führt die Gebindeangabe nicht im Titel, sondern in der Metazeile der
+  Karte: „Italien, Apulien, 2025, 6 x 75 cl". In die Preisrechnung ging nur der Titel.
+  25 von 91 Positionen waren betroffen.
+* **Mövenpick** verkauft Jahrgangs-Sammlungen als eine Position und schreibt die
+  Flaschenzahl nur in die Adresse (`…-set-2x2013-2x2016-2x2018-…`). Ohne Volumenangabe
+  nahm die Rechnung eine einzelne Flasche an. Der Fehler trifft immer die teuersten
+  Positionen, weil nur dort Sets verkauft werden.
+
+Aligro war bereits richtig — dort steht die Flaschenzahl als Zahlenfeld im JSON.
+
+### Abgelaufene Aktionen lebten weiter
+
+Aktionis ist ein Aggregator: seine Funde landen unter „coop", „ottos", „spar", „volg".
+Beim Neuladen wurde aber nur der eigene Schlüssel geleert, und die Angebote dieser
+Händler sammelten sich an. Coop stand mit **210** Positionen im Cache, während Aktionis
+**112** listete — die Differenz waren ausgelaufene Aktionen, deren Detailseite „Angebot
+ist abgelaufen" meldete, die im Report aber weiterlebten. Ein Adapter leert jetzt alle
+Händler, unter denen er ablegt: 623 auf 478 Weine, und die Bewertungsquote steigt von
+37 % auf 42 %, weil die Karteileichen grösstenteils unbewertet waren.
+
+### Brut ist die Standard-Dosage
+
+„Ruinart Blanc de Blancs" gegen „Ruinart Blanc de Blancs **Brut** Champagne" hatte Score
+100 und fiel durch, weil „Brut" nur auf einer Seite stand. Praktisch jeder Champagner ist
+Brut; Vivino schreibt es aus, Händler oft nicht. Einseitig fehlendes „Brut" ist keine
+Unterscheidung mehr — ein *Widerspruch* schon: „Demi-Sec" oder „Extra Dry" schreibt
+niemand versehentlich weg.
+
+### Ein Wort vor dem Produzenten
+
+Prompt danach matchte derselbe Wein auf **Dom** Ruinart — die Prestige-Cuvée zum
+Vielfachen des Preises. Die Abdeckung hilft dort nicht: der Händlername ist vollständig
+in der Quelle enthalten. Es braucht die Position: **genau ein** zusätzliches Wort direkt
+vor dem Produzentennamen ist eine eigene Cuvée (Dom Ruinart, Dom Pérignon). Mehrere Wörter
+sind es nicht — „Provins Valais Les Grands Dignitaires Domherrenwein" meint denselben
+Wein und darf als `fuzzy` durchgehen. Die beiden Bauformen sind lexikalisch nur an der
+Länge zu unterscheiden.
+
+### Die Zuordnung muss sichtbar sein
+
+Die Tabelle zeigte ein `?` für einen unbestätigten Abgleich, aber der gefundene Name
+stand nur im Tooltip — auf dem Handy gibt es keinen. Damit war nicht nachprüfbar, welcher
+Vivino-Wein gemeint ist, und genau das ist die erste Frage bei einem `?`. Der Fundname
+steht jetzt als „→ …" unter der Note, sofern er vom Händlernamen abweicht.
+
 ## Trinkreife
 
 **Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232
@@ -712,7 +770,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-392 Tests: 385 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+395 Tests: 388 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die

@@ -107,12 +107,27 @@ def _similarity(a: _Prepared, b: _Prepared) -> float:
     )
 
 
+#: Die Standard-Dosage. Praktisch jeder Champagner und Schaumwein ist Brut; Vivino
+#: schreibt es aus, Händler oft nicht. Einseitig fehlendes "Brut" ist darum keine
+#: Unterscheidung — „Ruinart Blanc de Blancs" gegen „Ruinart Blanc de Blancs **Brut**
+#: Champagne" hatte Score 100 und fiel trotzdem durch. Ein *Widerspruch* zählt weiter:
+#: steht auf einer Seite "Demi-Sec" oder "Extra Dry", ist es ein anderer Wein, denn
+#: diese Angaben schreibt niemand versehentlich weg.
+_DEFAULT_DOSAGE = frozenset({"brut"})
+
+
 def _qualifier_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     """Qualitätsstufen müssen auf beiden Seiten gleich sein."""
     r_q = discriminating_tokens(retailer.tokens)
     s_q = discriminating_tokens(source.tokens)
     only_source = s_q - r_q
     only_retailer = r_q - s_q
+    # Die Standard-Dosage darf einseitig fehlen — aber nur, wenn die andere Seite
+    # keine abweichende Dosage nennt.
+    andere_dosage = (r_q | s_q) & {"sec", "demi", "extra", "dolce", "doux"}
+    if not andere_dosage:
+        only_source -= _DEFAULT_DOSAGE
+        only_retailer -= _DEFAULT_DOSAGE
     if only_source:
         return f"{_pretty(only_source)} nur in der Quell-Bezeichnung — anderer Wein"
     if only_retailer:
@@ -181,6 +196,41 @@ def _rival_producer_veto(retailer: _Prepared, source: _Prepared) -> str | None:
         return (
             f"beide Seiten führen eigene Namen — {_pretty(r_only)} beim Händler, "
             f"{_pretty(s_only)} in der Quelle"
+        )
+    return None
+
+
+
+def _prestige_prefix_veto(retailer: _Prepared, source: _Prepared) -> str | None:
+    """Ein zusätzliches Wort **vor** dem Produzentennamen macht einen anderen Wein.
+
+    „Ruinart Blanc de Blancs" gegen „**Dom** Ruinart Blanc de Blancs": derselbe Name,
+    ein Wort davor — und ein Vielfaches des Preises. Champagne führt diese Bauform
+    reihenweise (Dom Ruinart, Dom Pérignon, Cuvée Sir Winston Churchill), Bordeaux
+    ebenso (Château Mouton Rothschild gegen Mouton Cadet).
+
+    Die Abdeckung hilft hier nicht: der Händlername ist *vollständig* in der Quelle
+    enthalten, die Ähnlichkeit entsprechend hoch. Genau darum braucht es die
+    Positionsregel — nicht was fehlt entscheidet, sondern wo das Zusätzliche steht.
+    """
+    r_seq, s_seq = retailer.tokens, source.tokens
+    if not r_seq or not s_seq or len(s_seq) <= len(r_seq):
+        return None
+    erstes_r = r_seq[0]
+    if erstes_r not in s_seq:
+        return None
+    pos = s_seq.index(erstes_r)
+    # Genau **ein** Wort davor. Mehr ist keine Prestige-Cuvée, sondern der Produzent
+    # mit seiner Produktlinie: „Provins Valais Les Grands Dignitaires Domherrenwein"
+    # meint denselben Wein wie „Domherrenwein" und darf als ``fuzzy`` durchgehen.
+    # Diese beiden Bauformen sind lexikalisch nur an der Länge zu unterscheiden.
+    if pos != 1:
+        return None
+    davor = [t for t in s_seq[:pos] if is_distinctive(t) and t not in retailer.token_set]
+    if davor:
+        return (
+            f"{_pretty(set(davor))} steht in der Quelle **vor** '{erstes_r.title()}' — "
+            f"das ist eine eigene, meist deutlich teurere Cuvée"
         )
     return None
 
@@ -411,6 +461,7 @@ def match_wine(
         _colour_veto(r, s),
         _distinctive_anchor_veto(r, s),
         _rival_producer_veto(r, s),
+        _prestige_prefix_veto(r, s),
         foreign_veto,
         _leading_cuvee_veto(r, s),
         _cuvee_before_producer_name_veto(r, s),

@@ -84,12 +84,17 @@ class MoevenpickAdapter(RetailerAdapter):
         producer = producer_from_url(name, href)
         if producer:
             name = f"{name}, {producer}"
+        # Jahrgangs-Sets tragen ihre Flaschenzahl nur in der Adresse.
+        flaschen = bottles_from_url(href)
+        gebinde = attrs_text
+        if flaschen:
+            gebinde = f"{attrs_text} Karton {flaschen} x 75 cl"
         return self.make_offer(
             name=name,
             url=href,
             price_text=special,
             reference_text=regular,
-            gebinde_text=attrs_text,
+            gebinde_text=gebinde,
             vintage=int(vintage_match.group(1)) if vintage_match else None,
             source_note=_clean(attrs_text)[:160],
             critic_text=critic_text,
@@ -135,6 +140,27 @@ def producer_from_url(name: str, url: str) -> str:
         and len(t) > 2
     ]
     return " ".join(extra[:3]).title()
+
+
+#: Jahrgangs-Sets in der Adresse: „…-anniversary-set-2x2013-2x2016-2x2018-…".
+#: Die Zahl vor dem x ist die Flaschenzahl je Jahrgang, die Summe das Gebinde.
+_RE_SET = re.compile(r"(\d{1,2})\s*x\s*(19|20)\d{2}\b", re.I)
+
+
+def bottles_from_url(url: str) -> int | None:
+    """Flaschenzahl eines Jahrgangs-Sets aus der Adresse.
+
+    Mövenpick verkauft Sammlungen als eine Position: „Anniversary Set 2x2013 2x2016
+    2x2018" sind sechs Flaschen zu CHF 290 — also CHF 48.33 je Flasche, nicht 290.
+    Im Namen steht davon nichts, und ohne Volumenangabe nimmt die Preisrechnung eine
+    einzelne 75-cl-Flasche an. Der Fehler ist der Faktor sechs, und er trifft immer
+    die teuersten Positionen, weil nur dort Sets verkauft werden.
+    """
+    treffer = _RE_SET.findall(url or "")
+    if not treffer:
+        return None
+    n = sum(int(a) for a, _ in treffer)
+    return n if 1 < n <= 24 else None
 
 def _prices(tile: Node) -> tuple[float | None, float | None]:
     """Sonderpreis und regulären Preis auseinanderhalten.

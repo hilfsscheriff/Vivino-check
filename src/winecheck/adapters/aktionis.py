@@ -124,8 +124,12 @@ class AktionisAdapter(RetailerAdapter):
             url=f"{BASE}{href}" if href and href.startswith("/") else (href or ""),
             price_text=price_new,
             reference_text=price_old,
-            # Gebinde und Volumen stehen im Namen: "(0.75l)", "6x 75cl".
-            gebinde_text=name,
+            # Gebinde und Volumen stehen **nicht** zuverlässig im Titel. Die Karte
+            # führt sie in der Metazeile: „Italien, Apulien, 2025, 6 x 75 cl". Vorher
+            # ging nur der Titel hier hinein, und ein Sechserpaket galt als eine
+            # Flasche — „A Mano Primitivo" stand mit CHF 39.90 statt CHF 6.65 im
+            # Report, Faktor sechs. Der ganze Kartentext ist die verlässliche Quelle.
+            gebinde_text=f"{name} {_card_meta(card)}",
             article_no=card.attributes.get("data-upox-id"),
             source_note=_validity(card),
             # Aus dem Text ableiten: "6x 75cl" ist ein Kartonpreis, "(0.75l)" nicht.
@@ -135,6 +139,23 @@ class AktionisAdapter(RetailerAdapter):
         # Der Händler ist das eigentliche Ziel, nicht der Aggregator.
         offer.retailer = merchant
         return offer
+
+
+
+def _card_meta(card: Node) -> str:
+    """Metazeile der Karte — Herkunft, Jahrgang und **Gebinde**.
+
+    Steht als eigener Textknoten unter dem Titel: „Italien, Apulien, 2025, 6 x 75 cl".
+    Fällt die erwartete Klasse weg, liefert der ganze Kartentext denselben Dienst; er
+    enthält zusätzlich Preise, was der Gebinde-Erkennung nicht schadet.
+    """
+    for sel in ("p.card-meta", "div.card-meta", "p.card-description", "div.card-content"):
+        n = card.css_first(sel)
+        if n:
+            t = " ".join(n.text().split())
+            if t:
+                return t
+    return " ".join(card.text().split())
 
 
 def _full_name(card: Node) -> str:

@@ -473,6 +473,7 @@ _TEMPLATE = r"""<!doctype html>
   .good { color:#2e7d32; font-weight:650; }
   .bad { color:#c62828; }
   .warn { color:var(--brand); }
+  .matched { color:var(--muted); font-size:.78em; }
   /* Alle Filter in einer Karte, damit sofort sichtbar ist, was zusammen wirkt.
      Vorher lagen Chips oben und Feinauswahl unten bei der Tabelle — wer die Note
      einschränken wollte, musste am Diagramm vorbeiscrollen und wieder zurück. */
@@ -898,6 +899,18 @@ function chart(list) {
   }, { passive: true });
 }
 
+
+/* Grob prüfen, ob Händler- und Fundname dasselbe sagen — dann ist die Zeile nur
+   Wiederholung. Verglichen werden die Wörter, nicht die Zeichenfolge. */
+function sameWine(a, b) {
+  const w = t => new Set(String(t || "").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(x => x.length > 2));
+  const A = w(a), B = w(b);
+  if (!A.size || !B.size) return false;
+  let n = 0; B.forEach(x => { if (A.has(x)) n++; });
+  return n === B.size;
+}
 /* ----------------------------------------------------------------- Tabelle */
 function table(list) {
   const box = document.getElementById("table");
@@ -927,8 +940,13 @@ function table(list) {
     const vivino = w.rating != null
       ? `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener">${w.rating.toFixed(1)}/5</a>`
         + (w.ratingCount ? ` <span class="meta">(${w.ratingCount})</span>` : "")
-        + (w.fuzzy ? ` <span class="warn" title="Namensabgleich unbestätigt`
-            + (w.matchedName ? `, gefunden: ${esc(w.matchedName)}` : "") + `">?</span>` : "")
+        + (w.fuzzy ? ` <span class="warn" title="Namensabgleich unbestätigt">?</span>` : "")
+        // Den gefundenen Namen ausschreiben, wenn er vom Händlernamen abweicht.
+        // Ein Tooltip genügt dafür nicht: auf dem Handy gibt es kein Hover, und ohne
+        // den Namen ist nicht nachprüfbar, welcher Vivino-Wein gemeint ist — genau
+        // die Frage, die man bei einem "?" als Erstes hat.
+        + (w.matchedName && !sameWine(w.name, w.matchedName)
+            ? `<br><span class="matched">→ ${esc(w.matchedName)}</span>` : "")
       : w.wineryRating != null
         ? `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener" class="meta">nur Produzenten-Ø `
           + w.wineryRating.toFixed(1) + "/5</a>"

@@ -254,3 +254,45 @@ def test_no_producer_is_better_than_a_guess():
         "https://x/de/2024-bianco-del-ticino-doc-castello-di-morcote-bio.html",
     ) == ""
     assert producer_from_url("Irgendein Wein", "") == ""
+
+
+# ------------------------------- Mehrflaschen-Gebinde (Regression 7.8.2026)
+
+def test_vintage_set_bottle_count_comes_from_the_url():
+    """Mövenpick verkauft Sammlungen als eine Position: „Anniversary Set 2x2013
+    2x2016 2x2018" sind sechs Flaschen zu CHF 290 — also CHF 48.33 je Flasche.
+    Im Namen steht davon nichts, und ohne Volumenangabe nimmt die Preisrechnung eine
+    einzelne Flasche an. Der Fehler ist Faktor sechs und trifft immer die teuersten
+    Positionen, weil nur dort Sets verkauft werden."""
+    from winecheck.adapters.moevenpick import bottles_from_url
+
+    assert bottles_from_url(
+        "https://www.moevenpick-wein.com/de/vino-nobile-di-montepulciano-docg-asinone-"
+        "anniversary-set-2x2013-2x2016-2x2018-azienda-agricola-poliziano.html"
+    ) == 6
+    assert bottles_from_url("https://x/de/3x2019-barolo-set.html") == 3
+    # Ein gewöhnlicher Wein hat kein Set-Muster.
+    assert bottles_from_url(
+        "https://x/de/2020-les-dentelles-cotes-du-roussillon-aoc-thunevin-calvet.html"
+    ) is None
+    assert bottles_from_url("") is None
+
+
+def test_aktionis_reads_the_pack_size_from_the_card_meta_line():
+    """Die Gebindeangabe steht nicht im Titel, sondern in der Metazeile der Karte:
+    „Italien, Apulien, 2025, 6 x 75 cl". Vorher ging nur der Titel in die
+    Preisrechnung, und ein Sechserpaket galt als eine Flasche — „A Mano Primitivo"
+    stand mit CHF 39.90 statt CHF 6.65 im Report."""
+    from winecheck.prices import normalize_price
+
+    r = normalize_price(39.90, "A Mano Primitivo di Puglia IGT Italien, Apulien, 2025, 6 x 75 cl")
+    assert r.price_per_bottle_incl_vat == pytest.approx(6.65, abs=0.02)
+    assert "6" in r.price_raw_basis
+
+
+def test_a_single_bottle_listing_is_not_divided():
+    """Gegenprobe: ohne Gebindeangabe bleibt der Preis, wie er ist."""
+    from winecheck.prices import normalize_price
+
+    r = normalize_price(39.90, "A Mano Primitivo di Puglia IGT Italien, Apulien, 2025, 75 cl")
+    assert r.price_per_bottle_incl_vat == pytest.approx(39.90, abs=0.02)
