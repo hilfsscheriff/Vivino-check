@@ -308,6 +308,49 @@ Der Wein ist nur unter seiner direkten Adresse erreichbar. `no_entry` mit Suchli
 hier die richtige Antwort, und das ist der Grund, warum die Vivino-Spalte immer eine
 klickbare URL trägt: was das Werkzeug nicht findet, findet der Mensch in zehn Sekunden.
 
+### Zwei Produzenten sind zwei Weine
+
+Drei Fehltreffer aus einer einzigen Meldung, alle mit derselben Wurzel — der Score war
+hoch, weil nach Abzug von Herkunft und Qualitätsstufe kaum etwas übrig blieb:
+
+| Händler | bekam die Note von | |
+|---|---|---|
+| Gevrey-Chambertin **Faiveley** | **Regnard** Gevrey-Chambertin Rouge | 4.3 (566) |
+| Rioja Imperial Cune Reserva | „Rioja Reserva" — ein Sammeleintrag | 4.2 (36'233) |
+
+Zwei neue Sperren, beide vor der Ähnlichkeitsrechnung:
+
+* **Kein gemeinsames unterscheidendes Wort.** Trägt der Fundname überhaupt keines,
+  kann er per Konstruktion nicht dieser bestimmte Wein sein.
+* **Beide Seiten führen einen eigenen Namen.** Faiveley beim Händler, Regnard in der
+  Quelle — einseitige Zusätze bleiben erlaubt und werden anderswo behandelt, aber wenn
+  *beide* etwas Eigenes mitbringen, sind es zwei Weine.
+
+### Klammern sind Zweitnamen
+
+Vivino führt Produzenten als „Cune (CVNE)". Der Klammerinhalt galt als zusätzlicher
+Namensbestandteil, der dem Händlernamen fehlt — und liess `Cune Crianza` und
+`Cune Rosado` durchfallen, obwohl beide Einträge existieren. Klammern mit höchstens zwei
+Wörtern fliegen jetzt raus; längere bleiben, weil dort gelegentlich echte
+Unterscheidungen stehen („Magnum 1.5 Liter").
+
+### Der Fundname muss erkennbar sein
+
+Vivino trennt Weingut und Wein. „Cune Imperial Rioja Reserva" heisst dort Weingut
+„Imperial", Wein „Rioja Reserva". Wir gaben nur den Weinnamen aus — in der Spalte stand
+„Rioja Reserva", eine Gattungsbezeichnung, die wie ein Fehltreffer aussieht, obwohl der
+Treffer stimmte. **Ich bin selbst darauf hereingefallen** und hielt einen korrekten
+Match für falsch. Jetzt steht das Weingut davor, sofern es nicht schon im Weinnamen
+vorkommt.
+
+### Dritte Abfrage: nach Bewertungsanzahl
+
+Die Sortierung nach Note begräbt bei grossen Häusern genau die Weine, die im Regal
+stehen. `faiveley` liefert 207 Treffer, angeführt von Bâtard-Montrachet und
+Mazis-Chambertin Grand Cru; der schlichte Gevrey-Chambertin steht weit hinten. Nach
+`ratings_count` sortiert steht er vorne — viele Leute trinken ihn, die Grand Crus fast
+niemand. Der Versuch läuft als dritter, nach kurzer und langer Abfrage.
+
 ## Trinkreife
 
 **Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232

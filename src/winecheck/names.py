@@ -230,7 +230,8 @@ def tokenize(text: str, *, keep_discriminating: bool = True) -> list[str]:
     Betriebsformen, Füll- und Verpackungswörter. Behält Rebsorten, Produzentennamen,
     Lagennamen und — sofern ``keep_discriminating`` — die Qualitätsstufen.
     """
-    t = strip_accents((text or "").lower())
+    # Zweitnamen in Klammern zuerst weg — "Cune (CVNE)" ist ein Produzent, nicht zwei.
+    t = strip_accents(strip_alias(text or "").lower())
     t = _RE_VOLUME_CHUNK.sub(" ", t)
     t = _RE_PACK_CHUNK.sub(" ", t)
     t = _RE_PCT.sub(" ", t)
@@ -303,6 +304,26 @@ COUNTRY_NAMES = frozenset({
     "neuseeland", "nouvelle", "zelande",
     "griechenland", "grece", "ungarn", "hongrie",
 })
+
+
+#: Vivino führt Produzenten oft mit Zweitnamen in Klammern: „Cune (CVNE)",
+#: „Bodegas Muga (Muga)". Der Klammerinhalt ist ein *Alias*, kein zusätzlicher
+#: Namensbestandteil — als solcher gelesen liess er den Matcher „Cune Crianza"
+#: ablehnen, weil „CVNE" auf der Händlerseite fehlte.
+_RE_PARENS = re.compile(r"\(([^)]{2,40})\)")
+
+
+def strip_alias(text: str) -> str:
+    """Klammerzusätze entfernen, wenn sie wie ein Zweitname aussehen.
+
+    Nur Klammern mit höchstens zwei Wörtern fliegen raus. Längere Klammern tragen
+    gelegentlich echte Unterscheidungen („(Magnum 1.5 l)"), und ein Zweitname ist
+    nie ein halber Satz.
+    """
+    def ersetze(m: re.Match[str]) -> str:
+        inhalt = m.group(1).strip()
+        return "" if len(inhalt.split()) <= 2 else m.group(0)
+    return _RE_PARENS.sub(ersetze, text or "").strip()
 
 
 def dedup_key(name: str, vintage: int | None) -> str:

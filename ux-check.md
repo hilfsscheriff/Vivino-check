@@ -120,6 +120,83 @@ Die Fuzzy-Quote unter den bewerteten Weinen sinkt damit von 39 % auf rund 15 %. 
 
 **Wichtig für die Wirkung:** Die Konfidenz wird beim `rate`-Lauf in den Cache geschrieben. Die ausgelieferte Seite zeigt die 17 bestätigten Treffer erst nach dem nächsten Rating-Durchgang.
 
+### F-02 — Kernaufgabe: Preis-Leistung, Paginierung, einklappbare Filter
+
+**Der Score.** „Gut und günstig" ist im Diagramm „oben links". Als Zahl: die Regression der Note auf `log10(Preis)` über den Lauf, und der Rest je Wein. Aus den Daten selbst geschätzt statt geraten — im aktuellen Lauf lautet der Trend `Note = 3.313 + 0.481 · log10(Preis)`, eine Verzehnfachung des Preises bringt also knapp einen halben Notenpunkt. Der Wert heisst damit „so viel besser als üblich für dieses Geld", nicht „billig": ein Ruinart für CHF 89.50 steht mit +0.25 auf Platz 6.
+
+Logarithmisch, weil die Note es auch ist — linear gerechnet würde die Spanne von CHF 4.60 bis 590 die Rangfolge von den teuren Weinen her bestimmen. Bei 0.16 Streuung der Residuen würde ein Wein mit zwölf Bewertungen die Liste zufällig anführen, darum wird nach Bewertungszahl gedämpft (`count/(count+50)`). Gerechnet über den ganzen Lauf, nicht über die gefilterte Auswahl: sonst änderte ein Wein seinen Rang, je nachdem was sonst angezeigt wird.
+
+Der Wert steht als eigene Spalte da und ist über der Tabelle in einem Satz erklärt — wonach sortiert wird, muss sichtbar sein.
+
+**Wirkung, gemessen am gerenderten Ergebnis:**
+
+| | vorher | nachher |
+|---|---|---|
+| Standardsortierung | Note (Liste eröffnete mit CHF 275 und CHF 590) | **Preis-Leistung** |
+| Zeilen im DOM | 400 | **50** + „Weitere 50 anzeigen" |
+| unerreichbare Weine | 223 hinter dem Deckel | **0** |
+| Tabstopps | 834 | **137** (−84 %) |
+| Seitenhöhe Desktop | 26 848 px | **4 473 px** |
+| Seitenhöhe Handy | 74 839 px | **10 978 px** (−85 %) |
+| erster Wein bei 375 px | y = 864 px | **y = 526 px** (über der Falz) |
+
+**Einklappbare Filter.** Die Wertsortierung ändert nur, *was* oben in der Liste steht, nicht *wo* die Liste beginnt — nach den 44-px-Zielen und der Erklärzeile lag der erste Wein bei y = 1210 px, schlechter als vorher. Darum liegen die Filter am Handy in einem `<details>` mit Zähler in der Summary („Filter · 2 aktiv"); Trefferzähler und „Filter zurücksetzen" bleiben ausserhalb und damit immer sichtbar. `<details>` statt eigener Logik, weil Tastatur und Screenreader gratis mitkommen — verifiziert: der Fokus greift nicht in eingeklappte Filter.
+
+Am Desktop ist der Aufklapper ausgeblendet und der Inhalt offen. Diese Kopplung ist die riskante Stelle: greift sie nicht, sind die Filter unerreichbar — kein Griff zum Öffnen, kein Inhalt. Sie hängt darum an der gerenderten Lage der Summary (`getComputedStyle(...).display === "none"`) und an `resize`, nicht an einem `change`-Ereignis der Media Query. Beim Testen war genau das der Fehlerfall: nach einem Breitenwechsel ohne Neuladen blieb `open` falsch.
+
+**Was hier nicht besser wurde:** Der Deckel ist weg, aber lange Listen bleiben lang — wer alle 623 Weine sehen will, klickt zwölfmal. Für den Zweck der Seite („welche Flasche lohnt sich") ist das richtig herum: die Antwort steht auf Seite 1.
+
+## 2d. Dritter Durchgang: F-09, F-15, F-06b, F-11 — damit sind alle Findings erledigt
+
+### F-09 — fünf Textrollen statt dreizehn Werte
+
+Zwischen 11 und 13.6 px lagen zehn Grössen, mehrere unter 0.5 px auseinander — nicht zu sehen, aber dreifach zu pflegen; gleichzeitig teilten verschiedene Rollen dieselbe Grösse. Jetzt: `--fs-page-title` 24, `--fs-title` 18, `--fs-body` 16, `--fs-body-sm` 14, `--fs-label` 12 px. **Gemessen kommen genau fünf Grössen an** (12/14/16/18/24). Der Lesetext liegt auf 16 px statt 13.6 — die Tabelle ist die am längsten gelesene Fläche der Seite. SVG-Text bleibt bewusst in px: er skaliert über die `viewBox` mit der Diagrammbreite, nicht mit der Wurzelschrift.
+
+### F-15 — ein Breakpoint, Zähler und Rückweg bleiben stehen
+
+720 und 767 px nebeneinander erzeugten zwischen den beiden Werten einen Zustand mit sortierbaren Spaltenköpfen, deren Hinweis ausgeblendet war. Jetzt gilt durchgehend 720 px (und 721 px für die Gegenrichtung).
+
+Suchfeld, Treffermenge und „Filter zurücksetzen" stehen zusammen in der sticky Leiste — wer in der Liste liest, ändert die Auswahl ohne Rückweg. Die Abdeckungsangaben sind dafür heruntergerutscht: „623 von 623 Weinen" bleibt oben, „210 davon mit Vivino-Note · 152 mit Marktpreis" steht in der Filterkarte. Das eine ändert sich mit jedem Klick, das andere ist ein Nachschlagewert — und beides zusammen hätte die Leiste am Handy auf zwei Zeilen gebracht. Kosten der Leiste: 111 px, 14 % des Viewports.
+
+**Zwei Fehler, die beim Prüfen aufgefallen sind:**
+
+1. Die Kopplung „Aufklapper versteckt → Inhalt offen" war einseitig gedacht. Nach einem Wechsel von breit zu schmal — Drehen, Fenster ziehen — blieben die Filter offen und füllten den ersten Bildschirm wieder. Sie ist jetzt zweiseitig und respektiert eine bewusste Nutzerentscheidung.
+2. Dieser Merker hing am `toggle`-Ereignis, das asynchron feuert: ein unmittelbar folgender Resize überschrieb die Wahl. Er hängt jetzt am Klick.
+
+### F-06b — Überlappung im Diagramm
+
+Ein kleinerer Radius allein bringt nichts: von 6 auf 5 gesenkt bleiben 45 statt 46 Punkte verdeckt — die Punkte liegen in den Daten aufeinander, nicht bloss optisch. Wirksam sind zwei andere Dinge: `fill-opacity: .82` macht Häufungen als dunklere Fläche lesbar, und der Tooltip nennt die Nachbarn („4 weitere Weine an dieser Stelle", mit Note und Preis, ab fünf mit Verweis auf die Tabelle). Damit ist kein Wein mehr unsichtbar, auch wenn er hinter einem anderen liegt.
+
+**Touch-Unterstützung ergänzt.** Zwischen 721 und 900 px ist das Diagramm sichtbar, es hingen aber nur Maus-Ereignisse daran — auf einem Tablet waren die Tooltips damit unerreichbar. Jetzt zeigt das erste Antippen den Wein, das zweite öffnet ihn; Tippen daneben schliesst. Das war ein Punkt aus den offenen Prüfungen in Abschnitt 10, nicht aus den Findings.
+
+### F-11 — Anzeigenamen von Händler-Beiwerk befreit
+
+„Rioja DOCa Crianza Bodegas Izadi (2022) – Rotwein, Spanien (0.75l)" wird zu „Rioja DOCa Crianza Bodegas Izadi". Entfernt werden Farbe (steht als Pill daneben), Land (trägt nichts), die Standardgrösse 0.75 l (Bezugsgrösse des Preises) und der Jahrgang in Klammern (wird einheitlich angehängt).
+
+**Was bewusst bleibt:** Magnum, Halbflasche und Sechserpack. „Ruinart Blanc de Blancs, 1.5 l" ist ein anderer Kauf, keine Wiederholung — das war die Stelle, an der ein grobes „alles nach dem Komma weg" falsch gewesen wäre.
+
+| | vorher | nachher |
+|---|---|---|
+| Namenslänge Median | 56 Zeichen | **41** |
+| Namenslänge Max | 109 | **98** |
+| Namen mit Jahrgang im Text | 463 | 273 (der Rest wird angehängt) |
+
+Bereinigt wird nur die **Anzeige**: gematcht und dedupliziert wurde vorher mit dem Originalnamen, und `key` bleibt der Originalschlüssel — durch Tests festgehalten.
+
+### Endstand, gemessen bei 375 px
+
+| | Ausgangslage | jetzt |
+|---|---|---|
+| erster Wein | y = 864 px | **y = 492 px** |
+| Seitenhöhe | 74 839 px | **12 381 px** |
+| Zeilen im DOM | 400 | **50** |
+| Tabstopps | 834 | **138** |
+| Textgrössen | 13 Werte, zehn davon zwischen 11 und 13.6 px | **5** |
+| Lesetext | 13.6 px | **16 px** |
+| Farben mit zwei Bedeutungen | 4 | **0** |
+| schlechtester Händlerkontrast | 1.45:1 (dunkel) | **3.22:1** |
+| unerreichbare Weine | 223 | **0** |
+
 ### Noch offen — und ein Hinweis zur Commit-Nachricht
 
 Die Nachricht von `457c8df` nennt „vier Farbverwechslungen behoben". **F-05 ist im Code unverändert:** `_PALETTE` und `_MATURITY_COLOURS` teilen weiterhin dieselben Werte ([site.py:40–47](src/winecheck/report/site.py#L40)). Im neu erzeugten `docs/index.html` sind es weiterhin **genau vier Kollisionen** — sie sind durch den neuen Händler Aligro nur *umverteilt*, weil `_PALETTE` nach sortierter Händlerreihenfolge indexiert wird:
@@ -131,13 +208,37 @@ Die Nachricht von `457c8df` nennt „vier Farbverwechslungen behoben". **F-05 is
 | `#ef6c00` | Otto's + „austrinken" | **Mövenpick Wein** + „Zenit überschritten" |
 | `#00838f` | SPAR + „kann liegen" | **Prodega** + „macht Spass, wird noch besser" |
 
-F-05 bleibt damit offen (Aufwand M, keine Quick-Win-Grösse) — ebenso F-01, F-02, F-06b/c (Überlappung), F-09 und die strukturellen Teile von F-03 (Skip-Link, 805 Tabstopps) und F-15. Bei 615 Weinen und dem Deckel von 400 Zeilen kommt neu hinzu: **215 Weine sind nur über „Filter verfeinern" erreichbar** — das verschärft F-02 und F-03d.
+Zum Zeitpunkt dieser Notiz war F-05 damit offen. Erledigt wurde es im zweiten Durchgang, siehe Abschnitt 2c.
+
+### Stand aller Findings
+
+| Finding | Stand | wo beschrieben |
+|---|---|---|
+| F-01 unbestätigte Treffer | **erledigt** — 17 Fehlalarme weg, Fuzzy-Quote 39 % → 15 % | 2c |
+| F-02 Mobile / Kernaufgabe | **erledigt** — Preis-Leistung als Standard, Paginierung, einklappbare Filter | 2c |
+| F-03 Tastatur | **erledigt** — Fokusstil global, Tabstopps 834 → 138 | 2b, 2c |
+| F-04 Leerzustand | **erledigt** | 2b |
+| F-05 Farbkollisionen | **erledigt** — 4 → 0, ΔE 30 → 42 | 2c |
+| F-06 Diagramm | **erledigt** — Legende, Teiltransparenz, Häufungsliste, Touch | 2b, 2d |
+| F-07 Touch-Ziele | **erledigt** — 44 px auf Touch | 2b |
+| F-08 Non-Text-Kontrast | **erledigt** — 1.35:1 → 3.68:1 | 2b |
+| F-09 Typografie | **erledigt** — 13 Werte → 5 Rollen, Lesetext 16 px | 2d |
+| F-10 px skaliert nicht | **erledigt** (war schon in `926f611`) | 2a |
+| F-11 Namen | **erledigt** — Median 56 → 41 Zeichen | 2b, 2d |
+| F-12 Marktpreis | **erledigt** — Leerwerte weg, Abdeckung benannt | 2b |
+| F-13 Semantik | **erledigt** — `<main>`, `aria-live`, ARIA aufgeräumt | 2b |
+| F-14 Lauf-Filter | **erledigt** | 2b |
+| F-15 Sticky / Breakpoints | **erledigt** — ein Breakpoint, Zähler bleibt stehen | 2d |
+
+Damit sind alle fünfzehn Findings abgearbeitet. Was offen bleibt, sind die Prüfungen, die dieses Audit nicht leisten konnte — siehe Abschnitt 10.
 
 ---
 
 ## 3. Bereichsbewertung
 
-| Bereich | Urteil | Begründung in einem Satz |
+> Diese Tabelle beschreibt die **Ausgangslage** vom 7.8.2026 und bleibt als Vergleichsmassstab stehen. Der erreichte Stand steht in den Abschnitten 2a–2d.
+
+| Bereich | Urteil (Ausgangslage) | Begründung in einem Satz |
 |---|---|---|
 | Typografie | **uneinheitlich** | Zehn kaum unterscheidbare Grössen zwischen 11 und 13.6 px, während der eigentliche Lesetext mit 13.6 px unter der deklarierten 16-px-Basis liegt. |
 | Spacing und Layout | **solide** | Konsistente Kartenpaddings und Abstände, kein horizontales Scrollen auf keiner geprüften Breite. |
@@ -577,9 +678,11 @@ Aus den bereits guten Mustern der Seite abgeleitet — die Farbrollen, die Karte
 ### Offene Prüfungen
 
 - **Screenreader** (VoiceOver iOS/macOS, NVDA): Vorlesereihenfolge der Kartenansicht, Wirkung der `data-l`-Pseudoelement-Labels — `content: attr(data-l)` wird je nach Kombination unterschiedlich behandelt. F-13 beruht auf DOM-Analyse, nicht auf einem Screenreader-Test.
-- **Echte Touch-Geräte** zwischen 721 und 900 px (iPad Portrait): Dort ist das Diagramm sichtbar, aber es existieren gemessen **keine** `touchstart`- oder `pointerdown`-Handler — die Tooltips dürften unerreichbar sein. Verifikation auf einem physischen Gerät steht aus.
+- **Echte Touch-Geräte** zwischen 721 und 900 px (iPad Portrait): Die fehlende Touch-Bedienung des Diagramms ist behoben (erstes Antippen zeigt, zweites öffnet, siehe 2d), aber nur in der Emulation geprüft. Verifikation auf einem physischen Gerät steht aus — insbesondere, ob `matchMedia("(hover: hover)")` dort so ausfällt wie erwartet.
 - **Safari und Firefox:** Der Fokusring ist der jeweilige Browser-Standard (in der Messumgebung `auto 1px rgb(229,151,0)`); wie sichtbar er dort ausfällt, ist ungeprüft. F-03 löst das unabhängig davon.
 - **Mehrere Läufe:** Der `Lauf`-Filter mit ≥ 2 Chips wurde nie gerendert; Umbruchverhalten und ob `S.run` beim Zurücksetzen erhalten bleiben soll, sind offen.
 - **Landscape und Browser-Zoom** (statt Wurzelschriftgrösse) wurden nicht geprüft; die Reflow-Messungen bei 320 px legen aber ein gutes Ergebnis nahe.
 - **Marktpreis-Abdeckung:** Die 79 % Leerwerte sind gemessen, aber die Ursache liegt in der Datenbeschaffung, nicht im Frontend. F-12 behandelt nur die Darstellung; ob die Abdeckung erhöht werden kann, ist eine Frage an die Pipeline.
 - **Screenshots tiefer Scrollpositionen** liefen im Browser-Panel leer zurück. Das DOM meldete an derselben Stelle 16 gerenderte Zeilen im Viewport, weshalb dies als Werkzeugartefakt gewertet wird. Eine visuelle Kontrolle der Tabelle im mittleren Scrollbereich auf einem echten Gerät ist nicht erfolgt.
+- **Der Preis-Leistungs-Score** ist am aktuellen Lauf plausibilisiert (Top 10 von Hand gegengelesen, keine dünn belegten Weine darunter), aber nicht über mehrere Läufe. Ob die Steigung von 0.48 Notenpunkten pro Preisdekade stabil bleibt, zeigt erst der Vergleich — bei einem Lauf mit anderer Preisstruktur verschiebt sich die Trendlinie und damit die Rangfolge.
+- **Wirkung erst nach dem nächsten Lauf:** Die Seite zeigt die Änderungen nach `wine-check site`, die 17 bestätigten Vivino-Treffer aus 2c erst nach dem nächsten `wine-check rate` — die Konfidenz wird beim Rating in den Cache geschrieben.

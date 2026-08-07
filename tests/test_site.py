@@ -223,6 +223,181 @@ def test_missing_market_price_marks_the_cell(doc):
     assert "b" not in wine, "bargain sollte fehlen, wenn kein Marktpreis vorliegt"
 
 
+# -------------------------------------------------------- Preis-Leistung (F-02)
+
+def _run_with_prices(rows):
+    return [{"id": "r1", "label": "6.8.2026", "date": "2026-08-06",
+             "wines": [_wine_from_snapshot(r) for r in rows]}]
+
+
+def _priced(price, rating, count=500, name=None):
+    return _snapshot(name=name or f"Wein zu {price}", best_price=price,
+                     vivino_rating=rating, vivino_rating_count=count,
+                     dedup_key=f"k{price}-{rating}-{count}")
+
+
+def test_value_score_rewards_quality_above_its_price_level(tmp_path):
+    """Nicht „billig gewinnt": gemessen wird der Abstand zum Preisniveau.
+
+    Zwei Weine auf der Trendlinie, einer deutlich darüber — der muss vorne liegen,
+    obwohl er nicht der günstigste ist.
+    """
+    rows = [_priced(p, r) for p, r in [
+        (5, 3.6), (10, 3.8), (20, 4.0), (40, 4.2), (80, 4.4), (160, 4.6),
+        (5, 3.5), (10, 3.7), (20, 3.9), (40, 4.1), (80, 4.3), (160, 4.5),
+    ]]
+    rows.append(_priced(20, 4.5, name="Überflieger"))       # weit über dem Niveau
+    rows.append(_priced(5, 3.2, name="Enttäuschung"))       # unter dem Niveau
+    runs = _run_with_prices(rows)
+    build(runs, tmp_path / "index.html")
+    by_name = {w["name"]: w.get("valueScore") for w in runs[0]["wines"]}
+    assert by_name["Überflieger"] > 0.2, by_name["Überflieger"]
+    assert by_name["Enttäuschung"] < 0, by_name["Enttäuschung"]
+    assert by_name["Überflieger"] == max(v for v in by_name.values() if v is not None)
+
+
+def test_expensive_wine_can_still_win_on_value(tmp_path):
+    """Ein teurer Wein, der sein Preisniveau überschreitet, darf vorne stehen."""
+    rows = [_priced(p, r) for p, r in [
+        (8, 3.7), (12, 3.8), (18, 3.9), (25, 4.0), (60, 4.2), (120, 4.35),
+        (8, 3.6), (12, 3.75), (18, 3.85), (25, 3.95), (60, 4.15), (120, 4.3),
+    ]]
+    rows.append(_priced(120, 4.8, name="Teuer aber gut"))
+    rows.append(_priced(8, 3.7, name="Billig und mittelmässig"))
+    runs = _run_with_prices(rows)
+    build(runs, tmp_path / "index.html")
+    by_name = {w["name"]: w.get("valueScore") for w in runs[0]["wines"]}
+    assert by_name["Teuer aber gut"] > by_name["Billig und mittelmässig"]
+
+
+def test_thin_evidence_is_damped(tmp_path):
+    """Bei 0.16 Streuung führt sonst ein Wein mit zwölf Bewertungen die Liste an."""
+    rows = [_priced(p, r) for p, r in [
+        (5, 3.6), (10, 3.8), (20, 4.0), (40, 4.2), (80, 4.4), (160, 4.6),
+        (5, 3.5), (10, 3.7), (20, 3.9), (40, 4.1), (80, 4.3), (160, 4.5),
+    ]]
+    rows.append(_priced(20, 4.5, count=12, name="Kaum bewertet"))
+    rows.append(_priced(20, 4.5, count=5000, name="Gut belegt"))
+    runs = _run_with_prices(rows)
+    build(runs, tmp_path / "index.html")
+    by_name = {w["name"]: w.get("valueScore") for w in runs[0]["wines"]}
+    assert by_name["Kaum bewertet"] < by_name["Gut belegt"], \
+        "gleiche Note und gleicher Preis, aber die dünne Belegung wird nicht gedämpft"
+
+
+def test_wines_without_rating_or_price_get_no_score(tmp_path):
+    rows = [_priced(p, r) for p, r in [(5, 3.6), (10, 3.8), (20, 4.0), (40, 4.2),
+                                       (80, 4.4), (160, 4.6), (5, 3.5), (10, 3.7),
+                                       (20, 3.9), (40, 4.1), (80, 4.3), (160, 4.5)]]
+    rows.append(_snapshot(name="Ohne Note", vivino_rating=None, dedup_key="x1"))
+    rows.append(_snapshot(name="Ohne Preis", best_price=None, dedup_key="x2"))
+    runs = _run_with_prices(rows)
+    build(runs, tmp_path / "index.html")
+    by_name = {w["name"]: w.get("valueScore") for w in runs[0]["wines"]}
+    assert by_name["Ohne Note"] is None
+    assert by_name["Ohne Preis"] is None
+
+
+def test_tiny_run_gets_no_scores(tmp_path):
+    """Aus drei Weinen lässt sich kein Preisniveau schätzen."""
+    runs = _run_with_prices([_priced(10, 4.0), _priced(20, 4.1), _priced(30, 4.2)])
+    build(runs, tmp_path / "index.html")
+    assert all(w.get("valueScore") is None for w in runs[0]["wines"])
+
+
+def test_value_is_the_default_sort(doc):
+    text = doc()
+    assert 'sort: "value"' in text
+    assert '<option value="value:-1">' in text
+    # Die erste Option ist die Vorauswahl im Auswahlfeld.
+    first = text.split('<select id="fSort">', 1)[1].split("</option>", 1)[0]
+    assert 'value="value:-1"' in first
+    assert 'S.sort = "value"' in text, "Zurücksetzen muss auch dorthin zurückkehren"
+
+
+def test_value_column_is_visible_and_explained(doc):
+    """Wonach sortiert wird, muss dastehen — sonst ist die Reihenfolge unerklärlich."""
+    text = doc()
+    assert '["value", "Preis-Leistung", "num"]' in text
+    assert 'data-l="Preis-Leistung"' in text
+    assert "wie viel besser die Note ist" in text
+    # Die Erklärung darf nicht mit dem Sortierhinweis am Handy verschwinden.
+    note = text.split('class="tblnote"', 1)[1].split("</p>", 1)[0]
+    assert "Preis-Leistung" in note
+
+
+# ------------------------------------------------------------ Paginierung (F-02/F-03)
+
+def test_table_pages_instead_of_cutting_off(doc):
+    """Vorher endete die Tabelle bei 400 Zeilen — der Rest war unerreichbar."""
+    text = doc()
+    assert "const PAGE = 50;" in text
+    assert "sorted.slice(0, S.limit)" in text
+    assert "slice(0, 400)" not in text
+    assert "weitere ausgeblendet" not in text, "alter Deckel-Hinweis noch da"
+    assert 'id="more"' in text
+    assert "S.limit += PAGE" in text
+
+
+def test_filter_change_returns_to_the_first_page(doc):
+    """Sonst stehen nach einem Filterwechsel Hunderte Zeilen einer anderen Menge da."""
+    text = doc()
+    assert "function refilter() { S.limit = PAGE; render(); }" in text
+    for handler in ('getElementById("q")', 'getElementById("fMinRating")',
+                    'getElementById("fMaxPrice")', 'getElementById("fBargain")',
+                    'getElementById("fFound")'):
+        block = text.split(handler, 1)[1][:200]
+        assert "refilter()" in block, f"{handler} setzt die Seite nicht zurück"
+    assert "onClick(); refilter();" in text, "Chips setzen die Seite nicht zurück"
+
+
+def test_more_button_does_not_rebuild_the_filters(doc):
+    """Nachladen soll den Blick nicht nach oben reissen."""
+    text = doc()
+    block = text.split('id="more"', 1)[1]
+    handler = block.split('addEventListener("click"', 1)[1][:120]
+    assert "table(list)" in handler and "render()" not in handler
+
+
+# ------------------------------------------------- Filter einklappen auf dem Handy
+
+def test_filters_collapse_on_mobile_but_the_count_stays(doc):
+    text = doc()
+    assert '<details id="filterBox">' in text
+    assert "<summary>Filter" in text
+    # Entscheidend ist, dass Zähler und Rückweg *nicht im* aufklappbaren Teil liegen —
+    # wo sonst auf der Seite sie stehen, ist frei.
+    inside = text.split('<details id="filterBox">', 1)[1].split("</details>", 1)[0]
+    assert 'id="count"' not in inside, "Zähler liegt im aufklappbaren Teil"
+    assert 'id="reset"' not in inside, "Rückweg liegt im aufklappbaren Teil"
+
+
+def test_hidden_summary_forces_the_filters_open(doc):
+    """Sonst wären die Filter am Desktop unerreichbar: kein Griff, kein Inhalt."""
+    text = doc()
+    assert '@media (min-width: 721px) { #filterBox > summary { display:none; } }' in text
+    assert 'display === "none"' in text, "Kopplung an die gerenderte Lage fehlt"
+    assert 'addEventListener("resize", syncFilterBox)' in text
+
+
+def test_filter_sync_works_in_both_directions(doc):
+    """Einseitig gedacht bleiben die Filter nach breit→schmal offen und füllen
+    den ersten Bildschirm wieder."""
+    text = doc()
+    fn = text.split("function syncFilterBox()", 1)[1].split("\n}", 1)[0]
+    assert "want" in fn and "filterBox.open = want" in fn
+    # Eine bewusste Nutzerentscheidung darf das nicht überschreiben.
+    assert "userChoseFilters" in fn
+    assert 'filterBox.addEventListener("toggle"' in text
+
+
+def test_summary_keeps_an_affordance(doc):
+    """display:flex nimmt der Summary ihr Standard-Dreieck."""
+    text = doc()
+    assert "#filterBox > summary::after" in text
+    assert "details-marker { display:none; }" in text
+
+
 # ------------------------------------------------------------------- Farben
 
 def test_palette_keeps_its_contrast_promise():
@@ -304,3 +479,109 @@ def test_page_stays_self_contained(doc):
 def test_build_returns_none_without_wines(tmp_path):
     assert build([{"id": "r1", "label": "x", "date": "d", "wines": []}],
                  tmp_path / "index.html") is None
+
+
+# ---------------------------------------------- Typografie und Breakpoint (F-09/F-15)
+
+def test_only_five_text_roles_exist(doc):
+    """Vorher lagen zehn Grössen zwischen 11 und 13.6 px, mehrere ununterscheidbar."""
+    text = doc()
+    style = text.split("<style>", 1)[1].split("</style>", 1)[0]
+    # SVG-Text darf in px bleiben: er skaliert über die viewBox mit der Diagrammbreite.
+    # em-Werte sind relativ zur Umgebung und definieren keine eigene Rolle (Chevron).
+    svg_px = {"11px", "12px"}
+    literal = set(re.findall(r"font-size:\s*([^;}]+)", style))
+    tokens = {v for v in literal if v.startswith("var(--fs-")}
+    rest = {v for v in literal
+            if not v.startswith("var(--fs-") and not v.endswith("em")} - svg_px
+    assert not rest, f"Einzelwerte ausserhalb der Tokens: {sorted(rest)}"
+    assert len(tokens) <= 5, sorted(tokens)
+
+
+def test_reading_surface_is_sixteen_pixels(doc):
+    """Die Tabelle ist die am längsten gelesene Fläche — vorher 13.6 px."""
+    text = doc()
+    assert "--fs-body:1rem;" in text
+    table_rule = re.search(r"\n  table \{[^}]*\}", text).group(0)
+    assert "var(--fs-body)" in table_rule
+
+
+def test_one_breakpoint_for_layout_changes(doc):
+    """721/767 nebeneinander erzeugte einen Zustand mit Spaltenköpfen ohne Hinweis."""
+    text = doc()
+    style = text.split("<style>", 1)[1].split("</style>", 1)[0]
+    # Nur Media-Query-Bedingungen zählen. max-width an .wrap oder #tip ist ein
+    # Layoutmass, kein Breakpoint.
+    conditions = re.findall(r"@media\s*\(([^)]*)\)", style)
+    widths = {m for cond in conditions
+              for m in re.findall(r"(?:max|min)-width:\s*(\d+)px", cond)}
+    assert widths <= {"720", "721"}, f"mehrere Breakpoints: {sorted(widths)}"
+
+
+def test_count_and_reset_stay_visible_while_scrolling(doc):
+    """Wer in der Liste liest, soll die Auswahl ohne Rückweg ändern können."""
+    text = doc()
+    search = text.split('<div class="search">', 1)[1].split("</div>\n\n", 1)[0]
+    assert 'id="count"' in search and 'id="reset"' in search
+    assert ".search { position:sticky" in text
+
+
+def test_coverage_is_split_off_from_the_match_count(doc):
+    """Die Abdeckung würde die sticky Leiste am Handy auf zwei Zeilen bringen."""
+    text = doc()
+    assert 'id="coverage"' in text
+    assert "davon mit Vivino-Note" in text
+    count_line = text.split('getElementById("count").innerHTML', 1)[1][:120]
+    assert "Marktpreis" not in count_line
+
+
+# ------------------------------------------------------ Anzeigename (F-11)
+
+@pytest.mark.parametrize("raw,clean", [
+    ("Rioja DOCa Crianza Bodegas Izadi (2022) – Rotwein, Spanien (0.75l)",
+     "Rioja DOCa Crianza Bodegas Izadi"),
+    ("Blauer Zweigelt, Mundart (2022) – Rotwein, Österreich (0.75l)",
+     "Blauer Zweigelt, Mundart"),
+    ("Naturaplan Bio Alentejo DOC Marquês de Borba (2024) – Roséwein, Portugal (0.75l)",
+     "Naturaplan Bio Alentejo DOC Marquês de Borba"),
+    ("Syrah Terra Linda 2024, 75 cl", "Syrah Terra Linda 2024"),
+    ("Chianti Classico Riserva – Rotwein, Italien", "Chianti Classico Riserva"),
+])
+def test_display_name_drops_retailer_boilerplate(raw, clean):
+    from winecheck.report.site import display_name
+    assert display_name(raw) == clean
+
+
+@pytest.mark.parametrize("raw", [
+    # Andere Flaschengrössen und Packungen sind Kaufinformation, keine Wiederholung.
+    "Ruinart Blanc de Blancs, 1.5 l",
+    "Taittinger Brut Réserve, 37.5 cl",
+    "Forlane Yvorne Chablais AOC, 50 cl",
+    "Rioja DOCa Las Flores 6x 75cl",
+])
+def test_display_name_keeps_purchase_relevant_sizes(raw):
+    from winecheck.report.site import display_name
+    kept = display_name(raw)
+    assert any(tok in kept for tok in ("1.5", "37.5", "50 cl", "6x")), kept
+
+
+def test_display_name_leaves_ordinary_names_alone():
+    from winecheck.report.site import display_name
+    for name in ["Pomerol AOC 2007 Château Lafleur", "Ànima Negra AN/2",
+                 "Masi Campofiorin Rosso del Veronese IGT"]:
+        assert display_name(name) == name
+
+
+def test_cleaning_does_not_touch_key_or_matching():
+    """Gematcht wurde vorher mit dem Originalnamen — der Schlüssel bleibt stabil."""
+    raw = "Rioja DOCa Crianza Bodegas Izadi (2022) – Rotwein, Spanien (0.75l)"
+    wine = _wine_from_snapshot(_snapshot(name=raw, dedup_key="izadi-2022"))
+    assert wine["key"] == "izadi-2022"
+    assert wine["name"] == "Rioja DOCa Crianza Bodegas Izadi"
+
+
+def test_key_falls_back_to_the_original_name():
+    """Ohne dedup_key darf der Schlüssel nicht von der Anzeige-Bereinigung abhängen."""
+    raw = "Rioja DOCa Crianza Bodegas Izadi (2022) – Rotwein, Spanien (0.75l)"
+    wine = _wine_from_snapshot({"name": raw})
+    assert wine["key"] == raw

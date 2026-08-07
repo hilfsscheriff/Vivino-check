@@ -142,6 +142,49 @@ def _colour_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     return None
 
 
+
+def _distinctive_anchor_veto(retailer: _Prepared, source: _Prepared) -> str | None:
+    """Zwei Weine brauchen mindestens ein gemeinsames unterscheidendes Wort.
+
+    „Rioja Imperial Cune Reserva" bekam die 4.2 aus 36'233 Bewertungen von einem
+    Eintrag namens schlicht **„Rioja Reserva"** — Score 100, weil nach Abzug von
+    Herkunft und Qualitätsstufe auf beiden Seiten fast dasselbe übrig blieb. Nur trägt
+    der Fundname überhaupt kein unterscheidendes Wort: er kann per Konstruktion nicht
+    dieser bestimmte Wein sein, sondern ist ein Sammeleintrag.
+    """
+    r_dist = {t for t in retailer.token_set if is_distinctive(t)}
+    s_dist = {t for t in source.token_set if is_distinctive(t)}
+    if r_dist and not (r_dist & s_dist):
+        return (
+            f"kein gemeinsames unterscheidendes Wort — {_pretty(r_dist)} fehlt in der "
+            f"Quelle" + (f", die {_pretty(s_dist)} führt" if s_dist else ", die keines führt")
+        )
+    return None
+
+
+def _rival_producer_veto(retailer: _Prepared, source: _Prepared) -> str | None:
+    """Beide Seiten tragen ein eigenes unterscheidendes Wort, das die andere nicht kennt.
+
+    „Gevrey-Chambertin **Faiveley**" gegen „**Regnard** Gevrey-Chambertin Rouge": die
+    Appellation ist identisch, der Produzent ein anderer. Gemeinsame Wörter gibt es
+    genug (gevrey, chambertin), darum greift die Ankerregel oben nicht — und der Score
+    lag bei 86.
+
+    Einseitige Zusätze bleiben erlaubt und werden anderswo behandelt: fehlt der
+    Produzent nur in der Quelle, ist das die bekannte Unsicherheit (``fuzzy``); trägt
+    nur die Quelle Zusätze, entscheidet die Abdeckung. Erst wenn **beide** Seiten
+    etwas Eigenes mitbringen, sind es zwei verschiedene Weine.
+    """
+    r_only = {t for t in retailer.token_set - source.token_set if is_distinctive(t)}
+    s_only = {t for t in source.token_set - retailer.token_set if is_distinctive(t)}
+    if r_only and s_only:
+        return (
+            f"beide Seiten führen eigene Namen — {_pretty(r_only)} beim Händler, "
+            f"{_pretty(s_only)} in der Quelle"
+        )
+    return None
+
+
 def _foreign_token_analysis(
     retailer: _Prepared, source: _Prepared, coverage: float
 ) -> tuple[str | None, list[str]]:
@@ -366,6 +409,8 @@ def match_wine(
     vetos = (
         _qualifier_veto(r, s),
         _colour_veto(r, s),
+        _distinctive_anchor_veto(r, s),
+        _rival_producer_veto(r, s),
         foreign_veto,
         _leading_cuvee_veto(r, s),
         _cuvee_before_producer_name_veto(r, s),

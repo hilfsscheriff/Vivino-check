@@ -66,6 +66,94 @@ _SHOP_DARK = [
 _PANEL_LIGHT, _PANEL_DARK = "#f8f4f5", "#1e181a"
 
 
+#: Ab so vielen Vivino-Bewertungen zählt die Abweichung vom Preisniveau voll. Darunter
+#: wird sie anteilig gedämpft: bei einer Streuung von rund 0.16 Notenpunkten führt sonst
+#: ein Wein mit zwölf Bewertungen die Liste an, weil er zufällig gut wegkam.
+VALUE_RATING_ANCHOR = 50
+
+#: So viele Weine braucht ein Lauf, damit sich ein Preisniveau schätzen lässt.
+VALUE_MIN_SAMPLE = 12
+
+
+def _add_value_scores(wines: list[dict[str, Any]]) -> None:
+    """Trägt in jeden Wein ein, wie weit seine Note über dem Preisniveau liegt.
+
+    „Gut und günstig" ist die Frage, für die es die Seite gibt — im Diagramm ist es
+    „oben links". Als Zahl: die Regression der Note auf ``log10(Preis)`` über den Lauf,
+    und der Rest je Wein. Damit heisst der Wert „so viel besser als üblich für dieses
+    Geld" und nicht „billig". Ein Ruinart für CHF 89.50 kann so vor einem mittelmässigen
+    Wein für CHF 8 liegen.
+
+    Der Preis geht logarithmisch ein, weil die Note es auch tut: über die Läufe bringt
+    eine Verzehnfachung des Preises knapp einen halben Notenpunkt. Linear gerechnet
+    würde die Spanne von CHF 4.60 bis 590 die ganze Rangfolge von den teuren Weinen
+    her bestimmen.
+
+    Gerechnet wird über den ganzen Lauf, nicht über die gefilterte Auswahl: sonst
+    änderte ein Wein seinen Rang, je nachdem was sonst angezeigt wird.
+    """
+    sample = [
+        w for w in wines
+        if w.get("rating") is not None and (w.get("price") or 0) > 0
+    ]
+    if len(sample) < VALUE_MIN_SAMPLE:
+        return
+    xs = [math.log10(w["price"]) for w in sample]
+    ys = [w["rating"] for w in sample]
+    n = len(xs)
+    mean_x, mean_y = sum(xs) / n, sum(ys) / n
+    spread = sum((x - mean_x) ** 2 for x in xs)
+    if spread <= 0:                       # alle zum selben Preis
+        return
+    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / spread
+    intercept = mean_y - slope * mean_x
+    for w in sample:
+        expected = intercept + slope * math.log10(w["price"])
+        count = w.get("ratingCount") or 0
+        damping = count / (count + VALUE_RATING_ANCHOR)
+        w["valueScore"] = (w["rating"] - expected) * damping
+
+
+#: Farbwörter, wie die Händler sie an den Namen hängen.
+_COLOUR_WORD = r"(?:Rot|Weiss|Weiß|Ros[ée]|Schaum|Süss|Suess|Dessert)wein"
+
+#: Die Standardflasche. Der Preis ist darauf normiert, im Namen sagt sie nichts.
+#: Andere Grössen bleiben stehen: eine Magnum oder eine Halbflasche ist eine andere
+#: Kaufentscheidung, ebenso der Sechserpack.
+_STD_VOLUME = r"(?:0[.,]75\s*l|75\s*cl)"
+
+_NAME_NOISE = [
+    # „– Rotwein, Schweiz (0.75l)" am Ende
+    re.compile(rf"\s*[–—-]\s*{_COLOUR_WORD}\s*,\s*[^,(]+?\s*\(\s*{_STD_VOLUME}\s*\)\s*$", re.I),
+    # dasselbe ohne Volumen
+    re.compile(rf"\s*[–—-]\s*{_COLOUR_WORD}\s*,\s*[^,(]+?\s*$", re.I),
+    # nur das Farbwort, mit oder ohne folgende Klammer
+    re.compile(rf"\s*[–—-]\s*{_COLOUR_WORD}\s*(?=\(|$)", re.I),
+    # Standardgrösse am Ende, mit und ohne Klammer
+    re.compile(rf",?\s*\(?\s*{_STD_VOLUME}\s*\)?\s*$", re.I),
+    # Jahrgang in Klammern — er wird einheitlich angehängt, siehe ``vintageSuffix``
+    re.compile(r"\s*\((?:19|20)\d{2}\)"),
+]
+
+
+def display_name(name: str) -> str:
+    """Den Anzeigenamen von Händler-Beiwerk befreien.
+
+    Die Namen kommen aus den Shops und tragen alles mit: „Rioja DOCa Crianza Bodegas
+    Izadi (2022) – Rotwein, Spanien (0.75l)". Farbe steht daneben als Pill, das Land
+    trägt nichts, 0.75 l ist die Bezugsgrösse des Preises, und der Jahrgang wird
+    ohnehin einheitlich angehängt. Beim Überfliegen einer Liste ist der Name das
+    Ankerelement — vierfach redundanter Text macht daraus mehrere Umbrüche.
+
+    Was bleibt: Magnum, Halbflasche und Sechserpack. Das sind andere Käufe, keine
+    Wiederholungen.
+    """
+    out = name or ""
+    for pattern in _NAME_NOISE:
+        out = pattern.sub("", out)
+    return re.sub(r"\s{2,}", " ", out).strip(" ,;–—-")
+
+
 def _css_ident(key: str) -> str:
     """Händlerschlüssel in einen CSS-taugliches Bezeichnerteil überführen."""
     return re.sub(r"[^a-z0-9]+", "-", key.lower()).strip("-")
@@ -127,7 +215,9 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
     )
     return {
         "key": d.get("dedup_key") or d.get("name") or "",
-        "name": d.get("name") or "",
+        # Nur die Anzeige wird bereinigt. Gematcht und dedupliziert wurde vorher mit
+        # dem Originalnamen, und der Schlüssel bleibt der Originalschlüssel.
+        "name": display_name(d.get("name") or ""),
         "vintage": d.get("vintage") or "",
         "price": d.get("best_price"),
         # Ein Produzenten-Durchschnitt ist nicht die Note *dieses* Weins und darf
@@ -174,6 +264,7 @@ _SHORT_KEYS = {
     "maturity": "t", "maturityShort": "ts", "maturityRegion": "tr",
     "vintageQuality": "q", "falstaff": "f", "key": "k",
     "wineryRating": "wr", "fuzzy": "fz", "matchedName": "mn",
+    "valueScore": "vs",
 }
 
 
@@ -210,6 +301,10 @@ def build(
     runs = [r for r in runs if r.get("wines")]
     if not runs:
         return None
+
+    # Je Lauf gerechnet: jeder hat sein eigenes Preisniveau.
+    for run in runs:
+        _add_value_scores(run["wines"])
 
     info = retailer_info or {}
     retailers = sorted({r for run in runs for w in run["wines"] for r in w["retailers"]})
@@ -288,6 +383,18 @@ _TEMPLATE = r"""<!doctype html>
     /* Mindesthöhe für Bedienelemente. Auf Zeigergeräten kompakt, auf Touch
        44 px — dort entscheidet die Treffgenauigkeit, hier die Dichte. */
     --control-h:36px;
+    /* Fünf Textrollen statt dreizehn Einzelwerte. Vorher lagen zwischen 11 und
+       13.6 px zehn Grössen, mehrere weniger als 0.5 px auseinander — nicht zu
+       sehen, aber dreifach zu pflegen. Gleichzeitig teilten verschiedene Rollen
+       dieselbe Grösse (.sub und .reset, .count und td), die Hierarchie war also
+       zugleich zu fein und zu grob. Der Lesetext liegt jetzt auf 16 px statt
+       13.6 px: die Tabelle ist die am längsten gelesene Fläche der Seite. */
+    --fs-page-title:1.5rem;   /* h1 */
+    --fs-title:1.125rem;      /* Kartentitel */
+    --fs-body:1rem;           /* Tabelle, Suchfeld, Tooltip */
+    --fs-body-sm:.875rem;     /* Metatext, Chips, Zähler, Footer, Hinweise */
+    --fs-label:.75rem;        /* Legenden, Spaltenköpfe, Pills — uppercase/600 */
+    --lh-tight:1.25;
   }
   @media (prefers-color-scheme: dark) {
     :root { --ink:#eee8ea; --muted:#a89fa2; --line:#393134; --brand:#eaa6bd;
@@ -305,58 +412,63 @@ _TEMPLATE = r"""<!doctype html>
          font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
          padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   .wrap { max-width:1180px; margin:0 auto; padding:16px 14px 48px; }
-  h1 { font-size:1.35rem; margin:0 0 2px; color:var(--brand); letter-spacing:-.01em; }
-  .sub { color:var(--muted); font-size:.82rem; margin:0 0 14px; }
+  h1 { font-size:var(--fs-page-title); margin:0 0 2px; color:var(--brand); letter-spacing:-.01em; }
+  .sub { color:var(--muted); font-size:var(--fs-body-sm); margin:0 0 14px; }
   /* ---- Suche und Filter ---- */
   .search { position:sticky; top:0; z-index:5; background:var(--bg);
-            padding:8px 0 10px; margin-bottom:2px; }
-  .search input { width:100%; font-size:1rem; padding:11px 13px; border-radius:11px;
+            padding:8px 0 8px; margin-bottom:2px;
+            border-bottom:1px solid var(--line); }
+  .search .bar { margin:8px 0 0; }
+  .search input { width:100%; font-size:var(--fs-body); padding:11px 13px; border-radius:11px;
                   border:1px solid var(--line-strong); background:var(--panel); color:var(--ink); }
   .search input::placeholder { color:var(--muted); }
   fieldset { border:0; margin:0 0 10px; padding:0; }
-  legend { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
+  legend { font-size:var(--fs-label); text-transform:uppercase; letter-spacing:.06em;
            color:var(--muted); margin-bottom:5px; padding:0; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; }
   .chip { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line-strong);
-          background:var(--chip); color:inherit; font:inherit; font-size:.8rem;
+          background:var(--chip); color:inherit; font:inherit; font-size:var(--fs-body-sm);
           padding:7px 11px; border-radius:999px; cursor:pointer;
           min-height:var(--control-h); }
   .chip[aria-pressed="true"] { background:var(--accent); color:var(--bg);
                                border-color:var(--accent); font-weight:600; }
   .chip .dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
-  .chip .n { color:var(--muted); font-variant-numeric:tabular-nums; font-size:.74rem; }
+  .chip .n { color:var(--muted); font-variant-numeric:tabular-nums; font-size:var(--fs-label); }
   .chip[aria-pressed="true"] .n { color:var(--bg); opacity:.8; }
-  .filters .bar { margin-top:13px; padding-top:11px; border-top:1px solid var(--line); }
   .bar { display:flex; align-items:center; justify-content:space-between; gap:12px;
          flex-wrap:wrap; margin:6px 0 12px; }
-  .count { font-size:.85rem; color:var(--muted); }
+  .count { font-size:var(--fs-body-sm); color:var(--muted); }
   .count b { color:var(--ink); }
   .reset { background:none; border:0; color:var(--brand); font:inherit;
-           font-size:.82rem; cursor:pointer; padding:6px 0; text-decoration:underline;
+           font-size:var(--fs-body-sm); cursor:pointer; padding:6px 0; text-decoration:underline;
            min-height:var(--control-h); }
   /* ---- Diagramm ---- */
   .card { border:1px solid var(--line); border-radius:14px; background:var(--panel);
           padding:12px; margin-bottom:16px; }
-  .card h2 { font-size:.95rem; margin:0 0 8px; color:var(--brand); }
+  .card h2 { font-size:var(--fs-title); margin:0 0 8px; color:var(--brand); }
   svg { width:100%; height:auto; display:block; overflow:visible; touch-action:manipulation; }
   .grid { stroke:var(--line); stroke-dasharray:2 3; }
   .axis { stroke:var(--line); stroke-width:1.2; }
   .tick { fill:var(--muted); font-size:11px; }
   .alabel { fill:var(--muted); font-size:12px; }
   .hint { fill:var(--brand); font-size:11px; }
-  .pt { stroke:var(--panel); stroke-width:1.3; cursor:pointer; transition:opacity .12s; }
+  /* fill-opacity statt voller Deckung: übereinanderliegende Punkte werden dunkler
+     statt sich zu verdecken. Der Umriss in Kartenfarbe trennt sie zusätzlich. */
+  .pt { stroke:var(--panel); stroke-width:1.2; cursor:pointer; fill-opacity:.82;
+        transition:opacity .12s; }
+  .pt:hover, .pt:focus-visible { fill-opacity:1; stroke:var(--ink); stroke-width:1.6; }
   .pt.off { display:none; }
-  .empty { color:var(--muted); font-size:.85rem; padding:22px 4px; text-align:center; }
+  .empty { color:var(--muted); font-size:var(--fs-body-sm); padding:22px 4px; text-align:center; }
   /* ---- Tabelle als Karten auf dem Handy ---- */
-  table { width:100%; border-collapse:collapse; font-size:.85rem; }
-  th { text-align:left; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em;
+  table { width:100%; border-collapse:collapse; font-size:var(--fs-body); }
+  th { text-align:left; font-size:var(--fs-label); text-transform:uppercase; letter-spacing:.05em;
        color:var(--muted); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--line); }
   td { padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
   tr:last-child td { border-bottom:0; }
   a { color:#1a4f8a; }
   @media (prefers-color-scheme: dark) { a { color:#8fb8e8; } }
   .wine { font-weight:600; }
-  .meta { color:var(--muted); font-size:.76rem; }
+  .meta { color:var(--muted); font-size:var(--fs-body-sm); }
   .num { font-variant-numeric:tabular-nums; white-space:nowrap; }
   .good { color:#2e7d32; font-weight:650; }
   .bad { color:#c62828; }
@@ -366,9 +478,26 @@ _TEMPLATE = r"""<!doctype html>
      einschränken wollte, musste am Diagramm vorbeiscrollen und wieder zurück. */
   .filters { padding:14px 16px 10px; margin-bottom:14px; }
   .filters fieldset + fieldset { margin-top:11px; }
+  /* display:flex nimmt der Summary ihr Standard-Dreieck — ohne Ersatz sieht man
+     nicht, dass sich das aufklappen lässt. */
+  #filterBox > summary { font-size:var(--fs-body-sm); color:var(--brand); cursor:pointer;
+                         display:flex; align-items:center; gap:7px;
+                         min-height:var(--control-h); font-weight:600;
+                         list-style:none; }
+  #filterBox > summary::-webkit-details-marker { display:none; }
+  #filterBox > summary::after { content:"▾"; margin-left:auto; font-size:.9em;
+                                transition:transform .15s; }
+  #filterBox[open] > summary::after { transform:rotate(180deg); }
+  #filterBox > summary .n { color:var(--muted); font-weight:400; }
+  .coverage { font-size:var(--fs-body-sm); color:var(--muted); margin:11px 0 0;
+              padding-top:10px; border-top:1px solid var(--line); }
+  #filterBox[open] > summary { margin-bottom:4px; }
+  /* Am Desktop ist Platz — dort sind die Filter immer offen und der Aufklapper
+     wäre nur ein zusätzlicher Klick. */
+  @media (min-width: 721px) { #filterBox > summary { display:none; } }
   .filters .fine { border-top:1px solid var(--line); padding-top:11px; margin-top:13px; }
   .controls { display:flex; flex-wrap:wrap; gap:9px 14px; align-items:center;
-              font-size:.82rem; color:var(--muted); }
+              font-size:var(--fs-body-sm); color:var(--muted); }
   .controls label { display:flex; gap:6px; align-items:center; white-space:nowrap;
                     min-height:var(--control-h); }
   .controls select { font:inherit; color:var(--ink); background:var(--bg);
@@ -377,19 +506,29 @@ _TEMPLATE = r"""<!doctype html>
   .controls .cb { cursor:pointer; }
   .controls input[type=checkbox] { accent-color:var(--brand); width:20px; height:20px;
                                    flex:0 0 auto; }
-  .colhint { font-size:.74rem; color:var(--muted); margin:0 0 10px; }
+  /* Erklärt die Standardsortierung — muss auf jeder Breite lesbar bleiben. */
+  .tblnote { font-size:var(--fs-body-sm); color:var(--muted); margin:0 0 10px; }
+  /* Nur der Hinweis auf die Spaltenköpfe ist am Handy falsch: dort ist thead weg. */
+  .colhint { font-size:var(--fs-body-sm); color:var(--muted); }
+  .more { margin:12px 0 0; text-align:center; }
+  .more button { font:inherit; font-size:var(--fs-body-sm); color:var(--brand); cursor:pointer;
+                 background:var(--bg); border:1px solid var(--line-strong);
+                 border-radius:999px; padding:9px 18px; min-height:var(--control-h); }
+  .more button:hover { border-color:var(--brand); }
+  .more .meta { display:block; margin-top:6px; }
   /* Farbe und Füllung sind die beiden Kodierungen im Diagramm. Ohne diese Zeile
      ist die Händlerfarbe nur über die Filter-Chips zu erraten und der hohle
      Kreis gar nicht zu deuten. Anders als .colhint auch unter 767 px sichtbar:
      das Diagramm selbst verschwindet erst bei 720 px. */
-  .legend { font-size:.74rem; color:var(--muted); margin:0 0 8px; }
+  .legend { font-size:var(--fs-body-sm); color:var(--muted); margin:0 0 8px; }
   .legend .ring { display:inline-block; width:9px; height:9px; border-radius:50%;
                   border:1.8px solid var(--muted); vertical-align:baseline; }
-  /* Auf dem Handy ist thead ausgeblendet — dort ist der Hinweis schlicht falsch. */
-  @media (max-width: 767px) {
+  /* Auf dem Handy ist thead ausgeblendet — dort ist der Hinweis schlicht falsch.
+     Derselbe Breakpoint wie fuer Kartenansicht und Diagramm: 720 px. */
+  @media (max-width: 720px) {
     .colhint { display:none; }
     .controls { gap:8px 10px; }
-    .controls label { font-size:.8rem; }
+    .controls label { font-size:var(--fs-body-sm); }
   }
   th .sortbtn { font:inherit; color:inherit; background:none; border:0; padding:0;
                 cursor:pointer; letter-spacing:inherit; text-transform:inherit; }
@@ -397,13 +536,13 @@ _TEMPLATE = r"""<!doctype html>
   th.sorted { color:var(--brand); }
   th.num .sortbtn { width:100%; text-align:right; }
   @media (prefers-color-scheme: dark){ .good{color:#7cc47f} .bad{color:#ef9a9a} }
-  .pill { display:inline-block; font-size:.7rem; padding:2px 7px; border-radius:999px;
+  .pill { display:inline-block; font-size:var(--fs-label); font-weight:600; padding:2px 7px; border-radius:999px;
           background:var(--chip); color:var(--muted); }
   @media (max-width:720px) {
     thead { display:none; }
     tr { display:block; border-bottom:1px solid var(--line); padding:10px 2px; }
     td { display:block; border:0; padding:2px 0; }
-    td[data-l]::before { content:attr(data-l) " "; color:var(--muted); font-size:.74rem; }
+    td[data-l]::before { content:attr(data-l) " "; color:var(--muted); font-size:var(--fs-label); }
     /* In der Tabelle hält ein "—" die Spalte ausgerichtet. In der Kartenansicht
        gibt es keine Spalte mehr — dort ist es nur eine Zeile ohne Inhalt, und
        beim Marktpreis betrifft das die Mehrheit der Weine. */
@@ -412,13 +551,16 @@ _TEMPLATE = r"""<!doctype html>
   }
   #tip { position:fixed; z-index:20; pointer-events:none; opacity:0; transition:opacity .1s;
          max-width:300px; background:var(--panel); border:1px solid var(--line);
-         border-radius:10px; padding:9px 11px; font-size:.8rem; line-height:1.45;
+         border-radius:10px; padding:9px 11px; font-size:var(--fs-body-sm); line-height:1.45;
          box-shadow:0 8px 26px rgba(0,0,0,.18); }
   #tip.on { opacity:1; }
   #tip .n { font-weight:650; display:block; margin-bottom:3px; }
   #tip .r { display:flex; justify-content:space-between; gap:12px; }
   #tip .k { color:var(--muted); }
-  footer { color:var(--muted); font-size:.76rem; border-top:1px solid var(--line);
+  #tip .also { margin-top:7px; padding-top:6px; border-top:1px solid var(--line); }
+  #tip .also b { display:block; margin-bottom:3px; }
+  #tip { max-width:320px; }
+  footer { color:var(--muted); font-size:var(--fs-body-sm); border-top:1px solid var(--line);
            padding-top:12px; margin-top:8px; }
   footer p { margin:.4em 0; }
 </style>
@@ -428,14 +570,28 @@ _TEMPLATE = r"""<!doctype html>
   <h1>__TITLE__</h1>
   <p class="sub">Stand __STAMP__ · Preise auf CHF pro 75 cl inkl. MwSt normalisiert (8.1 %)</p>
 
+  <!-- Suchfeld, Treffermenge und Rückweg bleiben beim Scrollen stehen: wer in der
+       Liste liest und die Auswahl ändern will, soll nicht nach oben zurück müssen.
+       Die Abdeckungsangaben stehen bewusst *nicht* hier — sie sind Nachschlagewerte
+       und würden die Leiste am Handy auf zwei Zeilen bringen. -->
   <div class="search">
     <input id="q" type="search" placeholder="Wein, Produzent, Region oder Sorte suchen …"
            autocomplete="off" autocapitalize="none" spellcheck="false"
            aria-label="Weine durchsuchen">
+    <div class="bar">
+      <span class="count" id="count" aria-live="polite"></span>
+      <button class="reset" id="reset" type="button">Filter zurücksetzen</button>
+    </div>
   </div>
 
   <main>
   <div class="card filters">
+    <!-- Eingeklappt auf dem Handy: sonst füllt das Formular den ersten Bildschirm und
+         der erste Wein steht unter 1200 px. Der Zähler bleibt draussen und damit
+         immer sichtbar. <details> statt eigener Logik — Tastatur und Screenreader
+         kommen gratis mit. -->
+    <details id="filterBox">
+    <summary>Filter <span class="n" id="filterCount"></span></summary>
     <fieldset id="runBox"><legend>Lauf</legend><div class="chips" id="fRun"></div></fieldset>
     <fieldset><legend>Trinkreife</legend><div class="chips" id="fMat"></div></fieldset>
     <fieldset><legend>Sorte</legend><div class="chips" id="fStyle"></div></fieldset>
@@ -465,6 +621,7 @@ _TEMPLATE = r"""<!doctype html>
         </label>
         <label>Sortieren
           <select id="fSort">
+            <option value="value:-1">Preis-Leistung, beste zuerst</option>
             <option value="rating:-1">Note, beste zuerst</option>
             <option value="price:1">Preis, günstigste zuerst</option>
             <option value="price:-1">Preis, teuerste zuerst</option>
@@ -477,11 +634,8 @@ _TEMPLATE = r"""<!doctype html>
         <label class="cb"><input type="checkbox" id="fBargain"> nur unter Marktpreis</label>
       </div>
     </fieldset>
-
-    <div class="bar">
-      <span class="count" id="count" aria-live="polite"></span>
-      <button class="reset" id="reset" type="button">Filter zurücksetzen</button>
-    </div>
+    </details>
+    <p class="coverage" id="coverage"></p>
   </div>
 
   <div class="card chart">
@@ -493,7 +647,10 @@ _TEMPLATE = r"""<!doctype html>
 
   <div class="card">
     <h2 id="tblTitle">Weine</h2>
-    <p class="colhint">Spaltentitel antippen sortiert · nochmal antippen kehrt um</p>
+    <p class="tblnote"><b>Preis-Leistung</b> = wie viel besser die Note ist als bei
+       Weinen zum gleichen Preis. ±0.00 = im Schnitt. Wenig bewertete Weine werden
+       gedämpft.<span class="colhint"> · Spaltentitel antippen sortiert, nochmal
+       antippen kehrt um</span></p>
     <div id="table"></div>
   </div>
   </main>
@@ -526,7 +683,7 @@ const KEYS = { n:"name", y:"vintage", p:"price", r:"rating", rc:"ratingCount",
   vu:"vivinoUrl", rs:"retailers", c:"cheapest", u:"url", m:"market", b:"bargain",
   s:"style", sl:"styleLabel", t:"maturity", ts:"maturityShort", tr:"maturityRegion",
   q:"vintageQuality", f:"falstaff", k:"key", wr:"wineryRating",
-                   fz:"fuzzy", mn:"matchedName" };
+                   fz:"fuzzy", mn:"matchedName", vs:"valueScore" };
 D.runs.forEach(run => {
   run.wines = run.wines.map(w => {
     const o = { retailers: [], name: "", style: "", maturity: "", styleLabel: "",
@@ -538,9 +695,16 @@ D.runs.forEach(run => {
     return o;
   });
 });
+/* So viele Zeilen auf einmal. Vorher standen 400 fest im Dokument: bei 623 Weinen
+   waren 223 nur über „Filter verfeinern" erreichbar, und die Tabelle allein trug
+   über 800 Tabstopps. */
+const PAGE = 50;
 const S = { run: D.runs[0].id, mat: new Set(), style: new Set(), shop: new Set(), q: "",
-            sort: "rating", dir: -1, minRating: null, maxPrice: null, onlyBargain: false,
-            onlyFound: false };
+            /* Standard ist Preis-Leistung: „welche Flasche lohnt sich" ist die Frage,
+               für die es die Seite gibt. Nach Note allein eröffnete die Liste mit den
+               teuersten Flaschen. */
+            sort: "value", dir: -1, minRating: null, maxPrice: null, onlyBargain: false,
+            onlyFound: false, limit: PAGE };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const chf = v => v == null ? "" : "CHF " + Number(v).toFixed(2)
@@ -550,6 +714,15 @@ const chf = v => v == null ? "" : "CHF " + Number(v).toFixed(2)
    allermeisten Weinen. Nur anhängen, wenn er im Namen fehlt. */
 const vintageSuffix = w => (w.vintage && !String(w.name).includes(String(w.vintage)))
   ? " " + w.vintage : "";
+/* Der Wert, nach dem standardmässig sortiert wird, muss auch dastehen — sonst ist die
+   Reihenfolge nicht nachvollziehbar. 0 heisst „genau im Preisniveau". */
+const valueText = w => {
+  if (w.valueScore == null) return '<span class="meta">—</span>';
+  const v = w.valueScore;
+  const cls = v > 0.05 ? "good" : v < -0.05 ? "bad" : "meta";
+  return `<span class="${cls}">${v > 0 ? "+" : v < 0 ? "−" : "±"}`
+    + Math.abs(v).toFixed(2) + "</span>";
+};
 
 function currentRun() { return D.runs.find(r => r.id === S.run) || D.runs[0]; }
 
@@ -620,6 +793,10 @@ function chart(list) {
     g += `<line class="grid" x1="${L}" y1="${sy(v)}" x2="${L+pw}" y2="${sy(v)}"/>`
        + `<text class="tick" x="${L-7}" y="${sy(v)+4}" text-anchor="end">${v.toFixed(1)}</text>`;
   }
+  /* Im dichten Bereich (CHF 5–20, Note 3.9–4.2) lagen bei 127 Punkten 24 ganz oder
+     teilweise hinter anderen — deren Tooltip war unerreichbar. Kleinerer Radius und
+     Teiltransparenz machen Häufungen als dunklere Fläche lesbar, statt sie zu
+     verdecken; der Umriss trennt die Punkte weiter voneinander. */
   const shopVar = Object.fromEntries(D.retailers.map(r => [r.key, r.var]));
   // Unbestätigte Namensabgleiche werden hohl gezeichnet. Farbe immer per style, nie
   // als Präsentationsattribut: fill="..." nimmt kein var(), und die Regel
@@ -630,7 +807,7 @@ function chart(list) {
       ? `style="fill:none;stroke:${c};stroke-width:1.8"`
       : `style="fill:${c}"`;
     return `<circle class="pt" data-i="${i}" cx="${sx(p.price).toFixed(1)}"`
-      + ` cy="${sy(p.rating).toFixed(1)}" r="6" ${paint}/>`;
+      + ` cy="${sy(p.rating).toFixed(1)}" r="5" ${paint}/>`;
   }).join("");
 
   box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img"
@@ -644,15 +821,24 @@ function chart(list) {
     <g id="pts">${circles}</g></svg>`;
 
   const tip = document.getElementById("tip"), host = box.querySelector("#pts");
+  /* Gerenderte Lage je Punkt, um Häufungen zu finden. Ein kleinerer Radius löst das
+     Problem nicht — die Punkte liegen in den Daten aufeinander, nicht bloss optisch.
+     Erreichbar werden die verdeckten nur, wenn der Tooltip sie mitnennt. */
+  const at = pts.map(p => ({ x: +sx(p.price).toFixed(1), y: +sy(p.rating).toFixed(1) }));
+  const clusterOf = i => pts
+    .map((_, j) => j)
+    .filter(j => Math.abs(at[j].x - at[i].x) <= 5 && Math.abs(at[j].y - at[i].y) <= 5);
   const show = (el, ev) => {
-    const p = pts[+el.dataset.i]; if (!p) return;
+    const i = +el.dataset.i, p = pts[i]; if (!p) return;
     const row = (k, v) => `<div class="r"><span class="k">${k}</span><span>${v}</span></div>`;
+    const cluster = clusterOf(i).filter(j => j !== i);
     let h = `<span class="n">${esc(p.name)}${vintageSuffix(p)}</span>`;
     h += row("Vivino", p.rating.toFixed(1) + "/5" + (p.ratingCount ? ` (${p.ratingCount})` : ""));
     if (p.fuzzy) h += row("Achtung", `<span class="warn">Namensabgleich unbestätigt`
       + (p.matchedName ? ` — gefunden: „${esc(p.matchedName)}"` : "") + `</span>`);
     if (p.styleLabel) h += row("Sorte", esc(p.styleLabel));
     if (p.maturityShort) h += row("Trinkreife", "<b>" + esc(p.maturityShort) + "</b>");
+    if (p.valueScore != null) h += row("Preis-Leistung", valueText(p));
     h += row("Preis/75cl", chf(p.price));
     h += row("Händler", esc((D.retailers.find(r => r.key === p.cheapest) || {}).name || p.cheapest));
     if (p.bargain != null) {
@@ -661,6 +847,20 @@ function chart(list) {
         + Math.abs(p.bargain).toFixed(0) + "%</span>");
     }
     if (p.falstaff != null) h += row("Falstaff", p.falstaff.toFixed(0) + "/100");
+    // Verdeckte Nachbarn benennen, sonst weiss man nicht, dass sie da sind.
+    if (cluster.length) {
+      h += `<div class="also"><b>${cluster.length} weitere${cluster.length === 1 ? "r" : ""}`
+        + ` Wein${cluster.length === 1 ? "" : "e"} an dieser Stelle</b>`
+        + cluster.slice(0, 4).map(j => {
+            const o = pts[j];
+            return `<div class="r"><span>${esc(o.name).slice(0, 38)}</span>`
+              + `<span class="k">${o.rating.toFixed(1)} · ${chf(o.price)}</span></div>`;
+          }).join("")
+        + (cluster.length > 4
+            ? `<div class="k">… und ${cluster.length - 4} weitere — in der Tabelle</div>`
+            : "")
+        + `</div>`;
+    }
     tip.innerHTML = h; tip.classList.add("on"); place(ev);
   };
   const place = ev => {
@@ -673,11 +873,29 @@ function chart(list) {
   host.addEventListener("mouseover", e => { if (e.target.classList.contains("pt")) show(e.target, e); });
   host.addEventListener("mousemove", e => { if (tip.classList.contains("on")) place(e); });
   host.addEventListener("mouseout", () => tip.classList.remove("on"));
+  /* Auf Touch gibt es kein Hover. Zwischen 721 und 900 px ist das Diagramm sichtbar
+     — dort waren die Tooltips bisher unerreichbar, weil nur Maus-Ereignisse hingen.
+     Erstes Antippen zeigt den Wein, zweites Antippen öffnet ihn. */
+  let armed = null;
   host.addEventListener("click", e => {
     if (!e.target.classList.contains("pt")) return;
-    const p = pts[+e.target.dataset.i], href = p && (p.url || p.vivinoUrl);
+    const p = pts[+e.target.dataset.i];
+    const touch = !matchMedia("(hover: hover)").matches;
+    if (touch && armed !== e.target) {
+      armed = e.target;
+      show(e.target, e.touches ? e.touches[0] : e);
+      return;
+    }
+    armed = null;
+    const href = p && (p.url || p.vivinoUrl);
     if (href) window.open(href, "_blank", "noopener");
   });
+  // Tippen daneben schliesst den Tooltip wieder.
+  addEventListener("pointerdown", e => {
+    if (!e.target.classList || !e.target.classList.contains("pt")) {
+      armed = null; tip.classList.remove("on");
+    }
+  }, { passive: true });
 }
 
 /* ----------------------------------------------------------------- Tabelle */
@@ -693,8 +911,9 @@ function table(list) {
     price:   w => w.price,
     shop:    w => shopName(w.cheapest).toLowerCase(),
     bargain: w => w.bargain,
+    value:   w => w.valueScore,
   };
-  const key = KEYS[S.sort] || KEYS.rating;
+  const key = KEYS[S.sort] || KEYS.value;
   const sorted = list.slice().sort((a, b) => {
     const x = key(a), y = key(b);
     const xe = x == null || x === "", ye = y == null || y === "";
@@ -704,7 +923,7 @@ function table(list) {
     if (typeof x === "string") return S.dir * x.localeCompare(y, "de");
     return S.dir * (x - y);
   });
-  const rows = sorted.slice(0, 400).map(w => {
+  const rows = sorted.slice(0, S.limit).map(w => {
     const vivino = w.rating != null
       ? `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener">${w.rating.toFixed(1)}/5</a>`
         + (w.ratingCount ? ` <span class="meta">(${w.ratingCount})</span>` : "")
@@ -725,6 +944,7 @@ function table(list) {
         ${vs ? `<span class="meta">${vs}</span>` : ""}
         ${w.styleLabel ? `<br><span class="pill">${esc(w.styleLabel)}</span>` : ""}
         ${w.maturityShort ? ` <span class="pill">${esc(w.maturityShort)}</span>` : ""}</td>
+      <td data-l="Preis-Leistung" class="num${w.valueScore == null ? " noval" : ""}">${valueText(w)}</td>
       <td data-l="Vivino">${vivino}</td>
       <td data-l="Preis/75cl" class="num">${chf(w.price)}</td>
       <td data-l="Wo kaufen">${shop}</td>
@@ -732,8 +952,9 @@ function table(list) {
     </tr>`;
   }).join("");
   const COLS = [
-    ["name", "Wein", ""], ["rating", "Vivino", ""], ["price", "Preis/75cl", "num"],
-    ["shop", "Wo kaufen", ""], ["bargain", "gegen Markt", "num"],
+    ["name", "Wein", ""], ["value", "Preis-Leistung", "num"], ["rating", "Vivino", ""],
+    ["price", "Preis/75cl", "num"], ["shop", "Wo kaufen", ""],
+    ["bargain", "gegen Markt", "num"],
   ];
   const head = COLS.map(([k, label, cls]) => {
     const on = S.sort === k;
@@ -741,8 +962,17 @@ function table(list) {
     return `<th class="${cls}${on ? " sorted" : ""}"><button type="button" class="sortbtn"`
       + ` data-col="${k}" aria-label="Nach ${esc(label)} sortieren">${esc(label)}${arrow}</button></th>`;
   }).join("");
+  const rest = sorted.length - S.limit;
   box.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`
-    + (sorted.length > 400 ? `<p class="empty">${sorted.length - 400} weitere ausgeblendet — Filter verfeinern.</p>` : "");
+    + (rest > 0
+        ? `<p class="more"><button type="button" id="more">Weitere ${Math.min(rest, PAGE)} anzeigen</button>`
+          + `<span class="meta"> ${S.limit} von ${sorted.length} angezeigt</span></p>`
+        : sorted.length > PAGE
+          ? `<p class="more"><span class="meta">Alle ${sorted.length} angezeigt</span></p>`
+          : "");
+  const more = box.querySelector("#more");
+  // Nur nachladen, nicht neu filtern: der Blick soll nicht nach oben springen.
+  if (more) more.addEventListener("click", () => { S.limit += PAGE; table(list); });
 
   box.querySelectorAll(".sortbtn").forEach(b => b.addEventListener("click", () => {
     const col = b.dataset.col;
@@ -756,11 +986,15 @@ function table(list) {
 }
 
 /* ------------------------------------------------------------------ Filter */
+/* Ändert sich die Auswahl, beginnt die Liste wieder bei der ersten Seite — sonst
+   stehen nach einem Filterwechsel mehrere Hundert Zeilen einer anderen Menge da. */
+function refilter() { S.limit = PAGE; render(); }
+
 function chip(label, pressed, onClick, extra = "") {
   const b = document.createElement("button");
   b.type = "button"; b.className = "chip"; b.setAttribute("aria-pressed", String(pressed));
   b.innerHTML = extra + esc(label);
-  b.addEventListener("click", () => { onClick(); render(); });
+  b.addEventListener("click", () => { onClick(); refilter(); });
   return b;
 }
 
@@ -791,23 +1025,63 @@ function buildFilters() {
     `<span class="dot" style="background:var(${r.var})"></span>`)));
 }
 
+/* Am Desktop ist der Aufklapper ausgeblendet — dort muss <details> offen sein, sonst
+   wäre der Inhalt unerreichbar: kein Griff zum Öffnen, kein Inhalt.
+   Geprüft wird die gerenderte Lage der Summary, nicht die Media Query. Die Regel gilt
+   dann auch, wenn der Breitenwechsel anders kommt als über ein `change`-Ereignis —
+   Fenster ziehen, Drehen, Zoomen. */
+const filterBox = document.getElementById("filterBox");
+/* Zweiseitig: schmal wird eingeklappt, breit aufgeklappt. Einseitig gedacht bleiben
+   die Filter nach einem Wechsel von breit zu schmal offen — Drehen, Fenster ziehen —
+   und füllen den ersten Bildschirm wieder. Wer selbst geklickt hat, behält seine
+   Wahl; die Ausnahme ist der Desktop, wo der Griff fehlt und offen sein muss. */
+let userChoseFilters = false, programmatic = false;
+/* Am Klick festgemacht, nicht am `toggle`-Ereignis: das feuert asynchron, und ein
+   unmittelbar folgender Resize würde die Wahl sonst wieder überschreiben. */
+filterBox.querySelector("summary").addEventListener("click", () => {
+  userChoseFilters = true;
+});
+filterBox.addEventListener("toggle", () => { if (!programmatic) userChoseFilters = true; });
+function syncFilterBox() {
+  const hidden = getComputedStyle(filterBox.querySelector("summary")).display === "none";
+  const want = hidden ? true : (userChoseFilters ? filterBox.open : false);
+  if (filterBox.open !== want) {
+    programmatic = true; filterBox.open = want; programmatic = false;
+  }
+}
+addEventListener("resize", syncFilterBox);
+syncFilterBox();
+
+function activeFilterCount() {
+  return S.mat.size + S.style.size + S.shop.size
+    + (S.q.trim() ? 1 : 0) + (S.minRating != null ? 1 : 0) + (S.maxPrice != null ? 1 : 0)
+    + (S.onlyBargain ? 1 : 0) + (S.onlyFound ? 1 : 0);
+}
+
 function render() {
   buildFilters();
+  const active = activeFilterCount();
+  document.getElementById("filterCount").textContent =
+    active ? `· ${active} aktiv` : "· keine aktiv";
+  syncFilterBox();
   const list = visible(), total = currentRun().wines.length;
   const rated = list.filter(w => w.rating != null).length;
   // Der Marktpreis fehlt bei der Mehrheit der Weine. Wer nach Ersparnis sortiert,
   // soll wissen, wie viele Weine dazu überhaupt eine Angabe haben — sonst liest
   // sich die Spalte voller "—" wie ein Fehler statt wie eine Lücke in den Daten.
   const priced = list.filter(w => w.bargain != null).length;
+  // Treffermenge in die sticky Leiste, Abdeckung darunter: das eine ändert sich mit
+  // jedem Klick, das andere ist zum Nachschlagen.
   document.getElementById("count").innerHTML =
-    `<b>${list.length}</b> von ${total} Weinen · ${rated} mit Vivino-Note`
-    + ` · ${priced} mit Marktpreis`;
+    `<b>${list.length}</b> von ${total} Weinen`;
+  document.getElementById("coverage").textContent =
+    `${rated} davon mit Vivino-Note · ${priced} mit Marktpreis`;
   document.getElementById("tblTitle").textContent =
     list.length === total ? "Alle Weine" : "Gefilterte Weine";
   chart(list); table(list);
 }
 
-document.getElementById("q").addEventListener("input", e => { S.q = e.target.value; render(); });
+document.getElementById("q").addEventListener("input", e => { S.q = e.target.value; refilter(); });
 const numOrNull = v => v === "" ? null : Number(v);
 /* Kopfzeile und Auswahlfeld sind zwei Wege zur selben Sortierung. Nach einem Klick auf
    die Kopfzeile muss das Feld nachziehen, sonst zeigt es etwas anderes an als gilt. */
@@ -821,21 +1095,21 @@ document.getElementById("fSort").addEventListener("change", e => {
   S.sort = col; S.dir = Number(dir); render();
 });
 document.getElementById("fMinRating").addEventListener("change", e => {
-  S.minRating = numOrNull(e.target.value); render();
+  S.minRating = numOrNull(e.target.value); refilter();
 });
 document.getElementById("fMaxPrice").addEventListener("change", e => {
-  S.maxPrice = numOrNull(e.target.value); render();
+  S.maxPrice = numOrNull(e.target.value); refilter();
 });
 document.getElementById("fBargain").addEventListener("change", e => {
-  S.onlyBargain = e.target.checked; render();
+  S.onlyBargain = e.target.checked; refilter();
 });
 document.getElementById("fFound").addEventListener("change", e => {
-  S.onlyFound = e.target.checked; render();
+  S.onlyFound = e.target.checked; refilter();
 });
 document.getElementById("reset").addEventListener("click", () => {
   S.mat.clear(); S.style.clear(); S.shop.clear(); S.q = "";
   S.minRating = null; S.maxPrice = null; S.onlyBargain = false; S.onlyFound = false;
-  S.sort = "rating"; S.dir = -1;
+  S.sort = "value"; S.dir = -1; S.limit = PAGE;
   document.getElementById("q").value = "";
   document.getElementById("fMinRating").value = "";
   document.getElementById("fMaxPrice").value = "";

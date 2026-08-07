@@ -200,7 +200,7 @@ def test_generic_tokens_alone_are_not_a_match(retailer, source):
     erbt eine Denner-Eigenmarke die Note eines fremden Produzenten."""
     d = match_wine(retailer, source)
     assert not d.matched, f"{retailer!r} vs {source!r} matchte fälschlich: {d.reason}"
-    assert "generische" in d.reason or "zu wenig" in d.reason
+    assert any(w in d.reason for w in ("generische", "zu wenig", "unterscheidendes Wort")), d.reason
 
 
 def test_bulk_wine_does_not_inherit_a_burgundy_rating():
@@ -482,3 +482,50 @@ def test_producer_phrase_guard_catches_a_winery_named_after_its_appellation():
         prepare("Mendoza 2021 Chardonnay Alta Angelica Zapata"),
         prepare("Catena Zapata Angélica Zapata Chardonnay Alta 2021"),
     ) == []
+
+
+# ------------------------- Zwei Weine, zwei Produzenten (Regression 7.8.2026)
+
+def test_a_different_producer_is_a_different_wine():
+    """„Gevrey-Chambertin **Faiveley**" bekam die 4.3 von „**Regnard**
+    Gevrey-Chambertin Rouge". Die Appellation ist identisch, der Produzent nicht.
+    Gemeinsame Wörter gibt es genug, darum reichte die Ankerregel nicht — beide Seiten
+    tragen zusätzlich einen eigenen Namen, und das sind zwei verschiedene Weine."""
+    d = match_wine("Gevrey-Chambertin Faiveley 2022, 75 cl", "Regnard Gevrey-Chambertin Rouge")
+    assert not d.matched, d.reason
+    assert "Faiveley" in d.reason and "Regnard" in d.reason
+
+
+def test_same_producer_still_matches():
+    """Gegenprobe: einseitige Zusätze bleiben erlaubt."""
+    assert match_wine("Gevrey-Chambertin Faiveley 2022", "Faiveley Gevrey-Chambertin").matched
+
+
+def test_a_source_without_any_distinctive_word_cannot_be_this_wine():
+    """„Rioja Imperial Cune Reserva" gegen einen Eintrag namens schlicht „Rioja
+    Reserva": Score 100, weil nach Abzug von Herkunft und Qualitätsstufe auf beiden
+    Seiten fast nichts übrig blieb. Ein Fundname ohne jedes unterscheidende Wort ist
+    ein Sammeleintrag und kann per Konstruktion nicht dieser Wein sein."""
+    d = match_wine("Rioja Imperial Cune Reserva DOCa (2020) – Rotwein, Spanien", "Rioja Reserva")
+    assert not d.matched, d.reason
+    assert "unterscheidendes Wort" in d.reason
+
+
+@pytest.mark.parametrize("source", [
+    "Cune (CVNE) Crianza",
+    "Cune (CVNE) Rosado",
+])
+def test_parenthetical_alias_is_not_an_extra_name(source):
+    """Vivino führt Produzenten mit Zweitnamen in Klammern. „CVNE" galt als
+    zusätzlicher Namensbestandteil, der dem Händlernamen fehlt — und liess damit
+    richtige Treffer durchfallen."""
+    retailer = ("Rioja DOCa Crianza Cune (2022) – Rotwein, Spanien" if "Crianza" in source
+                else "Rioja DOCa Rosado Cune 6x 75cl (2025) – Roséwein, Spanien")
+    assert match_wine(retailer, source).matched
+
+
+def test_long_parentheses_are_kept():
+    """Nur Zweitnamen fliegen raus. „(Magnum 1.5 Liter Flasche)" ist kein Alias."""
+    from winecheck.names import strip_alias
+    assert strip_alias("Barolo (Magnum 1.5 Liter Flasche)") == "Barolo (Magnum 1.5 Liter Flasche)"
+    assert "CVNE" not in strip_alias("Cune (CVNE) Crianza")

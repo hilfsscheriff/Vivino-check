@@ -143,6 +143,22 @@ def build_query(name: str, vintage: int | None = None) -> str:
     return " ".join(tokens[:10]) or (name or "").strip()
 
 
+def _display_name(c: _Cand) -> str:
+    """Fundname so, dass ein Mensch ihn wiedererkennt.
+
+    Vivino trennt Weingut und Wein: „Cune Imperial Rioja Reserva" heisst dort Weingut
+    „Imperial", Wein „Rioja Reserva". Gaben wir nur den Weinnamen aus, stand in der
+    Spalte „Rioja Reserva" — eine Gattungsbezeichnung, die wie ein Fehltreffer
+    aussieht, obwohl der Treffer stimmte. Wer das prüft, verwirft einen richtigen
+    Match; ich bin selbst darauf hereingefallen.
+    """
+    wein = (c.wine_name or c.name or "").strip()
+    haus = (c.winery or "").strip()
+    if haus and haus.lower() not in wein.lower():
+        return f"{haus} {wein}".strip()
+    return wein
+
+
 def _parse_candidates(payload: dict[str, Any]) -> list[_Cand]:
     ev = payload.get("explore_vintage") or {}
     out: list[_Cand] = []
@@ -390,7 +406,7 @@ def classify(
             note=f"Weinschnitt über alle Jahrgänge, {c.wine_count} Bewertungen — {jahrgang}{suffix}",
             rating=c.wine_avg,
             rating_count=c.wine_count,
-            matched_name=c.wine_name or c.name,
+            matched_name=_display_name(c),
             match_confidence=decision.confidence.value,
             **_price_fields(price, price_note),
             wine_type_id=c.type_id,
@@ -426,7 +442,7 @@ class VivinoAdapter:
         self.min_ratings = min_ratings
 
     # -- Netz --------------------------------------------------------------
-    def _search(self, query: str) -> list[_Cand]:
+    def _search(self, query: str, *, order_by: str | None = None) -> list[_Cand]:
         params: list[tuple[str, object]] = [
             ("search_term", query),
             ("country_code", "CH"),
@@ -434,6 +450,8 @@ class VivinoAdapter:
             ("per_page", str(PER_PAGE)),
             ("min_rating", "1"),
         ]
+        if order_by:
+            params += [("order_by", order_by), ("order", "desc")]
         params += [("wine_type_ids[]", t) for t in WINE_TYPE_IDS]
         res = self.fetcher.get(API_URL, params=params, expect_json=True)
         if not res.ok:
@@ -489,13 +507,24 @@ class VivinoAdapter:
         statt sich auf eine Strategie festzulegen.
         """
         short = " ".join(distinctive_tokens(name)[:4])
-        queries = [q for q in (short, long_query) if q]
-        # Reihenfolge erhalten, Dubletten raus.
-        queries = list(dict.fromkeys(queries))
+        # Dritter Versuch, nach Bewertungs*anzahl* sortiert. Grund: die Standard-
+        # sortierung nach Note begräbt bei grossen Häusern genau die Weine, die man
+        # im Regal findet. „Faiveley" liefert 207 Treffer, angeführt von
+        # Bâtard-Montrachet und Mazis-Chambertin Grand Cru — der schlichte
+        # Gevrey-Chambertin steht weit hinten. Nach Bewertungsanzahl sortiert steht er
+        # vorne, weil ihn viele Leute trinken und die Grand Crus fast niemand.
+        queries: list[tuple[str, str | None]] = [(short, None), (long_query, None)]
+        if short:
+            queries.append((short, "ratings_count"))
 
         best = None
-        for q in queries:
-            res = classify(name, vintage, q, self._search(q), exclude_hosts=exclude_hosts)
+        gesehen: set[tuple[str, str | None]] = set()
+        for q, order in queries:
+            if not q or (q, order) in gesehen:
+                continue
+            gesehen.add((q, order))
+            res = classify(name, vintage, q, self._search(q, order_by=order),
+                           exclude_hosts=exclude_hosts)
             if best is None or self._RANK[res.status] > self._RANK[best.status]:
                 best = res
             # Besser als ein Jahrgangstreffer wird es nicht — weitere Anfragen wären
