@@ -529,3 +529,33 @@ def test_long_parentheses_are_kept():
     from winecheck.names import strip_alias
     assert strip_alias("Barolo (Magnum 1.5 Liter Flasche)") == "Barolo (Magnum 1.5 Liter Flasche)"
     assert "CVNE" not in strip_alias("Cune (CVNE) Crianza")
+
+
+def test_region_words_do_not_count_against_coverage():
+    """„Insoglio del Cinghiale **Toscana** IGP Tenuta di Biserno" gegen „Biserno
+    **Campo di Sasso** Insoglio del Cinghiale": alle drei unterscheidenden Wörter des
+    Händlers stecken in der Quelle, es fehlte nur „Toscana". Über alle Tokens gerechnet
+    waren das 75 % Abdeckung — unter der Schwelle, und der Wein fiel als
+    Zweitwein-Verdacht durch. „Campo di Sasso" ist Bisernos zweites Gut, kein anderer
+    Wein.
+
+    Händlernamen tragen Region, Land und Farbe mit, Vivino nennt sie oft nicht. Jedes
+    solche Wort drückte die Abdeckung und damit einen richtigen Treffer."""
+    d = match_wine(
+        "Insoglio del Cinghiale Toscana IGP Tenuta di Biserno, 75 cl",
+        "Biserno Campo di Sasso Insoglio del Cinghiale 2020",
+    )
+    assert d.matched, d.reason
+
+
+def test_a_missing_producer_still_caps_the_confidence():
+    """Gegenprobe zur Abdeckungsänderung. Bei kurzen Namen steigt die Abdeckung über
+    unterscheidende Wörter schnell über die Schwelle — „Oeil de Perdrix Rosé Caves des
+    Coteaux" gegen ein blosses „Oeil de Perdrix Rosé" käme sonst auf ``exact``, obwohl
+    der Produzent fehlt und diesen Rosé-Typ viele Neuenburger Häuser keltern."""
+    d = match_wine(
+        "Neuchâtel AOC Oeil de Perdrix Rosé Caves des Coteaux (2025)",
+        "Oeil de Perdrix Rosé",
+        retailer_vintage=2025, source_vintage=2025, source_has_vintage_rating=True,
+    )
+    assert d.confidence is MatchConfidence.FUZZY, d.reason

@@ -409,6 +409,25 @@ stand nur im Tooltip — auf dem Handy gibt es keinen. Damit war nicht nachprüf
 Vivino-Wein gemeint ist, und genau das ist die erste Frage bei einem `?`. Der Fundname
 steht jetzt als „→ …" unter der Note, sofern er vom Händlernamen abweicht.
 
+### Beiwörter dürfen die Abdeckung nicht drücken
+
+„Insoglio del Cinghiale **Toscana** IGP Tenuta di Biserno" gegen „Biserno **Campo di
+Sasso** Insoglio del Cinghiale": alle drei unterscheidenden Wörter des Händlers stecken
+in der Quelle, es fehlte nur `Toscana`. Über *alle* Tokens gerechnet waren das 75 %
+Abdeckung — unter der Schwelle, und der Wein fiel als Zweitwein-Verdacht durch, obwohl
+„Campo di Sasso" nur Bisernos zweites Gut ist.
+
+Händlernamen tragen Region, Land und Farbe mit, Vivino nennt sie meist nicht. Die
+Abdeckung zählt darum nur noch unterscheidende Wörter. Das brachte 9 Weine mehr
+(199 → 208 bewertet).
+
+**Die Änderung hat prompt eine Sicherung zerschossen**, und ein bestehender Test hat es
+gemeldet: bei kurzen Namen steigt die Abdeckung über unterscheidende Wörter schnell über
+die Schwelle, und „Oeil de Perdrix Rosé **Caves des Coteaux**" gegen ein blosses „Oeil de
+Perdrix Rosé" wurde `exact` — obwohl der Produzent fehlt und diesen Rosé-Typ viele
+Neuenburger Häuser keltern. Der Weg über den ganzen Namen verlangt jetzt zusätzlich, dass
+kein unterscheidendes Wort des Händlers fehlt.
+
 ## Trinkreife
 
 **Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232
@@ -770,7 +789,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-395 Tests: 388 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+398 Tests: 391 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die

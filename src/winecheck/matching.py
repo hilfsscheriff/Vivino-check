@@ -451,7 +451,19 @@ def match_wine(
 
     score = _similarity(r, s)
     shared = r.token_set & s.token_set
-    coverage = len(shared) / len(r.token_set) if r.token_set else 0.0
+    # Abdeckung über die **unterscheidenden** Wörter. Händlernamen tragen Region,
+    # Land und Farbe mit, Vivino nennt sie oft nicht — jedes solche Wort drückte die
+    # Abdeckung und liess einen richtigen Treffer als Zweitwein-Verdacht durchfallen.
+    #
+    # „Insoglio del Cinghiale Toscana IGP Tenuta di Biserno" gegen „Biserno Campo di
+    # Sasso Insoglio del Cinghiale": alle drei unterscheidenden Wörter des Händlers
+    # stecken in der Quelle, es fehlte nur „Toscana" — 75 % statt 100 %, und der Wein
+    # fiel durch. „Campo di Sasso" ist Bisernos zweites Gut, kein anderer Wein.
+    r_dist = {t for t in r.token_set if is_distinctive(t)}
+    if r_dist:
+        coverage = len(shared & r_dist) / len(r_dist)
+    else:
+        coverage = len(shared) / len(r.token_set) if r.token_set else 0.0
 
     foreign_veto, tolerated_extras = _foreign_token_analysis(r, s, coverage)
 
@@ -574,7 +586,14 @@ def match_wine(
     else:
         identity_score = 0.0
 
-    whole_name_strong = score >= STRONG_SCORE and coverage >= STRONG_COVERAGE
+    # Auch der Weg über den ganzen Namen verlangt, dass kein unterscheidendes Wort
+    # des Händlers fehlt. Seit die Abdeckung nur noch unterscheidende Wörter zählt,
+    # steigt sie bei kurzen Namen schnell über die Schwelle — „Oeil de Perdrix Rosé
+    # Caves des Coteaux" gegen ein blosses „Oeil de Perdrix Rosé" käme sonst auf
+    # exact, obwohl der Produzent fehlt und diesen Rosé-Typ viele Häuser keltern.
+    whole_name_strong = (
+        score >= STRONG_SCORE and coverage >= STRONG_COVERAGE and identity_complete
+    )
     # Die unterscheidenden Bestandteile stimmen vollständig und auch für sich
     # genommen deutlich — Beiwörter dürfen das nicht mehr verhindern.
     missing_producer = _uncovered_producer_words(r, s)
