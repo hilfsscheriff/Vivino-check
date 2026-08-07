@@ -58,6 +58,42 @@ Commit `926f611` ist nach Beginn des Audits entstanden und nimmt einige Punkte s
 
 ---
 
+## 2b. Umsetzungsstand (Commit `457c8df`, 7.8.2026)
+
+Die zehn Quick Wins aus Abschnitt 9 sind umgesetzt und am gerenderten Ergebnis nachgemessen (lokal über HTTP, damit das Skript läuft). Neuer Datenstand: **615 Weine**.
+
+| Quick Win | Umgesetzt | Gemessenes Ergebnis |
+|---|---|---|
+| 1 · Leerzustand (F-04) | ja | Bei 0 Treffern wird die Diagrammkarte ausgeblendet (`hidden`); die Tabelle allein meldet „Kein Wein passt zu dieser Auswahl." Bei Treffern ohne Note: „Kein Wein dieser Auswahl hat eine Vivino-Note. Die Tabelle zeigt sie trotzdem, mit Preis und Händler." — beide Zweige einzeln geprüft |
+| 2 · Fokusstil (F-03a) | ja | Eine globale `:focus-visible`-Regel (2 px `--brand`, Offset 2 px) statt drei Einzelselektoren; gilt jetzt auch für Suchfeld, Tabellenlinks und Sortierköpfe |
+| 3 · Jahrgang / „unbekannt" (F-11a, c) | ja | Doppelte Jahrgänge **293 → 0**; „unbekannt"-Pills **97 → 0**; Pills gesamt 588 → 491. Der Filter-Chip „unbekannt" greift weiter (Test deckt das ab) |
+| 4 · px → rem (F-10) | entfiel | War in `926f611` schon erledigt |
+| 5 · Diagrammlegende (F-06a) | ja | „Farbe = Händler · ○ hohler Kreis = Vivino-Treffer unsicher, die Note kann zu einem anderen Wein gehören" — eigene Klasse `.legend`, bewusst **nicht** unter 767 px versteckt wie `.colhint`, da das Diagramm erst bei 720 px verschwindet |
+| 6 · Touch-Ziele (F-07) | ja | Über `--control-h` mit `@media (pointer: coarse)`: auf Touch **44 px** für Chips, Selects, Reset und die ganze Checkbox-Zeile (Checkbox selbst 20 px), auf Zeigergeräten kompakte 36 px — sonst wäre die Filterkarte am Desktop unnötig hoch |
+| 7 · `--line-strong` (F-08) | ja | Neues Token, nur für Bedienelemente. Suchfeld und Chip **1.35 → 3.68:1**, Select **1.26 → 3.42:1** gegen ihre Fläche. Tabellenlinien bleiben bei `--line` (1.26:1) — dort ist leise richtig. Der Hellwert `#918085` ist der hellste, der gegen Seitenhintergrund, Karte *und* Chipfläche noch 3:1 schafft |
+| 8 · Semantik (F-13) | ja | `<main>` ergänzt, `aria-live="polite"` am Zähler, `role="tooltip"` ohne `aria-describedby` entfernt |
+| 9 · „Lauf"-Gruppe (F-14) | ja | `runBox.hidden` bei weniger als zwei Läufen — verifiziert versteckt |
+| 10 · Leerwerte / Abdeckung (F-12a, b) | ja | 315 leere „gegen Markt"-Zellen tragen `noval` und entfallen in der Kartenansicht; Zähler nennt jetzt die Abdeckung: „… · 85 mit Marktpreis" |
+
+**Nebenwirkung, bewusst in Kauf genommen:** Die 44-px-Ziele machen die Filterkarte höher — der erste Wein rutscht auf dem Handy von y = 864 px auf **y = 1061 px**. Die Seitenhöhe sinkt trotzdem von 74 839 px auf **64 864 px** (−13 %), weil leere Marktpreis-Zeilen und „unbekannt"-Pills wegfallen. Der eigentliche Fix bleibt F-02 (einklappbare Filter plus „Top 10 Preis-Leistung"), nicht weiteres Kürzen an den Zielgrössen.
+
+**Regressionsschutz:** [tests/test_site.py](tests/test_site.py) — 20 Tests am erzeugten Dokument (Tokens, Breakpoint-Verhalten, Leerzustandslogik, Semantik, Selbstgenügsamkeit ohne Drittanbieter). Gesamtsuite: 331 bestanden, 7 übersprungen (Netzwerktests, `WINECHECK_LIVE=1`).
+
+### Noch offen — und ein Hinweis zur Commit-Nachricht
+
+Die Nachricht von `457c8df` nennt „vier Farbverwechslungen behoben". **F-05 ist im Code unverändert:** `_PALETTE` und `_MATURITY_COLOURS` teilen weiterhin dieselben Werte ([site.py:40–47](src/winecheck/report/site.py#L40)). Im neu erzeugten `docs/index.html` sind es weiterhin **genau vier Kollisionen** — sie sind durch den neuen Händler Aligro nur *umverteilt*, weil `_PALETTE` nach sortierter Händlerreihenfolge indexiert wird:
+
+| Farbe | vorher | jetzt |
+|---|---|---|
+| `#2e7d32` | Mövenpick + „jetzt trinken" | **Denner** + „zurzeit höchster Genuss" |
+| `#1a4f8a` | Denner + „lagern" | **Coop** + „zu jung — reifen lassen" |
+| `#ef6c00` | Otto's + „austrinken" | **Mövenpick Wein** + „Zenit überschritten" |
+| `#00838f` | SPAR + „kann liegen" | **Prodega** + „macht Spass, wird noch besser" |
+
+F-05 bleibt damit offen (Aufwand M, keine Quick-Win-Grösse) — ebenso F-01, F-02, F-06b/c (Überlappung), F-09 und die strukturellen Teile von F-03 (Skip-Link, 805 Tabstopps) und F-15. Bei 615 Weinen und dem Deckel von 400 Zeilen kommt neu hinzu: **215 Weine sind nur über „Filter verfeinern" erreichbar** — das verschärft F-02 und F-03d.
+
+---
+
 ## 3. Bereichsbewertung
 
 | Bereich | Urteil | Begründung in einem Satz |

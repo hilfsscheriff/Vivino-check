@@ -350,7 +350,7 @@ _TEMPLATE = r"""<!doctype html>
   <p class="sub">Stand __STAMP__ · Preise auf CHF pro 75 cl inkl. MwSt normalisiert (8.1 %)</p>
 
   <div class="search">
-    <input id="q" type="search" placeholder="Wein, Produzent oder Region suchen …"
+    <input id="q" type="search" placeholder="Wein, Produzent, Region oder Sorte suchen …"
            autocomplete="off" autocapitalize="none" spellcheck="false"
            aria-label="Weine durchsuchen">
   </div>
@@ -480,7 +480,16 @@ function visible() {
     if (S.mat.size && !S.mat.has(w.maturity || "?")) return false;
     if (S.style.size && !S.style.has(w.style || "?")) return false;
     if (S.shop.size && !w.retailers.some(r => S.shop.has(r))) return false;
-    if (q && !(w.name + " " + (w.maturityRegion || "")).toLowerCase().includes(q)) return false;
+    // Der bei Vivino gefundene Name gehört in die Suche. Händler benennen Weine oft
+    // ohne den Produzenten: Mövenpick führt „Mendoza 2021 Chardonnay Alta Angelica
+    // Zapata", Vivino „Catena Zapata Angélica Zapata Chardonnay Alta". Wer nach
+    // „Catena" sucht — dem Namen, unter dem das Weingut bekannt ist — fand nichts,
+    // obwohl der Wein zugeordnet war.
+    if (q) {
+      const heu = (w.name + " " + (w.maturityRegion || "") + " " + (w.matchedName || "")
+                   + " " + (w.styleLabel || "")).toLowerCase();
+      if (!heu.includes(q)) return false;
+    }
     // Spaltenfilter greifen hier, nicht erst in der Tabelle: sonst zeigen Diagramm,
     // Zähler und Tabelle drei verschiedene Mengen, und man weiss nicht, welche gilt.
     if (S.minRating != null && !(w.rating != null && w.rating >= S.minRating)) return false;

@@ -254,6 +254,27 @@ Zwei Dinge daraus sind beim Bauen durch Messung entstanden und wären nicht zu e
 Alle Zahlen im Beispiel des Skills sind gemessene Vivino-Werte. Ein Skill, der vor
 erfundenen Zahlen warnt, darf im eigenen Beispiel keine haben.
 
+### Das Land gehört nicht zur Identität
+
+Händler schreiben es unterschiedlich an. Coop führt „Ribera del Duero DO Protos Roble
+(2024) – Rotwein, **Spanien**", Aligro „Ribera del Duero Roble Protos DO 2024". Ein
+Token Unterschied, und derselbe Wein stand zweimal im Report — CHF 9.75 bei Coop, CHF
+9.67 bei Aligro — statt einmal mit beiden Preisen. Der Händlervergleich ist der Zweck
+des Werkzeugs, also darf er nicht an einem Wort scheitern, das nichts über den Wein sagt.
+
+Ländernamen fliegen darum aus dem Dedup-Schlüssel, **sofern danach mindestens zwei
+unterscheidende Tokens bleiben**. Diese Bedingung ist der Punkt: „Protos Roble" bleibt
+eindeutig, ein generischer „Cabernet Sauvignon, Chile" behält sein Land — sonst fiele er
+mit „Cabernet Sauvignon, Australien" zu einer Zeile zusammen, und zwei verschiedene Weine
+verschmelzen zu einem Phantompreis.
+
+### Die Suche kennt auch den gefundenen Namen
+
+Mövenpick führt einen Wein als „Mendoza 2021 Chardonnay Alta Angelica Zapata", Vivino als
+„Catena Zapata Angélica Zapata Chardonnay Alta". Wer auf der Webseite nach **Catena**
+suchte — dem Namen, unter dem das Weingut bekannt ist — fand nichts, obwohl der Wein
+korrekt zugeordnet war. Die Suche deckt jetzt auch den gefundenen Namen und die Sorte ab.
+
 ## Trinkreife
 
 **Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232
@@ -615,7 +636,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-312 Tests: 305 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+335 Tests: 328 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die

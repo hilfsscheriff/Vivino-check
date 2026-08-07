@@ -272,10 +272,45 @@ def normalized_name(text: str) -> str:
     return " ".join(tokenize(text))
 
 
+#: Ländernamen. Sie stehen auch in REGION_HINTS, brauchen aber eine eigene Liste: für
+#: die *Identität* eines Weins sind sie belanglos — jeder Ribera del Duero ist spanisch —
+#: während die Region sehr wohl zählt. Händler halten es unterschiedlich: Coop schreibt
+#: „Ribera del Duero DO Protos Roble – Rotwein, Spanien", Aligro „Ribera del Duero Roble
+#: Protos DO". Derselbe Wein, ein Token Unterschied, zwei Zeilen im Report statt einer
+#: mit zwei Preisen.
+COUNTRY_NAMES = frozenset({
+    "spanien", "espagne", "espana", "spain",
+    "italien", "italie", "italia", "italy",
+    "frankreich", "france", "francia",
+    "schweiz", "suisse", "svizzera", "switzerland",
+    "osterreich", "autriche", "austria",
+    "portugal", "deutschland", "allemagne", "germany",
+    "chile", "chili", "argentinien", "argentine", "argentina",
+    "australien", "australie", "australia",
+    "sudafrika", "afrique", "südafrika",
+    "usa", "kalifornien", "californie",
+    "neuseeland", "nouvelle", "zelande",
+    "griechenland", "grece", "ungarn", "hongrie",
+})
+
+
 def dedup_key(name: str, vintage: int | None) -> str:
     """Dedup über normalisierten Namen + Jahrgang, nicht über Artikelnummer —
-    Artikelnummern sind händlerspezifisch und taugen nicht für den Vergleich."""
-    core = " ".join(sorted(tokenize(name)))
+    Artikelnummern sind händlerspezifisch und taugen nicht für den Vergleich.
+
+    Ländernamen fliegen raus, **sofern danach mindestens zwei unterscheidende Tokens
+    bleiben**. Diese Bedingung ist der Punkt: „Protos Roble" bleibt eindeutig und wird
+    mit der Aligro-Fassung ohne „Spanien" zusammengeführt. Ein generischer
+    „Cabernet Sauvignon, Chile" behält sein Land — sonst fiele er mit
+    „Cabernet Sauvignon, Australien" zu einer Zeile zusammen, und das wären zwei
+    verschiedene Weine zu einem Phantompreis.
+    """
+    tokens = tokenize(name)
+    ohne_land = [t for t in tokens if t not in COUNTRY_NAMES]
+    if len(ohne_land) < len(tokens):
+        if sum(1 for t in ohne_land if is_distinctive(t)) >= 2:
+            tokens = ohne_land
+    core = " ".join(sorted(tokens))
     return f"{core}|{vintage or ''}"
 
 

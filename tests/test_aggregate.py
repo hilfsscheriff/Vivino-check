@@ -154,3 +154,45 @@ def test_ranking_source_is_always_reported():
     value2, source2 = row2.ranking_rating()
     assert source2 == "Vivino"
     assert value2 == pytest.approx(0.8)
+
+
+# ------------------------------- Land gehört nicht zur Identität (Regression)
+
+def test_same_wine_at_two_retailers_merges_despite_the_country_token():
+    """Coop und Aligro führen denselben Wein, nur nennt Coop das Land.
+
+    „Ribera del Duero DO Protos Roble (2024) – Rotwein, Spanien" gegen „Ribera del
+    Duero Roble Protos DO 2024, 75 cl": ein Token Unterschied, und der Wein stand
+    zweimal im Report — CHF 9.75 bei Coop, CHF 9.67 bei Aligro — statt einmal mit
+    beiden Preisen. Der Händlervergleich ist der Zweck des Werkzeugs.
+    """
+    from winecheck.names import dedup_key
+
+    a = dedup_key("Ribera del Duero DO Protos Roble (2024) – Rotwein, Spanien (75cl)", 2024)
+    b = dedup_key("Ribera del Duero Roble Protos DO 2024, 75 cl", 2024)
+    assert a == b, f"{a!r} != {b!r}"
+
+
+def test_generic_wines_keep_their_country():
+    """Ohne diese Bedingung fielen „Cabernet Sauvignon, Chile" und „Cabernet
+    Sauvignon, Australien" zu einer Zeile zusammen — zwei verschiedene Weine, deren
+    Preise zu einem Phantomwert verschmelzen."""
+    from winecheck.names import dedup_key
+
+    assert dedup_key("Cabernet Sauvignon, Chile", 2022) != dedup_key(
+        "Cabernet Sauvignon, Australien", 2022
+    )
+
+
+def test_two_offers_of_the_same_wine_become_one_row_with_both_prices():
+    o1 = Offer(retailer="coop", name="Ribera del Duero DO Protos Roble (2024) – Rotwein, Spanien",
+               vintage=2024, price_per_bottle_incl_vat=9.75, price_raw=9.75,
+               price_raw_basis="inkl. MwSt")
+    o2 = Offer(retailer="aligro", name="Ribera del Duero Roble Protos DO 2024, 75 cl",
+               vintage=2024, price_per_bottle_incl_vat=9.67, price_raw=9.67,
+               price_raw_basis="inkl. MwSt")
+    rows = merge_offers([o1, o2])
+    assert len(rows) == 1, "derselbe Wein bei zwei Händlern ist eine Zeile"
+    assert rows[0].retailer_count == 2
+    assert rows[0].best_price == pytest.approx(9.67)
+    assert rows[0].cheapest_retailer == "aligro"
