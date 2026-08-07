@@ -11,11 +11,14 @@ name: Wochenlauf
 
 on:
   schedule:
-    # Freitag 05:00 UTC = 07:00 Sommerzeit / 06:00 Winterzeit in der Schweiz.
-    # GitHub kennt nur UTC; die Stunde wandert also über den Winter, was hier
-    # niemanden stört. GitHub verschiebt geplante Läufe bei Last um bis zu einer
-    # Stunde — die Uhrzeit ist ein Wunsch, keine Zusage.
-    - cron: "0 5 * * 5"
+    # Freitag 12:00 UTC = 14:00 Sommerzeit in der Schweiz — bewusst **nach** dem
+    # Mac-Lauf um 07:00. Der trägt die Bewertungen in state/ratings-cache.json ein;
+    # dieser Lauf holt sie sich von dort, weil er Vivino nicht selbst fragen kann.
+    # Umgekehrte Reihenfolge hiesse: mit den Noten der Vorwoche arbeiten.
+    #
+    # Lief der Mac am Freitag nicht (ausgeschaltet), aktualisiert dieser Lauf
+    # wenigstens die Preise. Genau dafür ist er da.
+    - cron: "0 12 * * 5"
   workflow_dispatch:
 
 # Nur ein Lauf gleichzeitig. Zwei parallele Läufe würden sich beim Commit in die
