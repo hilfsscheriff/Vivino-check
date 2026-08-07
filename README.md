@@ -428,6 +428,44 @@ Perdrix Rosé" wurde `exact` — obwohl der Produzent fehlt und diesen Rosé-Typ
 Neuenburger Häuser keltern. Der Weg über den ganzen Namen verlangt jetzt zusätzlich, dass
 kein unterscheidendes Wort des Händlers fehlt.
 
+### Weinhändler auf Shopware — ein Adapter, mehrere Läden
+
+Shopware ist bei Schweizer Weinhändlern verbreitet, und die Produktkacheln sehen überall
+gleich aus. Ein neuer Laden braucht darum keinen Code, nur einen Eintrag in
+`retailers.yaml`. Bedient werden Selection Schwander (49 Positionen) und Caratello (73).
+
+Übernommen wird **nur, was einen Streichpreis trägt**. Beide führen Vollsortimente von
+hunderten Weinen; ohne diese Grenze würde aus dem Aktionsvergleich ein Weinkatalog.
+Mengenrabatte („3 % ab 24 Flaschen") bleiben draussen — das ist ein Staffelpreis für
+Grossabnehmer, keine Aktion.
+
+Zwei Eigenheiten haben beim Bauen zugeschlagen:
+
+* **Die Preisreihenfolge ist nicht verlässlich.** Schwander schreibt `CHF 13.90 statt
+  CHF 15.40`, Caratello `statt CHF 215.00 CHF 189.00`. Wer den ersten Preis nimmt,
+  verkauft beim zweiten Laden den alten als Aktionspreis. Der Aktionspreis ist immer der
+  niedrigere — das gilt in beiden Schreibweisen.
+* **Das Volumen steht neben dem Namen, nicht darin.** Bei keiner der 73
+  Caratello-Positionen trug der Name eine Volumenangabe, der Kacheltext dagegen schon
+  („… 2016 , 150 cl"). Ohne sie ginge eine Magnum als 75-cl-Flasche durch und stünde zum
+  halben Literpreis in der Rangliste. 16 Flaschen sind betroffen — Azelia Barolo Magnum
+  CHF 164 wird zu CHF 82.00 pro 75 cl.
+
+**Ergebnis: 478 auf 600 Weine, Trefferquote 44 % auf 47 %.** Fachhändler führen Weine,
+die Vivino kennt.
+
+### Geprüft und nicht integrierbar
+
+| Laden | Grund |
+|---|---|
+| Casa del Vino | robots.txt: `Disallow: /` |
+| Baur au Lac Vins | robots.txt: `Disallow: /` |
+| Zweifel Weine | robots.txt: `Disallow: /` |
+
+Drei von zehn geprüften Weinhändlern verbieten das Auslesen vollständig. Das wird
+respektiert, nicht umgangen. Gerstl, Martel und Bindella wären technisch erreichbar,
+nutzen aber je ein eigenes System — dort wäre je ein eigener Adapter nötig.
+
 ## Trinkreife
 
 **Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232
@@ -789,7 +827,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-398 Tests: 391 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+403 Tests: 396 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die

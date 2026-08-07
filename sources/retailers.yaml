@@ -263,6 +263,48 @@ retailers:
       Crawling, und hält auch dort das Rate-Limit ein. Details im README.
     private_label_brands: [Economy, Quality, Premium, Natura, Origine, Transgourmet]
 
+  # ---------------------------------------------------------- Weinhändler
+  # Beide auf Shopware, beide mit demselben Adapter. Übernommen wird nur, was einen
+  # Streichpreis trägt — sonst überschwemmten ein paar hundert regulär bepreiste
+  # Weine den Bericht.
+  - key: schwander
+    name: Selection Schwander
+    channel: Onlineshop, Lieferung
+    tier: 2
+    domain: selection-schwander.ch
+    adapter: shopware
+    enabled: true
+    status: ok
+    urls:
+      - https://www.selection-schwander.ch/rotweine
+      - https://www.selection-schwander.ch/weissweine
+      - https://www.selection-schwander.ch/schaumweine
+    vat_included: true
+    price_basis: bottle
+    private_label_brands: []
+    note: "Philipp Schwander, Master of Wine. Preise inkl. MwSt, Mengenrabatte werden ignoriert."
+    verified_at: "2026-08-07"
+
+  - key: caratello
+    name: Caratello Weine
+    channel: Onlineshop, Lieferung
+    tier: 3
+    domain: caratello.ch
+    adapter: shopware
+    enabled: true
+    status: ok
+    urls:
+      # Caratello pflegt eigene Aktionsrubriken — genau das, was hier gesucht wird.
+      - https://www.caratello.ch/de/sortiment/angebot/aktionen
+      - https://www.caratello.ch/de/sortiment/angebot/monatsangebot
+      - https://www.caratello.ch/de/sortiment/angebot/lagerraeumung
+    vat_included: true
+    price_basis: bottle
+    private_label_brands: []
+    # robots.txt verbietet '*/?' — keine Sortier- oder Seitenparameter anhängen.
+    note: "Italien-Spezialist St. Gallen. robots verbietet Query-Strings."
+    verified_at: "2026-08-07"
+
   - key: aligro
     name: Aligro
     channel: Abholmarkt, Kundenkarte nötig

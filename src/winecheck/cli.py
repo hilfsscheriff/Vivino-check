@@ -24,6 +24,7 @@ from .adapters.denner import DennerAdapter
 from .adapters.moevenpick import MoevenpickAdapter
 from .adapters.aligro import AligroAdapter
 from .adapters.prodega import ProdegaAdapter
+from .adapters.shopware import ShopwareAdapter
 from .aggregate import attach_maturity, compute_scores, merge_offers
 from .cache import Cache
 from .config import SourceConfig, load_registry
@@ -47,6 +48,7 @@ ADAPTERS: dict[str, type[RetailerAdapter]] = {
     "denner": DennerAdapter,
     "moevenpick": MoevenpickAdapter,
     "prodega": ProdegaAdapter,
+    "shopware": ShopwareAdapter,
 }
 
 DEFAULT_CACHE = Path("cache/winecheck.sqlite")
