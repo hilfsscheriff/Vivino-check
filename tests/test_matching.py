@@ -351,3 +351,40 @@ def test_generic_extras_still_allow_the_producer_average():
 
     d2 = match_winery("Piccini Chianti Classico Riserva DOCG", "Piccini")
     assert d2.matched, "Region und Qualitätsstufe sind generisch, kein eigener Linienname"
+
+
+# ------------------------------------------- Farbe aus dem Rohtext (Regression)
+
+def test_rotwein_in_the_retailer_name_blocks_a_white_source():
+    """„Rotwein" steht in LEGAL_DESIGNATIONS und fliegt aus den Tokens — für die
+    Suchabfrage richtig, für die Farbprüfung fatal.
+
+    Der Händler schreibt die Farbe fast immer genau so an („… – Rotwein, Spanien").
+    Ohne diesen Griff auf den Rohtext fehlt sie einseitig, einseitiges Fehlen ist
+    erlaubt, und der rote „Chivite Coleccion 125" bekam die 4.2 des Blanco.
+    """
+    d = match_wine(
+        "Navarra DO Chivite Coleccion 125 (2017) – Rotwein, Spanien (75cl)",
+        "Chivite Navarra Coleccion 125 Blanco 2023",
+    )
+    assert not d.matched, d.reason
+    assert "Farbe" in d.reason
+
+
+@pytest.mark.parametrize("retailer,source", [
+    # Farbe nur auf einer Seite, kein Widerspruch — muss weiter durchgehen.
+    ("Ribera del Duero DO Protos Roble (2024) – Rotwein, Spanien", "Protos Roble 2024"),
+    ("Fontanafredda Barolo DOCG 2018 – Rotwein, Italien", "Fontanafredda Barolo"),
+    ("Rueda DO Verdejo Legaris – Weisswein, Spanien", "Legaris Rueda Verdejo"),
+])
+def test_compound_colour_does_not_block_when_there_is_no_conflict(retailer, source):
+    d = match_wine(retailer, source)
+    assert d.matched, f"{retailer!r} wurde fälschlich abgelehnt: {d.reason}"
+
+
+def test_colour_from_text_reads_compound_words():
+    from winecheck.names import colour_from_text
+    assert colour_from_text("… – Rotwein, Spanien") == "rot"
+    assert colour_from_text("Chardonnay – Weisswein") == "weiss"
+    assert colour_from_text("Gamay – Roséwein, Schweiz") == "rose"
+    assert colour_from_text("Barolo DOCG") is None

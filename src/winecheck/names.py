@@ -295,6 +295,34 @@ def is_distinctive(token: str) -> bool:
     )
 
 
+
+#: Zusammengesetzte Farbwörter, die als Rechtsbegriff gelten und darum aus den Tokens
+#: fliegen — "Rotwein" steht in LEGAL_DESIGNATIONS. Für die *Suchabfrage* ist das
+#: richtig, für die Farbprüfung nicht: der Händler schreibt die Farbe fast immer so an
+#: ("… – Rotwein, Spanien"), und wer sie hier verliert, ordnet einem Rotwein die Note
+#: eines Blanco zu. Genau das passierte bei "Chivite Coleccion 125".
+_COMPOUND_COLOURS = {
+    "rot": ("rotwein", "vin rouge", "vino tinto", "vinho tinto", "red wine"),
+    "weiss": ("weisswein", "weißwein", "vin blanc", "vino blanco", "vinho branco",
+              "white wine"),
+    "rose": ("rosewein", "roséwein", "vin rose", "vin rosé", "vino rosado", "rose wine"),
+}
+
+
+def colour_from_text(text: str) -> str | None:
+    """Farbgruppe aus dem *Rohtext*, auch wenn das Wort kein Token mehr ist.
+
+    Ergänzt :func:`colour_group`, das nur einzelne Tokens kennt. Rosé wird zuerst
+    geprüft: "Roséwein" enthält kein "rotwein", aber die Reihenfolge macht die Absicht
+    deutlich, dass die spezifischste Angabe gewinnt.
+    """
+    hay = strip_accents((text or "").lower())
+    for group in ("rose", "weiss", "rot"):
+        for word in _COMPOUND_COLOURS[group]:
+            if strip_accents(word) in hay:
+                return group
+    return None
+
 def distinctive_tokens(text: str) -> list[str]:
     """Nur die unterscheidenden Tokens, in ursprünglicher Reihenfolge."""
     return [t for t in tokenize(text) if is_distinctive(t)]

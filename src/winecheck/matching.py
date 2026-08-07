@@ -27,6 +27,7 @@ from rapidfuzz import fuzz
 
 from .models import MatchConfidence, MatchDecision
 from .names import (
+    colour_from_text,
     COLOUR_TOKENS,
     DISCRIMINATING,
     GRAPE_NAMES,
@@ -128,6 +129,14 @@ def _colour_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     """
     r_c = {g for g in (colour_group(t) for t in retailer.tokens) if g}
     s_c = {g for g in (colour_group(t) for t in source.tokens) if g}
+    # "Rotwein"/"Weisswein" sind Rechtsbegriffe und darum keine Tokens mehr. Für die
+    # Suchabfrage ist das richtig, hier wäre es ein Verlust: der Händler schreibt die
+    # Farbe fast immer genau so an.
+    for prep, bucket in ((retailer, r_c), (source, s_c)):
+        if not bucket:
+            g = colour_from_text(prep.raw)
+            if g:
+                bucket.add(g)
     if r_c and s_c and not (r_c & s_c):
         return f"Farbe widersprüchlich ({'/'.join(sorted(r_c))} vs. {'/'.join(sorted(s_c))})"
     return None

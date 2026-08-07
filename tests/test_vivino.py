@@ -259,3 +259,42 @@ def test_all_statuses_have_a_german_label(status):
 
     assert status in VIVINO_LABELS
     assert VIVINO_LABELS[status]
+
+
+# --------------------------------- Reihenfolge der Suchbegriffe (Regression)
+
+def test_short_query_is_tried_before_the_long_one():
+    """Die kurze Abfrage muss zuerst laufen, nicht erst bei no_entry.
+
+    Vivino sortiert nach Bewertung, nicht nach Namensähnlichkeit. „ribera duero protos
+    roble spanien" liefert 13 Treffer, angeführt von „Protos 27 Ribera del Duero"
+    (4.2 aus 43'583 Bewertungen) — einem anderen Wein. „protos roble" liefert zwei,
+    beide richtig.
+
+    Vorher lief die kurze Abfrage nur, wenn die lange *nichts* fand. Beide
+    Protos-Weine bekamen aber einen falschen, aber akzeptierten Treffer — ein
+    Fehltreffer verhinderte so den Treffer.
+    """
+    from winecheck.names import distinctive_tokens
+    from winecheck.ratings.vivino import build_query
+
+    name = "Ribera del Duero DO Protos Roble (2024) – Rotwein, Spanien (75cl)"
+    lang = build_query(name)
+    kurz = " ".join(distinctive_tokens(name)[:4])
+
+    assert "ribera" in lang and "spanien" in lang, "die lange Abfrage trägt Herkunft und Land"
+    assert kurz == "protos roble", f"die kurze Abfrage ist der Kern des Namens, war {kurz!r}"
+    assert "ribera" not in kurz and "spanien" not in kurz
+
+
+def test_rank_prefers_a_real_match_over_a_producer_average():
+    """Bei zwei Abfragen gewinnt das aussagekräftigere Ergebnis. Ein Produzenten-Ø
+    steht unter einer Kandidatenliste: aus drei Vorschlägen kann ein Mensch wählen,
+    ein Durchschnitt tut nur so, als wäre er die Note dieses Weins."""
+    from winecheck.models import VivinoStatus
+    from winecheck.ratings.vivino import VivinoAdapter
+
+    r = VivinoAdapter._RANK
+    assert r[VivinoStatus.EXACT] > r[VivinoStatus.WINE_LEVEL] > r[VivinoStatus.AMBIGUOUS]
+    assert r[VivinoStatus.AMBIGUOUS] > r[VivinoStatus.WINERY_LEVEL]
+    assert r[VivinoStatus.WINERY_LEVEL] > r[VivinoStatus.NO_ENTRY]

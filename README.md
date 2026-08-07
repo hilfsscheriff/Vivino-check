@@ -71,6 +71,40 @@ Matcher arbeitet darum in drei Schritten, und **Vetos schlagen den Ähnlichkeits
    (`exact`, `wine_level`, `fuzzy`, `winery_level`). Ab `fuzzy` wird immer die
    gefundene Quell-Bezeichnung mitgegeben.
 
+### Kurze Abfrage zuerst
+
+Vivino sortiert die Trefferliste nach **Bewertung**, nicht nach Namensähnlichkeit. Eine
+Abfrage, die mit der Appellation beginnt, liefert darum die berühmtesten Weine der
+Herkunft statt den gesuchten:
+
+| Abfrage | Treffer | erster Kandidat |
+|---|---|---|
+| `ribera duero protos roble spanien` | 13 | Protos 27 Ribera del Duero, 4.2 (43'583) |
+| `protos roble` | **2** | **Protos Roble 2024, 3.9 (882)** |
+| `ribera duero protos crianza spanien` | 45 | Protos 27 Ribera del Duero |
+| `protos crianza` | **3** | **Protos Crianza 2020, 4.0 (1'112)** |
+
+Die kurze Abfrage lief vorher nur bei `no_entry`. Beide Protos-Weine bekamen aber einen
+*falschen, aber akzeptierten* Treffer — und damit kam der bessere Versuch nie zum Zug.
+**Ein Fehltreffer verhinderte den Treffer.** Jetzt laufen beide, und das aussagekräftigere
+Ergebnis gewinnt.
+
+Die kurze Abfrage ist nicht immer besser: „Rioja Reserva Las Flores" schrumpft auf
+`flores` und liefert 247 fremde Weine. Davor schützen die Sperren — was sie ablehnen,
+wird `no_entry`, und dann greift die lange Abfrage. Deshalb *beide* versuchen, statt sich
+auf eine Strategie festzulegen.
+
+Dazu holt jede Abfrage **24 statt 12** Kandidaten: „Chivite Navarra Colección 125" (rot)
+stand hinter dem Blanco und der Vendimia Tardía desselben Hauses und fiel unter den Tisch.
+
+### „Rotwein" ist eine Farbangabe, kein Rechtsbegriff
+
+`Rotwein` und `Weisswein` stehen in den Rechtsbegriffen und fliegen aus den Tokens. Für
+die Suchabfrage ist das richtig, für die Farbprüfung nicht: der Händler schreibt die
+Farbe fast immer genau so an („… – Rotwein, Spanien"). Ohne sie fehlte die Farbe
+einseitig, einseitiges Fehlen ist erlaubt — und der **rote** Chivite Colección 125 bekam
+die Note des **Blanco**. Die Farbsperre liest jetzt zusätzlich den Rohtext.
+
 ### Die unangenehme Stelle
 
 Zwei Fälle sind lexikalisch **nicht** unterscheidbar:
@@ -331,7 +365,7 @@ und zeigt den Verkaufskanal darunter — bei Prodega ist die Kundenkarte nötig,
 ändert die Antwort auf „lohnt sich das". Bei mehreren Händlern stehen alle da, der
 günstigste fett. Die Kanäle stehen als `channel` in `sources/retailers.yaml`.
 
-## Quellen — Stand 5.8.2026
+## Quellen — Stand 7.8.2026
 
 Händler stehen in `sources/retailers.yaml` und können ohne Codeänderung ergänzt werden.
 `uv run wine-check sources` zeigt den Status jeder Quelle.
@@ -345,6 +379,47 @@ Händler stehen in `sources/retailers.yaml` und können ohne Codeänderung ergä
 | Prodega (Transgourmet) | ~68 | **Prodega Easy, öffentlicher JSON-Katalog**, kein Login nötig |
 | Denner | 1–3 | Nuxt-SSR-Payload (`__NUXT_DATA__`) |
 | Vivino | Pflichtspalte | JSON-Endpunkt `/api/explore/explore`, inkl. Marktpreise |
+
+### Aligro statt TopCC
+
+**TopCC geht nicht** — und zwar nicht aus technischen Gründen. Die Prospekte laufen über
+iPaper; die Seitenbilder und das PDF liegen auf `files.cdn.ipaper.io`, und deren
+robots.txt lautet `User-agent: * / Disallow: /`. Die Weinlagerverkauf-Beilage wäre
+inhaltlich genau richtig, ist aber nur unter Missachtung dieses Verbots zu holen.
+Eingetragen als `blocked_by: robots`.
+
+**Aligro deckt denselben Kanal ab** und erlaubt den Zugriff: robots.txt sperrt nur
+`/admin` und `/panier`. Neun Weinkategorien, 223 Positionen.
+
+Die Kategorieseiten rendern clientseitig, liefern die Daten aber vollständig mit — im
+Vue-Attribut `pagination="…"` steckt HTML-entity-kodiertes JSON. Ein GET je Kategorie,
+kein Browser. `?limit=192` hebt die Seitengrösse; der Parameter überlebt allerdings
+keine Weiterleitung, darum wird der Slug erst aufgelöst und dann gezielt geholt.
+
+#### Die Preisfalle
+
+Aligro zeigt je nach Kundentyp etwas anderes an. Derselbe Wein:
+
+| Kundentyp | Anzeige | Bedeutung |
+|---|---|---|
+| Privatkunde | `103.- / 6 Flaschen → 83.-` | Kartonpreis, **inkl.** MwSt |
+| Gastroprofi | `15.88 / Flasche → 12.80` | Flaschenpreis, **exkl.** MwSt |
+
+83 ÷ 6 = 13.83 und 12.80 × 1.081 = 13.84 — dieselbe Flasche. Wer eine Ansicht ungeprüft
+übernimmt, liegt um den Faktor 6 oder um 8.1 % daneben.
+
+Der Adapter liest darum keine Anzeige, sondern die Zahlenfelder: `discountPriceTTC` ist
+der Aktionspreis inkl. MwSt fürs Gebinde, `quantityUnit.number` die Flaschenzahl darin.
+`unitPrice` wäre bequemer und ist der falsche Wert — Flaschenpreis **ohne** MwSt, nahe
+genug am richtigen, um unbemerkt durchzugehen.
+
+#### „Vins" ist Plural
+
+Die Weinerkennung prüft auf Wortgrenzen, damit „Sch**wein**skoteletts" nicht als Wein
+durchgeht. Damit traf `vin` aber auch `Vins` nicht — und Aligro benennt seine
+Warengruppen französisch im Plural. Die verlässlichste Weinkennung war wirkungslos, und
+es kamen nur die Weine durch, deren *Name* zufällig ein Weinwort enthielt: **175 statt
+223**. Plurale stehen jetzt einzeln in der Liste.
 
 ### Aktionis als Umweg zu den blockierten Händlern
 
@@ -540,7 +615,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-279 Tests: 272 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+312 Tests: 305 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die
@@ -555,6 +630,11 @@ aktivieren). Schwerpunkte:
   vorliegt, und dass Produzenten-Durchschnitte draussen bleiben.
 * **Läufe** — dass mehrere Neubauten am selben Tag einen Lauf ergeben und `diff.md`
   gegen die Vorwoche vergleicht, nicht gegen sich selbst.
+* **Aligro** — dass der Gebindepreis durch die Flaschenzahl geteilt wird, dass das
+  bequeme `unitPrice`-Feld *nicht* genommen wird, und dass ein unbekanntes Gebinde die
+  Konfidenz senkt statt zu raten.
+* **Abfragereihenfolge** — dass die kurze Abfrage ohne Herkunft und Land gebaut wird
+  und die Rangfolge einen echten Treffer über einen Produzenten-Durchschnitt stellt.
 
 ## Bekannte Grenzen
 

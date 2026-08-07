@@ -268,14 +268,19 @@ retailers:
     channel: Abholmarkt, Kundenkarte nötig
     tier: 3
     domain: aligro.ch
-    adapter: generic_html
-    enabled: false
-    status: no_adapter
+    adapter: aligro
+    enabled: true
+    status: ok
     urls:
-      - https://www.aligro.ch/de/
+      - https://www.aligro.ch/de/aktionen/1711-rotwein-auslandisch
     shop_root: https://www.aligro.ch/de/
-    promo_keywords: [aktion, angebote, wein, promotion]
-    verified_at: "2026-08-05"
+    # Der Adapter rechnet den Flaschenpreis selbst aus discountPriceTTC und der
+    # Gebindegrösse und übergibt ihn fertig — darum inkl. MwSt und pro Flasche.
+    vat_included: true
+    price_basis: bottle
+    private_label_brands: []
+    note: "Neun Weinkategorien (1710-1717); 1718 alkoholfrei bleibt draussen. Acht Märkte, alle Deutschschweiz."
+    verified_at: "2026-08-07"
     notes: >
       Erreichbar (HTTP 200, kein Bot-Schutz erkannt). Prodega-Konkurrent, ohne
       Kundenkarte aber ohne Nutzen. Als Tier 3 vorgemerkt, Adapter nicht gebaut.
@@ -287,11 +292,20 @@ retailers:
     domain: topcc.ch
     adapter: generic_html
     enabled: false
-    status: url_unverified
+    status: blocked
+    blocked_by: robots
     urls: []
     shop_root: https://www.topcc.ch/
-    verified_at: "2026-08-05"
-    notes: /de/ antwortete 404. Wie Aligro ohne Karte ohne Nutzen.
+    verified_at: "2026-08-07"
+    # topcc.ch selbst erlaubt alles (robots.txt sperrt nur /typo3/). Die Aktionen liegen
+    # aber auf wochenhits.topcc.ch und werden über iPaper ausgeliefert; Seitenbilder und
+    # PDF kommen von files.cdn.ipaper.io, und deren robots.txt lautet für alle Agenten
+    # "Disallow: /". Die Weinlagerverkauf-Beilage (8 Seiten) wäre inhaltlich passend,
+    # ist aber nur unter Missachtung dieses Verbots zu holen. Aligro deckt denselben
+    # Kanal ab und erlaubt den Zugriff.
+    notes: >-
+      Prospekte über iPaper; Inhalt auf files.cdn.ipaper.io mit robots "Disallow: /".
+      Nicht umgangen. Ersatz für denselben Kanal ist aligro.
 
 
   # Über Aktionis mitgelesen, ohne eigenen Adapter. Stehen hier nur, damit der Report

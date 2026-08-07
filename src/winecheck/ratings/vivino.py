@@ -118,6 +118,16 @@ class _Cand:
         return best, note
 
 
+#: Wie viele Kandidaten je Abfrage geholt werden.
+#:
+#: Vivino sortiert die Trefferliste nach **Bewertung**, nicht nach Namensähnlichkeit.
+#: Der gesuchte Wein steht darum oft nicht vorne, sondern hinter den berühmten Weinen
+#: derselben Herkunft. Beispiel aus dem Livebetrieb: „Chivite Navarra Colección 125"
+#: (rot) stand hinter dem Blanco und der Vendimia Tardía desselben Hauses — mit zwölf
+#: Kandidaten fiel er unter den Tisch, mit mehr nicht.
+PER_PAGE = 24
+
+
 def build_query(name: str, vintage: int | None = None) -> str:
     """Suchbegriff aus der Händler-Bezeichnung.
 
@@ -125,6 +135,9 @@ def build_query(name: str, vintage: int | None = None) -> str:
     Jahrgang bleibt weg, weil die API sonst schlechter greift. Der zurückgegebene
     String landet unverändert in ``vivino_query`` und in der Suchurl — damit sofort
     sichtbar ist, ob ein Nicht-Treffer an der Query oder am Wein lag.
+
+    Diese lange Fassung behält Herkunft und Land und ist damit die **zweite** Wahl:
+    siehe :meth:`Vivino.lookup`, wo zuerst mit den unterscheidenden Tokens gesucht wird.
     """
     tokens = tokenize(name)
     return " ".join(tokens[:10]) or (name or "").strip()
@@ -418,7 +431,7 @@ class VivinoAdapter:
             ("search_term", query),
             ("country_code", "CH"),
             ("language", "de"),
-            ("per_page", "12"),
+            ("per_page", str(PER_PAGE)),
             ("min_rating", "1"),
         ]
         params += [("wine_type_ids[]", t) for t in WINE_TYPE_IDS]
@@ -432,6 +445,65 @@ class VivinoAdapter:
         return _parse_candidates(payload)
 
     # -- Öffentliche API ---------------------------------------------------
+
+    #: Rangfolge der Status für die Auswahl zwischen zwei Abfragen. Höher ist besser.
+    #: ``winery_level`` steht bewusst unter ``ambiguous``: eine Liste von drei
+    #: Kandidaten, aus der ein Mensch wählen kann, sagt mehr als ein
+    #: Produzenten-Durchschnitt, der so tut, als wäre er die Note dieses Weins.
+    _RANK = {
+        VivinoStatus.EXACT: 6,
+        VivinoStatus.WINE_LEVEL: 5,
+        VivinoStatus.AMBIGUOUS: 4,
+        VivinoStatus.WINERY_LEVEL: 3,
+        VivinoStatus.TOO_FEW_RATINGS: 2,
+        VivinoStatus.RATING_NOT_READABLE: 2,
+        VivinoStatus.NO_ENTRY: 1,
+    }
+
+    def _best_of(self, name, vintage, long_query, exclude_hosts):
+        """Mehrere Suchbegriffe probieren und das beste Ergebnis behalten.
+
+        Die **kurze** Abfrage kommt zuerst, und das ist der ganze Punkt. Vivino
+        sortiert nach Bewertung, nicht nach Namensähnlichkeit — eine Abfrage, die mit
+        der Appellation beginnt, liefert darum die berühmtesten Weine der Herkunft
+        statt den gesuchten. Gemessen an echten Fällen:
+
+        ==========================================  =======  ==========================
+        Abfrage                                     Treffer  erster Kandidat
+        ==========================================  =======  ==========================
+        ``ribera duero protos roble spanien``            13  Protos 27 Ribera del Duero
+        ``protos roble``                                  2  **Protos Roble 2024**
+        ``ribera duero protos crianza spanien``          45  Protos 27 Ribera del Duero
+        ``protos crianza``                                3  **Protos Crianza 2020**
+        ==========================================  =======  ==========================
+
+        Vorher lief die kurze Abfrage nur bei ``no_entry``. Beide Protos-Weine
+        bekamen aber einen *falschen, aber akzeptierten* Treffer auf „Protos 27 Ribera
+        del Duero" (4.2 aus 43'583 Bewertungen) — und damit kam der bessere Versuch nie
+        zum Zug. Ein Fehltreffer verhinderte den Treffer.
+
+        Die kurze Abfrage ist nicht immer besser: „Rioja Reserva Las Flores" schrumpft
+        auf ``flores`` und liefert 247 fremde Weine. Davor schützen die Sperren in
+        :mod:`~winecheck.matching` — was sie ablehnen, wird ``no_entry``, und dann
+        greift die lange Abfrage. Deshalb *beide* versuchen und das bessere nehmen,
+        statt sich auf eine Strategie festzulegen.
+        """
+        short = " ".join(distinctive_tokens(name)[:4])
+        queries = [q for q in (short, long_query) if q]
+        # Reihenfolge erhalten, Dubletten raus.
+        queries = list(dict.fromkeys(queries))
+
+        best = None
+        for q in queries:
+            res = classify(name, vintage, q, self._search(q), exclude_hosts=exclude_hosts)
+            if best is None or self._RANK[res.status] > self._RANK[best.status]:
+                best = res
+            # Besser als ein Jahrgangstreffer wird es nicht — weitere Anfragen wären
+            # nur Last für Vivino.
+            if best.status is VivinoStatus.EXACT:
+                break
+        return best
+
     def lookup(
         self,
         name: str,
@@ -452,21 +524,7 @@ class VivinoAdapter:
                 return _from_payload(cached)
 
         try:
-            candidates = self._search(query)
-            result = classify(name, vintage, query, candidates, exclude_hosts=exclude_hosts)
-            # Recall-Versuch, wenn die lange Query nichts fand. Gekürzt wird auf die
-            # *unterscheidenden* Tokens, nicht positionell: "passio nero avola" wäre
-            # zu 2/3 Rebsortenname und liefert ein Feld fremder Weine, das dann als
-            # 'ambiguous' erscheint, obwohl gar nichts Passendes dabei ist.
-            if result.status is VivinoStatus.NO_ENTRY:
-                short = " ".join(distinctive_tokens(name)[:4])
-                if short and short != query:
-                    alt = classify(
-                        name, vintage, short, self._search(short),
-                        exclude_hosts=exclude_hosts,
-                    )
-                    if alt.status is not VivinoStatus.NO_ENTRY:
-                        result = alt
+            result = self._best_of(name, vintage, query, exclude_hosts)
         except Blocked as exc:
             result = VivinoResult.miss(
                 VivinoStatus.BLOCKED,

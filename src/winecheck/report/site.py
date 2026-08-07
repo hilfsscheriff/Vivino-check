@@ -225,6 +225,7 @@ _TEMPLATE = r"""<!doctype html>
   .chip .dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
   .chip .n { color:var(--muted); font-variant-numeric:tabular-nums; font-size:.74rem; }
   .chip[aria-pressed="true"] .n { color:var(--bg); opacity:.8; }
+  .filters .bar { margin-top:13px; padding-top:11px; border-top:1px solid var(--line); }
   .bar { display:flex; align-items:center; justify-content:space-between; gap:12px;
          flex-wrap:wrap; margin:6px 0 12px; }
   .count { font-size:.85rem; color:var(--muted); }
@@ -258,14 +259,29 @@ _TEMPLATE = r"""<!doctype html>
   .good { color:#2e7d32; font-weight:650; }
   .bad { color:#c62828; }
   .warn { color:var(--brand); }
-  .colfilter { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
-               margin:0 0 12px; font-size:13px; color:var(--muted); }
-  .colfilter label { display:flex; gap:6px; align-items:center; }
-  .colfilter select { font:inherit; color:var(--ink); background:var(--bg);
-                      border:1px solid var(--line); border-radius:7px; padding:4px 6px; }
-  .colfilter .cb { cursor:pointer; }
-  .colhint { margin-left:auto; font-size:12px; opacity:.75; }
-  @media (max-width: 767px) { .colhint { display:none; } }
+  /* Alle Filter in einer Karte, damit sofort sichtbar ist, was zusammen wirkt.
+     Vorher lagen Chips oben und Feinauswahl unten bei der Tabelle — wer die Note
+     einschränken wollte, musste am Diagramm vorbeiscrollen und wieder zurück. */
+  .filters { padding:14px 16px 10px; margin-bottom:14px; }
+  .filters fieldset + fieldset { margin-top:11px; }
+  .filters .fine { border-top:1px solid var(--line); padding-top:11px; margin-top:13px; }
+  .controls { display:flex; flex-wrap:wrap; gap:9px 14px; align-items:center;
+              font-size:.82rem; color:var(--muted); }
+  .controls label { display:flex; gap:6px; align-items:center; white-space:nowrap; }
+  .controls select { font:inherit; color:var(--ink); background:var(--bg);
+                     border:1px solid var(--line); border-radius:8px; padding:5px 7px;
+                     max-width:100%; }
+  .controls select:focus-visible, .chip:focus-visible, .reset:focus-visible
+    { outline:2px solid var(--brand); outline-offset:2px; }
+  .controls .cb { cursor:pointer; }
+  .controls input[type=checkbox] { accent-color:var(--brand); width:15px; height:15px; }
+  .colhint { font-size:.74rem; color:var(--muted); margin:0 0 10px; }
+  /* Auf dem Handy ist thead ausgeblendet — dort ist der Hinweis schlicht falsch. */
+  @media (max-width: 767px) {
+    .colhint { display:none; }
+    .controls { gap:8px 10px; }
+    .controls label { font-size:.8rem; }
+  }
   th .sortbtn { font:inherit; color:inherit; background:none; border:0; padding:0;
                 cursor:pointer; letter-spacing:inherit; text-transform:inherit; }
   th .sortbtn:hover { color:var(--brand); }
@@ -305,14 +321,53 @@ _TEMPLATE = r"""<!doctype html>
            aria-label="Weine durchsuchen">
   </div>
 
-  <fieldset><legend>Lauf</legend><div class="chips" id="fRun"></div></fieldset>
-  <fieldset><legend>Trinkreife</legend><div class="chips" id="fMat"></div></fieldset>
-  <fieldset><legend>Sorte</legend><div class="chips" id="fStyle"></div></fieldset>
-  <fieldset><legend>Händler</legend><div class="chips" id="fShop"></div></fieldset>
+  <div class="card filters">
+    <fieldset><legend>Lauf</legend><div class="chips" id="fRun"></div></fieldset>
+    <fieldset><legend>Trinkreife</legend><div class="chips" id="fMat"></div></fieldset>
+    <fieldset><legend>Sorte</legend><div class="chips" id="fStyle"></div></fieldset>
+    <fieldset><legend>Händler</legend><div class="chips" id="fShop"></div></fieldset>
 
-  <div class="bar">
-    <span class="count" id="count"></span>
-    <button class="reset" id="reset" type="button">Filter zurücksetzen</button>
+    <fieldset class="fine">
+      <legend>Feinauswahl</legend>
+      <div class="controls">
+        <label>Note ab
+          <select id="fMinRating">
+            <option value="">alle</option>
+            <option value="3.5">3.5</option>
+            <option value="3.8">3.8</option>
+            <option value="4">4.0</option>
+            <option value="4.2">4.2</option>
+            <option value="4.5">4.5</option>
+          </select>
+        </label>
+        <label>Preis bis
+          <select id="fMaxPrice">
+            <option value="">alle</option>
+            <option value="10">CHF 10</option>
+            <option value="20">CHF 20</option>
+            <option value="40">CHF 40</option>
+            <option value="80">CHF 80</option>
+          </select>
+        </label>
+        <label>Sortieren
+          <select id="fSort">
+            <option value="rating:-1">Note, beste zuerst</option>
+            <option value="price:1">Preis, günstigste zuerst</option>
+            <option value="price:-1">Preis, teuerste zuerst</option>
+            <option value="bargain:-1">Ersparnis, grösste zuerst</option>
+            <option value="name:1">Name A–Z</option>
+            <option value="shop:1">Händler A–Z</option>
+          </select>
+        </label>
+        <label class="cb" title="Nur Weine mit bestätigtem Namensabgleich — ohne unsichere Treffer, ohne Produzenten-Mittelwerte, ohne Weine ohne Eintrag"><input type="checkbox" id="fFound"> nur bei Vivino gefunden</label>
+        <label class="cb"><input type="checkbox" id="fBargain"> nur unter Marktpreis</label>
+      </div>
+    </fieldset>
+
+    <div class="bar">
+      <span class="count" id="count"></span>
+      <button class="reset" id="reset" type="button">Filter zurücksetzen</button>
+    </div>
   </div>
 
   <div class="card chart">
@@ -322,52 +377,19 @@ _TEMPLATE = r"""<!doctype html>
 
   <div class="card">
     <h2 id="tblTitle">Weine</h2>
-    <div class="colfilter">
-      <label>Note ab
-        <select id="fMinRating">
-          <option value="">alle</option>
-          <option value="3.5">3.5</option>
-          <option value="3.8">3.8</option>
-          <option value="4">4.0</option>
-          <option value="4.2">4.2</option>
-          <option value="4.5">4.5</option>
-        </select>
-      </label>
-      <label>Preis bis
-        <select id="fMaxPrice">
-          <option value="">alle</option>
-          <option value="10">CHF 10</option>
-          <option value="20">CHF 20</option>
-          <option value="40">CHF 40</option>
-          <option value="80">CHF 80</option>
-        </select>
-      </label>
-      <label class="cb" title="Nur Weine mit bestätigtem Namensabgleich — ohne unsichere Treffer, ohne Produzenten-Mittelwerte, ohne Weine ohne Eintrag"><input type="checkbox" id="fFound"> nur bei Vivino gefunden</label>
-      <label class="cb"><input type="checkbox" id="fBargain"> nur unter Marktpreis</label>
-      <label>Sortieren
-        <select id="fSort">
-          <option value="rating:-1">Note, beste zuerst</option>
-          <option value="price:1">Preis, günstigste zuerst</option>
-          <option value="price:-1">Preis, teuerste zuerst</option>
-          <option value="bargain:-1">Ersparnis, grösste zuerst</option>
-          <option value="name:1">Name A–Z</option>
-          <option value="shop:1">Händler A–Z</option>
-        </select>
-      </label>
-      <span class="colhint">Spaltentitel antippen sortiert auch · nochmal antippen kehrt um</span>
-    </div>
+    <p class="colhint">Spaltentitel antippen sortiert · nochmal antippen kehrt um</p>
     <div id="table"></div>
   </div>
 
   <footer>
-    <p><b>Bewertungen</b> von <a href="https://www.vivino.com" rel="noopener">Vivino</a>.
+    <p><b>Bewertungen</b> von <a href="https://www.vivino.com" target="_blank" rel="noopener">Vivino</a>.
        Die Achse zeigt ausschliesslich die Vivino-Note in ihrer eigenen Skala 1–5 —
        Falstaff- und andere Kritikerpunkte stehen in der Tabelle, aber nicht auf der
        Achse: zwei Bewertungsgrundlagen auf einer Achse sind nicht vergleichbar.</p>
-    <p><b>Trinkreife</b> aus der <a href="__SOURCE_PAGE__" rel="noopener">__SOURCE_NAME__</a>.
+    <p><b>Trinkreife</b> aus der <a href="__SOURCE_PAGE__" target="_blank" rel="noopener">__SOURCE_NAME__</a>.
        Sie gilt für Region und Weinart, nicht für die einzelne Flasche.</p>
     <p><b>Preise</b> von den genannten Händlern, teils über den Aggregator
-       <a href="https://www.aktionis.ch" rel="noopener">Aktionis</a> und damit aus zweiter
+       <a href="https://www.aktionis.ch" target="_blank" rel="noopener">Aktionis</a> und damit aus zweiter
        Hand. <b>Marktpreise</b> von Vivino-Partnerhändlern, nie vom eigenen Händler.
        Alles ohne Gewähr — vor dem Kauf beim Händler prüfen.</p>
     <p>Diese Seite lädt nichts von Dritten. Sie funktioniert offline, sobald sie
@@ -542,18 +564,18 @@ function table(list) {
   });
   const rows = sorted.slice(0, 400).map(w => {
     const vivino = w.rating != null
-      ? `<a href="${esc(w.vivinoUrl)}" rel="noopener">${w.rating.toFixed(1)}/5</a>`
+      ? `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener">${w.rating.toFixed(1)}/5</a>`
         + (w.ratingCount ? ` <span class="meta">(${w.ratingCount})</span>` : "")
         + (w.fuzzy ? ` <span class="warn" title="Namensabgleich unbestätigt`
             + (w.matchedName ? `, gefunden: ${esc(w.matchedName)}` : "") + `">?</span>` : "")
       : w.wineryRating != null
-        ? `<a href="${esc(w.vivinoUrl)}" rel="noopener" class="meta">nur Produzenten-Ø `
+        ? `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener" class="meta">nur Produzenten-Ø `
           + w.wineryRating.toFixed(1) + "/5</a>"
-        : `<a href="${esc(w.vivinoUrl)}" rel="noopener" class="meta">keine Note</a>`;
+        : `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener" class="meta">keine Note</a>`;
     const bargain = w.bargain == null ? '<span class="meta">—</span>'
       : `<span class="${w.bargain > 0 ? "good" : "bad"}">${w.bargain > 0 ? "−" : "+"}`
         + Math.abs(w.bargain).toFixed(0) + "%</span>";
-    const shop = w.url ? `<a href="${esc(w.url)}" rel="noopener">${esc(shopName(w.cheapest))}</a>`
+    const shop = w.url ? `<a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(shopName(w.cheapest))}</a>`
                        : esc(shopName(w.cheapest));
     return `<tr>
       <td data-l="Wein"><span class="wine">${esc(w.name)}</span>

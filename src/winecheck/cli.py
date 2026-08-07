@@ -22,6 +22,7 @@ from .adapters.base import FetchReport, RetailerAdapter
 from .adapters.aktionis import AktionisAdapter
 from .adapters.denner import DennerAdapter
 from .adapters.moevenpick import MoevenpickAdapter
+from .adapters.aligro import AligroAdapter
 from .adapters.prodega import ProdegaAdapter
 from .aggregate import attach_maturity, compute_scores, merge_offers
 from .cache import Cache
@@ -42,6 +43,7 @@ app = typer.Typer(add_completion=False, help="Aktionen der Schweizer Weinhändle
 
 ADAPTERS: dict[str, type[RetailerAdapter]] = {
     "aktionis": AktionisAdapter,
+    "aligro": AligroAdapter,
     "denner": DennerAdapter,
     "moevenpick": MoevenpickAdapter,
     "prodega": ProdegaAdapter,

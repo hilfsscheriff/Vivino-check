@@ -15,7 +15,12 @@ from ..prices import discount_percent, normalize_price, rate_discount
 
 #: Wörter, an denen ein Wein von anderen Sortimenten unterschieden wird.
 WINE_HINTS = (
-    "wein", "vin", "vino", "wine", "rotwein", "weisswein", "rosé", "rose",
+    # Plurale müssen einzeln dastehen: geprüft wird auf Wortgrenzen, damit
+    # "Schweinskoteletts" nicht als Wein durchgeht — dann trifft "vin" aber auch
+    # "Vins" nicht. Aligro benennt seine Warengruppen französisch im Plural
+    # ("Vins rouges étrangers"), womit die verlässlichste Weinkennung wirkungslos war.
+    "wein", "weine", "vin", "vins", "vino", "vini", "wine", "wines",
+    "rotwein", "weisswein", "rosé", "rose",
     "schaumwein", "champagne", "prosecco", "crémant", "cremant", "sekt", "cava",
     "merlot", "chardonnay", "pinot", "cabernet", "syrah", "riesling", "chasselas",
     "fendant", "dôle", "dole", "amarone", "valpolicella", "chianti", "rioja",
