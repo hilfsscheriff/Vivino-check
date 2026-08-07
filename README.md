@@ -712,7 +712,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-355 Tests: 348 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+392 Tests: 385 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die
