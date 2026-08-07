@@ -58,7 +58,16 @@ jobs:
       - name: Aktionen holen
         run: uv run wine-check fetch --refresh-prices
 
-      - name: Bewertungen abgleichen
+      # Die Bewertungen kommen aus der Datei, die der lokale Freitagslauf einträgt.
+      # Selbst nachfragen kann dieser Lauf nicht: Vivino sperrt Rechenzentrums-IPs,
+      # ein Testlauf bekam für 465 von 478 Weinen ein "blocked".
+      - name: Bewertungen einspielen
+        run: uv run wine-check ratings-import
+
+      # Trotzdem abgleichen: Weine, die schon eine Note im Cache haben, bekommen sie
+      # sofort; für neue wird Vivino gefragt und im Zweifel geblockt. Das ist in
+      # Ordnung — sie stehen dann ohne Note da, bis der lokale Lauf sie nachträgt.
+      - name: Bewertungen zuordnen
         run: uv run wine-check rate
 
       - name: Report und Seite bauen

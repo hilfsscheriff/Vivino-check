@@ -230,6 +230,48 @@ def rate(
 
 # -------------------------------------------------------------------- report
 
+
+
+RATINGS_FILE = Path("state/ratings-cache.json")
+
+
+@app.command("ratings-export")
+def ratings_export(
+    out: Path = typer.Option(RATINGS_FILE, "--out"),
+    cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache"),
+) -> None:
+    """Bewertungen in eine versionierbare Datei schreiben.
+
+    Der GitHub-Wochenlauf holt frische Preise, kann aber nicht selbst bei Vivino
+    nachfragen — Rechenzentrums-IPs werden gesperrt. Diese Datei gibt ihm die
+    Bewertungen des letzten lokalen Laufs mit, damit die Seite Preise *und* Noten
+    zeigt statt nur Preise.
+    """
+    cache = Cache.open(cache_path)
+    rows = cache.export_ratings()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+    cache.close()
+    _echo(f"{len(rows)} Bewertungen nach {out} geschrieben ({out.stat().st_size // 1024} KB)")
+
+
+@app.command("ratings-import")
+def ratings_import(
+    src: Path = typer.Option(RATINGS_FILE, "--in"),
+    cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache"),
+    overwrite: bool = typer.Option(False, "--overwrite",
+                                   help="auch vorhandene Einträge ersetzen"),
+) -> None:
+    """Bewertungen aus der versionierten Datei in den Cache spielen."""
+    if not src.exists():
+        _echo(f"{src} nicht gefunden — nichts einzuspielen.", err=True)
+        return
+    cache = Cache.open(cache_path)
+    n = cache.import_ratings(json.loads(src.read_text(encoding="utf-8")), overwrite=overwrite)
+    cache.close()
+    _echo(f"{n} Bewertungen aus {src} übernommen")
+
+
 @app.command()
 def report(
     out: Path = typer.Option(Path("output"), "--out"),

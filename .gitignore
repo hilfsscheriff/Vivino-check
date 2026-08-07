@@ -5,7 +5,11 @@ __pycache__/
 .pytest_cache/
 cache/
 output/
-state/
+# Nur die Austauschdatei wird versioniert — sie gibt dem GitHub-Wochenlauf die
+# Bewertungen mit, die er selbst nicht holen kann (Vivino sperrt dessen IPs).
+# Die Verneinung braucht 'state/*': mit 'state/' steigt git gar nicht erst hinein.
+state/*
+!state/ratings-cache.json
 *.sqlite
 *.sqlite-journal
 .DS_Store

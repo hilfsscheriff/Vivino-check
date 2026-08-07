@@ -264,6 +264,52 @@ class Cache:
             })
         return out
 
+
+    # -- Bewertungen aus- und einlesen -------------------------------------
+    #
+    # Der sqlite-Cache liegt nicht im Repo: binär, ändert sich bei jedem Lauf. Für den
+    # GitHub-Wochenlauf braucht es die Bewertungen aber trotzdem — er holt frische
+    # Preise, darf sie aber nicht mit einer leeren Bewertungsspalte veröffentlichen,
+    # und selbst nachfragen kann er nicht, weil Vivino Rechenzentrums-IPs sperrt.
+    # Darum ein schlanker, versionierbarer Auszug: nur die Bewertungen, als JSON.
+
+    def export_ratings(self) -> list[dict[str, Any]]:
+        """Alle Bewertungen als Liste — für die versionierte Datei."""
+        out = []
+        for row in self.conn.execute(
+            "SELECT source, name_key, vintage, status, payload, fetched_at, retry_after "
+            "FROM ratings ORDER BY source, name_key"
+        ):
+            out.append({k: row[k] for k in row.keys()})
+        return out
+
+    def import_ratings(self, rows: list[dict[str, Any]], *, overwrite: bool = False) -> int:
+        """Bewertungen einspielen.
+
+        Args:
+            overwrite: Ohne dies bleiben vorhandene Einträge stehen — ein lokaler Lauf
+                hat frischere Daten als die eingecheckte Datei und soll sie behalten.
+        """
+        n = 0
+        for r in rows or []:
+            if not overwrite:
+                vorhanden = self.conn.execute(
+                    "SELECT 1 FROM ratings WHERE source=? AND name_key=? AND vintage IS ?",
+                    (r.get("source"), r.get("name_key"), r.get("vintage")),
+                ).fetchone()
+                if vorhanden:
+                    continue
+            self.conn.execute(
+                "INSERT OR REPLACE INTO ratings "
+                "(source, name_key, vintage, status, payload, fetched_at, retry_after) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (r.get("source"), r.get("name_key"), r.get("vintage"), r.get("status"),
+                 r.get("payload"), r.get("fetched_at"), r.get("retry_after")),
+            )
+            n += 1
+        self.conn.commit()
+        return n
+
     def stats(self) -> dict[str, int]:
         q = self.conn.execute
         return {
