@@ -205,3 +205,52 @@ def test_real_wine_still_passes():
 
     assert looks_like_wine("Casalforte Ripasso della Valpolicella DOC, 75 cl")
     assert looks_like_wine("Blauer Zweigelt, Mundart (2022) – Rotwein, Österreich (0.75l)")
+
+
+# ----------------------------- Produzent aus der Mövenpick-URL (Regression)
+
+def test_producer_is_recovered_from_the_moevenpick_url():
+    """Mövenpick benennt Weine nach Herkunft und Lage und stellt den Produzenten nur
+    in die Adresse. Für Vivino ist er das wichtigste Wort — die Suche sortiert nach
+    Bewertung, nicht nach Namensähnlichkeit, und ohne Produzent findet man den
+    berühmtesten Wein der Appellation statt den gesuchten.
+
+    Der Slug ist Name **plus** Produzent; was im Slug steht und im Namen fehlt, ist
+    der Produzent. Das brachte 22 zusätzliche exakte Treffer.
+    """
+    from winecheck.adapters.moevenpick import producer_from_url
+
+    assert producer_from_url(
+        "Côtes du Roussillon Villages AOC 2020 Les Dentelles",
+        "https://www.moevenpick-wein.com/de/2020-les-dentelles-cotes-du-roussillon-"
+        "villages-aoc-domaine-thunevin-calvet.html",
+    ) == "Thunevin Calvet"
+
+    assert producer_from_url(
+        "Aconcagua Costa DO 2023 Chardonnay Las Pizarras",
+        "https://www.moevenpick-wein.com/de/2023-chardonnay-las-pizarras-aconcagua-"
+        "costa-do-vina-errazuriz.html",
+    ) == "Vina Errazuriz"
+
+
+def test_packaging_words_are_not_mistaken_for_a_producer():
+    """„anniversary set 2x 2x 2x poliziano" stand so im Slug — nur „Poliziano" ist
+    der Produzent."""
+    from winecheck.adapters.moevenpick import producer_from_url
+
+    assert producer_from_url(
+        "Asinone Vino Nobile di Montepulciano DOCG",
+        "https://www.moevenpick-wein.com/de/asinone-vino-nobile-anniversary-set-2x-"
+        "2x-2x-poliziano.html",
+    ) == "Poliziano"
+
+
+def test_no_producer_is_better_than_a_guess():
+    """Bleibt nach dem Filtern nichts Belastbares übrig, wird der Name nicht angefasst."""
+    from winecheck.adapters.moevenpick import producer_from_url
+
+    assert producer_from_url(
+        "Bianco del Ticino DOC 2024 Castello di Morcote",
+        "https://x/de/2024-bianco-del-ticino-doc-castello-di-morcote-bio.html",
+    ) == ""
+    assert producer_from_url("Irgendein Wein", "") == ""

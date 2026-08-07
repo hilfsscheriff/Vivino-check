@@ -79,6 +79,47 @@ Die zehn Quick Wins aus Abschnitt 9 sind umgesetzt und am gerenderten Ergebnis n
 
 **Regressionsschutz:** [tests/test_site.py](tests/test_site.py) — 20 Tests am erzeugten Dokument (Tokens, Breakpoint-Verhalten, Leerzustandslogik, Semantik, Selbstgenügsamkeit ohne Drittanbieter). Gesamtsuite: 331 bestanden, 7 übersprungen (Netzwerktests, `WINECHECK_LIVE=1`).
 
+## 2c. Zweiter Durchgang: F-05 und der Vertrauens-Fix
+
+### F-05 — Farbkollisionen behoben
+
+Der Konflikt war strukturell nicht lösbar, solange beide Bedeutungen Farbe ausgeben: Sperrt man Grün/Teal/Amber für die Trinkreife, bleibt für acht gedeckte Händlerfarben zu wenig Hue-Budget — der geringste Paarabstand fiel auf ΔE 26.3, schlechter als die 30.0 vorher.
+
+Ausschlaggebend war, wofür die Farbe tatsächlich getragen wird: Die **Trinkreife-Farbe stand an genau einer Stelle** — dem Punkt in ihrem eigenen Filter-Chip, direkt neben der Beschriftung, die dasselbe schon sagte. Die **Händlerfarbe** ist im Diagramm dagegen das einzige Händlersignal. Also hat die Trinkreife den Farbkanal abgegeben.
+
+| | vorher | nachher |
+|---|---|---|
+| Farben mit zwei Bedeutungen | 4 | **0** (strukturell unmöglich) |
+| geringster Abstand der Händlerfarben | ΔE 30.0 | **ΔE 41.9** |
+| schlechtester Kontrast dunkel | 1.45:1 (Coop) | **3.00:1** |
+| schlechtester Kontrast hell | 2.82:1 (Otto's) | **3.22:1** |
+
+Umsetzung: `_SHOP_LIGHT`/`_SHOP_DARK` mit einem Wert je Schema, ausgegeben als CSS-Variablen (`--shop-<key>`) mit `@media (prefers-color-scheme: dark)`-Überschreibung. Die Payload trägt den Variablennamen, nicht den Hexwert — als Hexwert in der JSON könnte die Farbe nicht auf das Schema reagieren. Punkte werden über `style="fill:var(…)"` gefärbt, weil Präsentationsattribute kein `var()` annehmen. `_check_palette()` hält die Zusage fest, damit ein neunter Händler nicht still eine unsichtbare Farbe bekommt.
+
+**Bewusste Nebenwirkung:** Die Trinkreife-Chips haben keinen Farbpunkt mehr. Die Abstufung „jetzt → später" trägt die Chip-Reihenfolge, den Wert die Beschriftung. Wer die Punkte zurück will, braucht eine eigene, nicht-kategoriale Kodierung — sonst kehrt die Kollision zurück.
+
+### F-01 — Vertrauenssignal: die Fehlalarme sind weg
+
+Ausgangspunkt war ein konkreter Fall: Mövenpicks „Mendoza 2021 Chardonnay Alta Angelica Zapata" war korrekt auf Vivino-ID `w/68864` gematcht und trotzdem als unsicher markiert. Ursache: Score 90.9 gegen die Schwelle 93.0, und das einzige nicht abgedeckte Wort war **`mendoza`** — die Region. Händlernamen tragen Region, Land, Farbe und Flaschengrösse mit, Vivino nennt nur den Wein.
+
+Für die Konfidenz zählt jetzt zusätzlich ein Vergleich, der nur die unterscheidenden Bestandteile ansieht ([matching.py](src/winecheck/matching.py)). Bewusst **nur die Konfidenz, nicht die Match-Entscheidung** — welcher Kandidat gewinnt, bleibt unverändert.
+
+Gemessen über die 75 im Lauf als unsicher gespeicherten Paare, alter gegen neuer Matcher:
+
+| Übergang | Anzahl |
+|---|---|
+| `fuzzy` → `exact` (Wirkung dieser Änderung) | **17** |
+| bleibt `fuzzy` (Produzent fehlt wirklich) | 27 |
+| war schon `none` (Vetos aus `926f611`) | 21 |
+| war schon `exact` / `wine_level` | 10 |
+| **Verschlechterungen (bestätigt → unsicher)** | **0** |
+
+Die Fuzzy-Quote unter den bewerteten Weinen sinkt damit von 39 % auf rund 15 %. Was zu Recht markiert bleibt: „Oeil de Perdrix Rosé" ohne „Caves des Coteaux", „Páramos" ohne „Legaris", „Bardolino Classico" ohne „Zeni" — überall fehlt der Produzent im Vivino-Namen. Die Begründung nennt jetzt das fehlende Wort, statt nur „ähnlich" zu sagen.
+
+**Zusatzsicherung:** Heisst ein Weingut nach einer Lage („Caves des Coteaux"), verschwindet der Produzent aus den Tokens — `caves` ist ein Betriebswort, `coteaux` kann als Appellation gelten. Über Vokabular allein ist das nicht trennbar. `_uncovered_producer_words()` prüft darum über `seq`, das die Betriebswörter behält. **Offen gesagt:** Am aktuellen Lauf ändert dieser Schutz nichts (0 Weine hängen an ihm), weil `coteaux` inzwischen nicht mehr als Region geführt wird und der Identitäts-Zweig den Fall schon fängt. Er ist eine Sicherung gegen das handgepflegte Vokabular, kein aktiv tragender Pfad — und als solcher direkt getestet.
+
+**Wichtig für die Wirkung:** Die Konfidenz wird beim `rate`-Lauf in den Cache geschrieben. Die ausgelieferte Seite zeigt die 17 bestätigten Treffer erst nach dem nächsten Rating-Durchgang.
+
 ### Noch offen — und ein Hinweis zur Commit-Nachricht
 
 Die Nachricht von `457c8df` nennt „vier Farbverwechslungen behoben". **F-05 ist im Code unverändert:** `_PALETTE` und `_MATURITY_COLOURS` teilen weiterhin dieselben Werte ([site.py:40–47](src/winecheck/report/site.py#L40)). Im neu erzeugten `docs/index.html` sind es weiterhin **genau vier Kollisionen** — sie sind durch den neuen Händler Aligro nur *umverteilt*, weil `_PALETTE` nach sortierter Händlerreihenfolge indexiert wird:

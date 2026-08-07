@@ -102,6 +102,17 @@ DISCRIMINATING = {
 #: Wein. Sie taugen aber nicht zur Unterscheidung von Erst- und Zweitwein — dafür sind
 #: DISCRIMINATING und die Fremd-Token-Regel im Matcher zuständig.
 REGION_HINTS = {
+    # Generische Bestandteile französischer Appellationen. "Côtes" steckt in Côtes du
+    # Rhône, du Roussillon, de Provence, de Bordeaux und dutzenden mehr — es sagt so
+    # wenig über den Wein wie "Tal". Es galt aber als unterscheidend und landete damit
+    # in der kurzen Suchabfrage: "cotes dentelles" liefert **null** Treffer, während
+    # "dentelles" den gesuchten Wein findet. Ein Wort machte den Unterschied zwischen
+    # Treffer und Fehlgriff.
+    # "coteaux" bleibt bewusst draussen: es ist zwar in "Coteaux du Layon" eine
+    # Appellation, in "Caves des Coteaux" aber der Produzentenname. Als Regionswort
+    # verlöre die Prüfung "Produzent fehlt in der Quelle" dort ihren Griff.
+    "cotes", "cote",
+
     "italia", "italien", "italy", "france", "frankreich", "spanien", "spain",
     "espana", "portugal", "deutschland", "germany", "osterreich", "austria",
     "schweiz", "suisse", "svizzera", "switzerland", "chile", "argentina",

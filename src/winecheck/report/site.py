@@ -26,6 +26,7 @@ from __future__ import annotations
 import html
 import json
 import math
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -37,14 +38,75 @@ from .formatting import chf, datetime_ch
 #: Reihenfolge der Trinkreife-Filter: von „jetzt" nach „später".
 MATURITY_FILTER_ORDER = ("*", "k", "m", "g", "-")
 
-_PALETTE = [
-    "#6b1030", "#1a4f8a", "#2e7d32", "#ef6c00", "#6a1b9a",
-    "#00838f", "#c62828", "#4e342e", "#37474f", "#9e9d24",
+#: Händlerfarben, hell und dunkel. Die Farbe ist im Diagramm das **einzige**
+#: Händlersignal — sie muss darum in beiden Farbschemata sichtbar und untereinander
+#: unterscheidbar sein. Beides war vorher nicht der Fall: vier Werte lagen im
+#: Dunkelmodus unter 3:1 gegen die Kartenfläche, und dieselben vier Werte standen
+#: gleichzeitig für eine Trinkreife (Grün hiess „Mövenpick" *und* „jetzt trinken").
+#:
+#: Die Trinkreife hat den Farbkanal darum abgegeben: ihre Farbe wurde an genau einer
+#: Stelle getragen — dem Punkt in ihrem eigenen Filter-Chip, direkt neben der
+#: Beschriftung, die dasselbe schon sagte. Damit steht das ganze Hue-Rad den
+#: Händlern zur Verfügung; der geringste Paarabstand der ersten acht Farben steigt
+#: von ΔE 30 auf 42, und jeder Wert erreicht >= 3:1 gegen seine Fläche.
+#:
+#: Reihenfolge = alphabetische Händlerliste. Die letzten zwei sind Reserve für neue
+#: Händler; ``_check_palette`` sichert die Zusage ab, damit ein neunter Händler nicht
+#: still eine unsichtbare Farbe bekommt.
+_SHOP_LIGHT = [
+    "#6b1030", "#2f9d2f", "#2525a7", "#258da7", "#a77a25",
+    "#283167", "#a72594", "#286741", "#a73f25", "#674428",
+]
+_SHOP_DARK = [
+    "#c41d58", "#2f9d2f", "#5454d9", "#258da7", "#a77a25",
+    "#4f5ebb", "#b4289f", "#2c7248", "#af4227", "#8c5c36",
 ]
 
-_MATURITY_COLOURS = {
-    "*": "#2e7d32", "k": "#00838f", "m": "#ef6c00", "g": "#1a4f8a", "-": "#8a8a8a",
-}
+#: Flächen, auf denen die Punkte und Chip-Punkte liegen — Bezug für den Kontrast.
+_PANEL_LIGHT, _PANEL_DARK = "#f8f4f5", "#1e181a"
+
+
+def _css_ident(key: str) -> str:
+    """Händlerschlüssel in einen CSS-taugliches Bezeichnerteil überführen."""
+    return re.sub(r"[^a-z0-9]+", "-", key.lower()).strip("-")
+
+
+def _relative_luminance(colour: str) -> float:
+    raw = colour.lstrip("#")
+    parts = [int(raw[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    linear = [v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4 for v in parts]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def contrast(a: str, b: str) -> float:
+    """Kontrastverhältnis zweier Farben nach WCAG."""
+    high, low = sorted((_relative_luminance(a), _relative_luminance(b)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+#: Nicht-Text-Kontrast für Flächen und Umrisse (WCAG 2.2 SC 1.4.11).
+MIN_UI_CONTRAST = 3.0
+
+
+def _check_palette() -> list[str]:
+    """Prüft die Zusage der Palette. Leere Liste heisst: alles gut.
+
+    Läuft im Test, nicht im Build — eine kaputte Farbe soll auffallen, bevor sie
+    ausgeliefert wird, aber den Seitenbau nicht anhalten.
+    """
+    problems = []
+    if len(_SHOP_LIGHT) != len(_SHOP_DARK):
+        problems.append("hell und dunkel haben unterschiedlich viele Farben")
+    for scheme, palette, panel in (
+        ("hell", _SHOP_LIGHT, _PANEL_LIGHT), ("dunkel", _SHOP_DARK, _PANEL_DARK),
+    ):
+        for colour in palette:
+            got = contrast(colour, panel)
+            if got < MIN_UI_CONTRAST:
+                problems.append(
+                    f"{colour} erreicht {scheme} nur {got:.2f}:1 gegen {panel}"
+                )
+    return problems
 
 
 def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
@@ -151,7 +213,19 @@ def build(
 
     info = retailer_info or {}
     retailers = sorted({r for run in runs for w in run["wines"] for r in w["retailers"]})
-    colour = {r: _PALETTE[i % len(_PALETTE)] for i, r in enumerate(retailers)}
+    # Die Farbe steht als CSS-Variable im Dokument, nicht als Hexwert in der JSON:
+    # nur so kann sie im Dunkelmodus einen anderen Wert haben. Der Name der Variable
+    # geht in die Payload, den Wert setzt das Stylesheet.
+    light = {r: _SHOP_LIGHT[i % len(_SHOP_LIGHT)] for i, r in enumerate(retailers)}
+    dark = {r: _SHOP_DARK[i % len(_SHOP_DARK)] for i, r in enumerate(retailers)}
+    var = {r: f"--shop-{_css_ident(r) or f'n{i}'}" for i, r in enumerate(retailers)}
+    colour_css = (
+        ":root {"
+        + "".join(f"{var[r]}:{light[r]};" for r in retailers)
+        + "}\n  @media (prefers-color-scheme: dark) { :root {"
+        + "".join(f"{var[r]}:{dark[r]};" for r in retailers)
+        + "} }"
+    )
     names = {r: (info.get(r) or {}).get("name") or r for r in retailers}
     channels = {r: (info.get(r) or {}).get("channel") or "" for r in retailers}
 
@@ -169,19 +243,22 @@ def build(
             for r in runs
         ],
         "retailers": [
-            {"key": r, "name": names[r], "colour": colour[r], "channel": channels[r]}
+            {"key": r, "name": names[r], "var": var[r], "channel": channels[r]}
             for r in retailers
         ],
         "styles": [{"key": s, "label": STYLE_LABELS[s]} for s in styles],
+        # Ohne Farbe: die Trinkreife hat den Farbkanal an die Händler abgegeben.
+        # Die Reihenfolge der Chips („jetzt" nach „später") trägt die Abstufung,
+        # die Beschriftung den Wert.
         "maturities": [
-            {"key": m, "label": MATURITY_SHORT[m], "text": MATURITY[m],
-             "colour": _MATURITY_COLOURS.get(m, "#5a5a5a")}
+            {"key": m, "label": MATURITY_SHORT[m], "text": MATURITY[m]}
             for m in maturities
         ],
         "generated": datetime_ch(),
     }
 
-    doc = _TEMPLATE.replace("__PAYLOAD__", json.dumps(payload, ensure_ascii=False))
+    doc = _TEMPLATE.replace("__COLOURCSS__", colour_css)
+    doc = doc.replace("__PAYLOAD__", json.dumps(payload, ensure_ascii=False))
     doc = doc.replace("__TITLE__", html.escape(title))
     doc = doc.replace("__SOURCE_NAME__", html.escape(SOURCE_NAME))
     doc = doc.replace("__SOURCE_PAGE__", html.escape(SOURCE_PAGE))
@@ -218,6 +295,8 @@ _TEMPLATE = r"""<!doctype html>
             --line-strong:#7b6f73; }
   }
   @media (pointer: coarse) { :root { --control-h:44px; } }
+  /* Händlerfarben, je Schema ein Wert — im Generator erzeugt. */
+  __COLOURCSS__
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   /* Ein Fokusstil für alles Bedienbare — vorher hing das Aussehen am Browser. */
   :focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
@@ -541,14 +620,15 @@ function chart(list) {
     g += `<line class="grid" x1="${L}" y1="${sy(v)}" x2="${L+pw}" y2="${sy(v)}"/>`
        + `<text class="tick" x="${L-7}" y="${sy(v)+4}" text-anchor="end">${v.toFixed(1)}</text>`;
   }
-  const shopColour = Object.fromEntries(D.retailers.map(r => [r.key, r.colour]));
-  // Unbestätigte Namensabgleiche werden hohl gezeichnet. Inline-style, weil die
-  // Regel .pt { stroke: ... } ein stroke-Attribut überstimmen würde.
+  const shopVar = Object.fromEntries(D.retailers.map(r => [r.key, r.var]));
+  // Unbestätigte Namensabgleiche werden hohl gezeichnet. Farbe immer per style, nie
+  // als Präsentationsattribut: fill="..." nimmt kein var(), und die Regel
+  // .pt { stroke: ... } würde ein stroke-Attribut überstimmen.
   const circles = pts.map((p, i) => {
-    const c = shopColour[p.cheapest] || "#6b1030";
+    const c = `var(${shopVar[p.cheapest] || "--brand"})`;
     const paint = p.fuzzy
       ? `style="fill:none;stroke:${c};stroke-width:1.8"`
-      : `fill="${c}"`;
+      : `style="fill:${c}"`;
     return `<circle class="pt" data-i="${i}" cx="${sx(p.price).toFixed(1)}"`
       + ` cy="${sy(p.rating).toFixed(1)}" r="6" ${paint}/>`;
   }).join("");
@@ -696,9 +776,10 @@ function buildFilters() {
 
   const toggle = (set, key) => () => set.has(key) ? set.delete(key) : set.add(key);
   const mat = document.getElementById("fMat"); mat.innerHTML = "";
+  // Kein Farbpunkt: die Beschriftung sagt dasselbe, und dieselbe Farbe stand vorher
+  // im Diagramm für einen Händler.
   D.maturities.forEach(m => mat.append(chip(
-    m.label, S.mat.has(m.key), toggle(S.mat, m.key),
-    `<span class="dot" style="background:${m.colour}"></span>`)));
+    m.label, S.mat.has(m.key), toggle(S.mat, m.key))));
   mat.append(chip("keine Angabe", S.mat.has("?"), toggle(S.mat, "?")));
 
   const st = document.getElementById("fStyle"); st.innerHTML = "";
@@ -707,7 +788,7 @@ function buildFilters() {
   const sh = document.getElementById("fShop"); sh.innerHTML = "";
   D.retailers.forEach(r => sh.append(chip(
     r.name, S.shop.has(r.key), toggle(S.shop, r.key),
-    `<span class="dot" style="background:${r.colour}"></span>`)));
+    `<span class="dot" style="background:var(${r.var})"></span>`)));
 }
 
 function render() {

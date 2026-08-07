@@ -14,10 +14,12 @@ und ``page=`` — Paginierung läuft deshalb über ``?p=``, Suchqueries gibt es 
 from __future__ import annotations
 
 import re
+import urllib.parse
 
 from selectolax.parser import HTMLParser, Node
 
 from ..models import Offer
+from ..names import PACKAGING_NOISE, PRODUCER_WORDS, tokenize
 from .base import RetailerAdapter, looks_like_wine, parse_price
 
 #: Mövenpick zeigt 24 Kacheln pro Seite; mehr als das holen wir pro Lauf nicht,
@@ -77,6 +79,11 @@ class MoevenpickAdapter(RetailerAdapter):
             return None
 
         vintage_match = _RE_VINTAGE_ATTR.search(f"{name} {attrs_text}")
+        # Produzent aus der Adresse anhängen — er fehlt im Namen und ist das Wort, das
+        # die Vivino-Suche trägt.
+        producer = producer_from_url(name, href)
+        if producer:
+            name = f"{name}, {producer}"
         return self.make_offer(
             name=name,
             url=href,
@@ -88,6 +95,46 @@ class MoevenpickAdapter(RetailerAdapter):
             critic_text=critic_text,
         )
 
+
+
+#: Wörter, die im URL-Slug neben dem Produzenten stehen und keiner sind.
+_SLUG_NOISE = frozenset({"bio", "set", "anniversary", "edition", "geschenk", "magnum",
+                         "doppelmagnum", "holzkiste", "originalholzkiste"})
+
+
+def producer_from_url(name: str, url: str) -> str:
+    """Produzent aus dem URL-Slug, den Mövenpick im Namen weglässt.
+
+    Mövenpick benennt seine Weine nach Herkunft und Lage — „Côtes du Roussillon
+    Villages AOC 2020 Les Dentelles" — und stellt den Produzenten nur in die Adresse:
+    ``…-aoc-domaine-thunevin-calvet.html``. Für Vivino ist genau das das wichtigste
+    Wort: die Suche sortiert nach Bewertung, nicht nach Namensähnlichkeit, und ohne
+    Produzent findet man den berühmtesten Wein der Appellation statt den gesuchten.
+    Bei „Les Dentelles" fand die Suche über den Weinnamen allein fünf fremde Weine,
+    die Suche über „Thunevin-Calvet" den richtigen.
+
+    Der Trick ist einfach: der Slug ist Name **plus** Produzent. Was im Slug steht und
+    im Namen fehlt, ist der Produzent.
+
+    Returns:
+        Leerstring, wenn nichts Belastbares übrig bleibt — dann bleibt der Name, wie
+        er ist. Geraten wird nicht.
+    """
+    if not url:
+        return ""
+    slug = urllib.parse.urlparse(url).path.rsplit("/", 1)[-1]
+    slug = re.sub(r"\.html?$", "", slug).replace("-", " ")
+    in_name = set(tokenize(name))
+    extra = [
+        t for t in tokenize(slug)
+        if t not in in_name
+        and t not in PRODUCER_WORDS      # "domaine", "chateau" — Betriebsform, kein Name
+        and t not in PACKAGING_NOISE
+        and t not in _SLUG_NOISE
+        and not t.isdigit()
+        and len(t) > 2
+    ]
+    return " ".join(extra[:3]).title()
 
 def _prices(tile: Node) -> tuple[float | None, float | None]:
     """Sonderpreis und regulären Preis auseinanderhalten.

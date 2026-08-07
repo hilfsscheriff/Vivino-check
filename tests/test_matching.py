@@ -388,3 +388,97 @@ def test_colour_from_text_reads_compound_words():
     assert colour_from_text("Chardonnay – Weisswein") == "weiss"
     assert colour_from_text("Gamay – Roséwein, Schweiz") == "rose"
     assert colour_from_text("Barolo DOCG") is None
+
+
+# ---------------------------------------- Beiwörter gegen Identitätsbestandteile
+
+#: Händlernamen tragen Region, Land, Farbe und Flaschengrösse mit, Vivino nennt nur
+#: den Wein. Diese Beiwörter drückten Score und Abdeckung und liessen damit richtige
+#: Treffer als „unbestätigt" durchgehen — bei 39 % der bewerteten Weine. Für die
+#: Konfidenz zählt darum zusätzlich der Vergleich nur der unterscheidenden Teile.
+@pytest.mark.parametrize("retailer,source,vintage", [
+    # Der Fall aus dem Auftrag: Vivino-ID stimmte, Markierung trotzdem „unsicher".
+    ("Mendoza 2021 Chardonnay Alta Angelica Zapata",
+     "Catena Zapata Angélica Zapata Chardonnay Alta 2021", 2021),
+    ("Rioja DOCa Crianza Bodegas Izadi (2022) – Rotwein, Spanien (0.75l)",
+     "Izadi Crianza 2022", 2022),
+    ("Valais AOC Cornalin Fleur du Rhône (2024) – Rotwein, Schweiz (0.75l)",
+     "Fleur du Rhône Cornalin 2024", 2024),
+    ("Ribera del Duero DO Protos Roble (2024) – Rotwein, Spanien (0.75l)",
+     "Protos Roble 2024", 2024),
+    ("Valais AOC Dôle des Monts Maison Gilliard (2023) – Rotwein, Schweiz",
+     "Maison Gilliard Dôle des Monts 2023", 2023),
+])
+def test_side_words_no_longer_make_a_correct_match_uncertain(retailer, source, vintage):
+    d = match_wine(retailer, source, retailer_vintage=vintage, source_vintage=vintage,
+                   source_has_vintage_rating=True)
+    assert d.matched, d.reason
+    assert d.confidence is not MatchConfidence.FUZZY, (
+        f"nur Region/Land/Farbe weichen ab, trotzdem unsicher: {d.reason}"
+    )
+
+
+@pytest.mark.parametrize("retailer,source,vintage,missing", [
+    # Vivino nennt den Produzenten nicht — dann bleibt es unsicher, auch wenn der
+    # Rest wörtlich passt. Genau diese Fälle soll die Markierung erwischen.
+    #
+    # „Caves des Coteaux" ist der harte Fall: ``caves`` ist ein Betriebswort und
+    # ``coteaux`` eine Appellation, nach den Tokens bleibt vom Produzenten nichts
+    # übrig. Erkannt wird er nur über die Betriebsphrase.
+    ("Neuchâtel AOC Oeil de Perdrix Rosé Caves des Coteaux (2025)",
+     "Oeil de Perdrix Rosé", 2025, "Coteaux"),
+    ("Ribera del Duero DO Pàramos Legaris (2022) – Rotwein, Spanien (0.75l)",
+     "Páramos", 2022, "Legaris"),
+])
+def test_missing_producer_stays_uncertain(retailer, source, vintage, missing):
+    d = match_wine(retailer, source, retailer_vintage=vintage, source_vintage=vintage,
+                   source_has_vintage_rating=True)
+    assert d.confidence is MatchConfidence.FUZZY, (
+        f"Produzent {missing!r} fehlt in der Quelle, Treffer trotzdem bestätigt: {d.reason}"
+    )
+    assert missing in d.reason, (
+        f"Die Begründung soll das fehlende Wort nennen, steht aber nicht drin: {d.reason}"
+    )
+
+
+def test_reason_names_the_missing_word():
+    """Ohne den fehlenden Bestandteil ist „ähnlich" nicht nachprüfbar."""
+    d = match_wine("Zeni Bardolino DOC Classico Superiore", "Bardolino Classico")
+    if d.confidence is MatchConfidence.FUZZY:
+        assert "nennt" in d.reason and "nicht" in d.reason
+
+
+def test_generic_source_entry_is_still_rejected():
+    """Die Lockerung darf generische Vivino-Einträge nicht durchlassen."""
+    for retailer, source in [
+        ("Rioja Imperial Cune Reserva DOCa (2020) – Rotwein, Spanien", "Rioja Reserva"),
+        ("Rueda DO Verdejo Marqués de Riscal 6x 75cl (2024)", "Verdejo"),
+        ("Malanser Steinadler Pinot Noir (2024) – Rotwein, Schweiz", "Pinot Noir"),
+    ]:
+        d = match_wine(retailer, source, source_has_vintage_rating=True)
+        assert d.confidence is MatchConfidence.NONE, (
+            f"generischer Eintrag {source!r} wurde angenommen: {d.reason}"
+        )
+
+
+def test_producer_phrase_guard_catches_a_winery_named_after_its_appellation():
+    """Direkt am Schutz, nicht am Gesamtergebnis.
+
+    „Caves des Coteaux": ``caves`` ist ein Betriebswort und fliegt beim
+    Tokenisieren; gilt ``coteaux`` als Appellation, bleibt vom Produzenten nichts
+    übrig und der Identitätsvergleich sieht ihn als vollständig gedeckt. Ob das
+    passiert, hängt am handgepflegten Vokabular — der Schutz greift unabhängig davon.
+    """
+    from winecheck.matching import _uncovered_producer_words, prepare
+    retailer = prepare("Neuchâtel AOC Oeil de Perdrix Rosé Caves des Coteaux (2025)")
+    assert _uncovered_producer_words(retailer, prepare("Oeil de Perdrix Rosé")), \
+        "ungedeckter Betriebsname wurde nicht erkannt"
+    # Nennt die Quelle den Betrieb, greift der Schutz nicht.
+    assert _uncovered_producer_words(
+        prepare("Rioja DOCa Crianza Bodegas Izadi (2022)"), prepare("Izadi Crianza 2022")
+    ) == []
+    # Ohne Betriebswort im Händlernamen ist nichts zu prüfen.
+    assert _uncovered_producer_words(
+        prepare("Mendoza 2021 Chardonnay Alta Angelica Zapata"),
+        prepare("Catena Zapata Angélica Zapata Chardonnay Alta 2021"),
+    ) == []

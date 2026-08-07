@@ -286,6 +286,42 @@ def _cuvee_before_producer_name_veto(retailer: _Prepared, source: _Prepared) -> 
     return None
 
 
+def _uncovered_producer_words(retailer: _Prepared, source: _Prepared) -> list[str]:
+    """Nennt die Quelle den Betrieb, den der Händlername angibt?
+
+    Heisst ein Weingut nach einer Lage — „Caves des Coteaux", „Cave de la Côte" —,
+    dann verschwindet es aus den Tokens: ``caves`` ist ein Betriebswort und fliegt
+    beim Tokenisieren, ``coteaux`` steht als Appellation in ``REGION_HINTS`` und gilt
+    darum nicht als unterscheidend. Über Vokabular allein ist so ein Produzent nicht
+    von der Lage zu trennen.
+
+    Darum hier über ``seq``, das die Betriebswörter behält: Trägt der Händlername ein
+    Betriebswort, muss mindestens eines der Wörter danach auch in der Quelle stehen.
+    Sonst bleibt der Treffer unsicher — „Oeil de Perdrix Rosé" ist eben nicht
+    „Oeil de Perdrix Rosé **von Caves des Coteaux**".
+
+    Rückgabe: die ungedeckten Wörter des Betriebsnamens. Leere Liste heisst „gedeckt"
+    — auch dann, wenn der Händlername gar kein Betriebswort trägt.
+    """
+    positions = [i for i, tok in enumerate(retailer.seq) if tok in PRODUCER_WORDS]
+    if not positions:
+        return []
+    known = set(source.seq) | source.token_set
+    missing: list[str] = []
+    for start in positions:
+        following = [
+            tok for tok in retailer.seq[start + 1:]
+            if tok not in PRODUCER_WORDS and len(tok) > 2
+        ]
+        # Nichts hinter dem Betriebswort ("… Weingut") lässt sich nicht prüfen.
+        if not following:
+            continue
+        if any(tok in known for tok in following):
+            return []
+        missing.extend(tok for tok in following if tok not in known)
+    return missing
+
+
 def _pretty(tokens: set[str]) -> str:
     return ", ".join(f"'{t.capitalize()}'" for t in sorted(tokens))
 
@@ -416,9 +452,43 @@ def match_wine(
         )
 
     # -- Konfidenz -----------------------------------------------------------
+    # Händlernamen tragen Region, Land, Farbe und Flaschengrösse mit: Mövenpick
+    # führt „Mendoza 2021 Chardonnay Alta Angelica Zapata", Coop „Rioja DOCa
+    # Crianza Bodegas Izadi (2022) – Rotwein, Spanien (0.75l)". Vivino nennt nur
+    # den Wein. Diese Beiwörter drückten Score und Abdeckung und liessen damit
+    # *richtige* Treffer als „unbestätigt" durchgehen — bei 39 % der bewerteten
+    # Weine. Für die Konfidenz zählt darum zusätzlich der Vergleich, der nur die
+    # unterscheidenden Bestandteile ansieht.
+    #
+    # Bewusst nur die Konfidenz, nicht die Match-Entscheidung: welcher Kandidat
+    # gewinnt, bleibt unverändert. Und ``identity_complete`` verlangt *jeden*
+    # unterscheidenden Bestandteil — fehlt der Produzent („Oeil de Perdrix Rosé"
+    # ohne „Caves des Coteaux", „Bardolino Classico" ohne „Zeni"), bleibt es fuzzy.
+    r_identity_tokens = [t for t in r.tokens if is_distinctive(t)]
+    s_identity_tokens = [t for t in s.tokens if is_distinctive(t)]
+    identity_complete = bool(r_identity_tokens) and not (
+        set(r_identity_tokens) - set(s_identity_tokens)
+    )
+    if r_identity_tokens and s_identity_tokens:
+        r_id_joined, s_id_joined = " ".join(r_identity_tokens), " ".join(s_identity_tokens)
+        identity_score = max(
+            fuzz.token_set_ratio(r_id_joined, s_id_joined),
+            fuzz.token_sort_ratio(r_id_joined, s_id_joined),
+        )
+    else:
+        identity_score = 0.0
+
+    whole_name_strong = score >= STRONG_SCORE and coverage >= STRONG_COVERAGE
+    # Die unterscheidenden Bestandteile stimmen vollständig und auch für sich
+    # genommen deutlich — Beiwörter dürfen das nicht mehr verhindern.
+    missing_producer = _uncovered_producer_words(r, s)
+    identity_strong = (
+        identity_complete
+        and identity_score >= STRONG_SCORE
+        and not missing_producer
+    )
     is_strong = (
-        score >= STRONG_SCORE
-        and coverage >= STRONG_COVERAGE
+        (whole_name_strong or identity_strong)
         and bool(strong_shared)
         and not tolerated_extras  # Zusatzwörter in der Quelle -> nie "sicher"
     )
@@ -437,10 +507,22 @@ def match_wine(
         )
     elif not is_strong:
         conf = MatchConfidence.FUZZY
-        reason = f"ähnlich (Score {score:.0f}, Abdeckung {coverage:.0%})"
+        base = f"ähnlich (Score {score:.0f}, Abdeckung {coverage:.0%})"
+        missing = set(r_identity_tokens) - set(s_identity_tokens)
+        if missing:
+            reason = f"{base}, Quelle nennt {_pretty(missing)} nicht"
+        elif missing_producer:
+            reason = f"{base}, Quelle nennt den Betrieb {_pretty(set(missing_producer))} nicht"
+        else:
+            reason = base
     elif vintage_match and source_has_vintage_rating:
         conf = MatchConfidence.EXACT
-        reason = f"Name und Jahrgang {r.vintage} bestätigt"
+        reason = (
+            f"Name und Jahrgang {r.vintage} bestätigt"
+            if whole_name_strong
+            else f"Jahrgang {r.vintage} und alle unterscheidenden Bestandteile "
+                 f"bestätigt (Beiwörter wie Region oder Farbe weichen ab)"
+        )
     elif vintage_match is False:
         conf = MatchConfidence.WINE_LEVEL
         reason = f"Wein bestätigt, Jahrgang weicht ab ({r.vintage} vs. {s.vintage})"

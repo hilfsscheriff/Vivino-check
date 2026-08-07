@@ -12,7 +12,15 @@ import re
 
 import pytest
 
-from winecheck.report.site import _wine_from_snapshot, build
+from winecheck.report.site import (
+    MIN_UI_CONTRAST,
+    _SHOP_DARK,
+    _SHOP_LIGHT,
+    _check_palette,
+    _wine_from_snapshot,
+    build,
+    contrast,
+)
 
 
 def _snapshot(**over):
@@ -213,6 +221,71 @@ def test_missing_market_price_marks_the_cell(doc):
     payload = _payload(text)
     wine = payload["runs"][0]["wines"][0]
     assert "b" not in wine, "bargain sollte fehlen, wenn kein Marktpreis vorliegt"
+
+
+# ------------------------------------------------------------------- Farben
+
+def test_palette_keeps_its_contrast_promise():
+    """Die Zusage, nicht die Auswahl: jede Händlerfarbe >= 3:1, hell und dunkel.
+
+    Sichert vor allem den Fall ab, dass jemand einen Händler ergänzt oder eine
+    Farbe austauscht — vorher lagen im Dunkelmodus vier Werte unter 3:1.
+    """
+    assert _check_palette() == []
+
+
+def test_shop_palette_has_a_value_per_scheme():
+    assert len(_SHOP_LIGHT) == len(_SHOP_DARK)
+    # Gleiche Farbe in beiden Schemata ist erlaubt, wenn sie beides schafft —
+    # aber die dunklen Flächen brauchen bei tiefen Tönen einen eigenen Wert.
+    assert _SHOP_LIGHT != _SHOP_DARK
+
+
+def test_maturity_no_longer_spends_colour(doc):
+    """Trinkreife hat den Farbkanal abgegeben — sonst heisst eine Farbe zweierlei."""
+    text = doc()
+    payload = _payload(text)
+    for m in payload["maturities"]:
+        assert "colour" not in m, "Trinkreife trägt wieder eine eigene Farbe"
+    assert 'id="fMat"' in text
+    # Der Chip-Punkt wird nur noch für Händler erzeugt.
+    assert text.count('class="dot" style="background:var(') == 1
+
+
+def test_shop_colour_travels_as_css_variable(doc):
+    """Als Hexwert in der JSON könnte die Farbe nicht auf das Schema reagieren."""
+    text = doc()
+    payload = _payload(text)
+    for r in payload["retailers"]:
+        assert r["var"].startswith("--shop-"), r
+        assert "colour" not in r, "Hexwert zurück in der Payload"
+    assert "--shop-moevenpick:" in text
+    assert "@media (prefers-color-scheme: dark) { :root {--shop-" in text
+
+
+def test_chart_paints_by_style_not_attribute(doc):
+    """``fill="var(--x)"`` funktioniert nicht — Präsentationsattribute nehmen kein var()."""
+    text = doc()
+    assert 'style="fill:${c}"' in text
+    assert 'fill="${c}"' not in text
+
+
+def test_no_colour_serves_two_meanings():
+    """Der Kern von F-05: keine Farbe steht in zwei Legenden.
+
+    Die Trinkreife hat keine Farben mehr, darum kann die Schnittmenge nur leer sein.
+    Der Test hält das fest, damit ein Rückbau auffällt.
+    """
+    import winecheck.report.site as site
+    assert not hasattr(site, "_MATURITY_COLOURS"), \
+        "Trinkreife-Palette ist zurück — dann bitte gegen _SHOP_* auf Kollisionen prüfen"
+
+
+def test_new_retailer_cannot_get_an_invisible_colour():
+    """Ein neunter Händler greift auf die Reserve zu, nicht auf Zufall."""
+    assert len(_SHOP_LIGHT) >= 10
+    for colour, panel in [(_SHOP_LIGHT[-1], "#f8f4f5"), (_SHOP_DARK[-1], "#1e181a")]:
+        assert contrast(colour, panel) >= MIN_UI_CONTRAST
 
 
 # ------------------------------------------------------------- Grundlagen

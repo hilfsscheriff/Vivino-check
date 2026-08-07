@@ -275,6 +275,39 @@ Mövenpick führt einen Wein als „Mendoza 2021 Chardonnay Alta Angelica Zapata
 suchte — dem Namen, unter dem das Weingut bekannt ist — fand nichts, obwohl der Wein
 korrekt zugeordnet war. Die Suche deckt jetzt auch den gefundenen Namen und die Sorte ab.
 
+### Der Produzent steht bei Mövenpick in der Adresse
+
+Mövenpick benennt Weine nach Herkunft und Lage — „Côtes du Roussillon Villages AOC 2020
+Les Dentelles" — und stellt den Produzenten nur in die URL:
+`…-aoc-domaine-thunevin-calvet.html`. Für Vivino ist das das wichtigste Wort, weil die
+Suche nach Bewertung sortiert und ohne Produzent den berühmtesten Wein der Appellation
+liefert.
+
+Der Slug ist Name **plus** Produzent. Was im Slug steht und im Namen fehlt, ist der
+Produzent — Viña Errázuriz, Delas, Pol Roger, Poggio Tesoro, Scheiblhofer. Verpackungs-
+und Werbewörter („anniversary set 2x", „bio") fliegen raus; bleibt nichts Belastbares,
+wird der Name nicht angefasst.
+
+**Ergebnis: exakte Treffer von 99 auf 121, bewertete Weine von 221 auf 241 (35 % → 39 %).**
+
+Dazu ist `Côtes` jetzt ein Regionswort. Es steckt in Côtes du Rhône, du Roussillon, de
+Provence und dutzenden mehr und sagt so wenig über den Wein wie „Tal" — es galt aber als
+unterscheidend und landete in der kurzen Abfrage: `cotes dentelles` liefert **null**
+Treffer, `dentelles` findet Weine. `Coteaux` bleibt bewusst draussen: in „Coteaux du
+Layon" ist es eine Appellation, in „Caves des Coteaux" der Produzentenname, und als
+Regionswort verlöre die Prüfung „Produzent fehlt in der Quelle" dort ihren Griff.
+
+### Wo auch die beste Abfrage nicht hilft
+
+„Thunevin-Calvet Les Dentelles" hat eine Vivino-Seite mit Bewertung, steht aber in
+**keinem** Ergebnis des `explore`-Endpunkts: die Abfrage nach dem Produzenten liefert
+alle vierzehn Weine des Hauses, dieser ist nicht dabei — auch ohne Typfilter nicht. Die
+HTML-Suche leitet auf denselben Index um, es gibt also keinen zweiten Weg.
+
+Der Wein ist nur unter seiner direkten Adresse erreichbar. `no_entry` mit Suchlink ist
+hier die richtige Antwort, und das ist der Grund, warum die Vivino-Spalte immer eine
+klickbare URL trägt: was das Werkzeug nicht findet, findet der Mensch in zehn Sekunden.
+
 ## Trinkreife
 
 **Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232
@@ -636,7 +669,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-335 Tests: 328 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+355 Tests: 348 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die
