@@ -192,7 +192,7 @@ def test_chart_legend_explains_its_encodings(doc):
     text = doc()
     legend = text.split('class="legend"', 1)[1].split("</p>", 1)[0]
     for begriff in ("üblich für den Preis", "gut und günstig", "ausserhalb der Regel",
-                    "Abweichung in Notenpunkten"):
+                    "je Punkt ein Wein"):
         assert begriff in legend, begriff
 
 
@@ -470,12 +470,19 @@ def test_zone_names_its_rule_and_count(doc):
     assert "${imFeld.length} von ${pts.length} Weinen" in text
 
 
-def test_chart_draws_vectors_from_the_trend_line(doc):
-    """Der Abstand zur Linie ist die Grösse, nach der sortiert wird — er wird gezeichnet."""
+def test_chart_shows_the_trend_line_without_vectors(doc):
+    """Die Trendlinie bleibt, die Striche zu ihr sind weg — bei 174 Weinen zogen sie
+    das markierte Feld zu. Die Abweichung steht als Zahl in der Tabelle."""
     text = doc()
-    assert 'class="vec' in text
+    assert 'class="trend"' in text
     assert "const erwartet = v => fit" in text
     assert "const fit = (() => {" in text
+    assert 'class="vec' not in text, "Striche zur Trendlinie sind zurück"
+    # Die Bildunterschrift darf sie dann auch nicht mehr erklären.
+    note = text.split('class="chartnote"', 1)[1].split("</p>", 1)[0]
+    assert "Vektor" not in note
+    legend = text.split('class="legend"', 1)[1].split("</p>", 1)[0]
+    assert "Länge" not in legend
 
 
 def test_typography_uses_the_label_faces(doc):

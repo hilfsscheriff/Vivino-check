@@ -504,12 +504,15 @@ _TEMPLATE = r"""<!doctype html>
   /* Die Trendlinie muss so aussehen wie ihr Symbol in der Legende — sonst sagen
      Diagramm und Legende Unterschiedliches. */
   .trend { stroke:var(--muted); stroke-width:1.1; opacity:.55; }
-  .vec { stroke:var(--muted); stroke-width:1; opacity:.5; }
-  .vec.good { stroke:var(--gold); stroke-width:1.5; opacity:.95; }
+  /* Der Trefferkreis liegt unsichtbar vor dem Punkt und nimmt die Ereignisse.
+     pointer-events:all trifft auch ohne Füllung. */
+  .hit { fill:transparent; stroke:none; pointer-events:all; cursor:pointer; }
   .pt { fill:none; stroke:var(--muted); stroke-width:1.1; opacity:.55;
-        cursor:pointer; }
+        pointer-events:none; }
   .pt.good { fill:var(--gold); stroke:var(--gold); opacity:.95; }
-  .pt:hover, .pt:focus-visible { stroke:var(--ink); stroke-width:1.8; opacity:1; }
+  /* Der sichtbare Punkt reagiert über seinen Trefferkreis — er ist dessen
+     unmittelbarer Nachbar. */
+  .hit:hover + .pt { stroke:var(--ink); stroke-width:1.8; opacity:1; }
   .zone { fill:var(--gold); fill-opacity:.14; }
   .zone-edge { fill:none; stroke:var(--gold); stroke-width:1.3; stroke-dasharray:5 3; }
   .zone-t { fill:var(--goldtx); font-family:var(--sans); font-size:9.5px;
@@ -686,21 +689,19 @@ _TEMPLATE = r"""<!doctype html>
 
   <div class="card chart">
     <h2>Vivino-Bewertung gegen Preis</h2>
-    <p class="chartnote">Die Linie ist die Note, die für diesen Preis üblich ist. Jeder
-       Vektor zeigt, wie weit ein Wein davon abweicht — nach oben mehr Note fürs Geld,
-       nach unten weniger. Getrennt davon markiert ist die feste Regel für
+    <p class="chartnote">Die Linie ist die Note, die für diesen Preis üblich ist. Wer
+       darüber liegt, gibt weniger für dieselbe Note — wie viel genau, steht in der
+       Spalte <b>Preis-Leistung</b>. Getrennt davon markiert ist die feste Regel für
        <b>gut und günstig</b>: ab Note 4.2 und bis CHF 20.</p>
     <p class="legend">
       <span><svg width="26" height="12" aria-hidden="true"><line x1="1" y1="6" x2="25" y2="6"
         stroke="var(--muted)" stroke-width="1.1" opacity=".55"/></svg> üblich für den Preis</span>
-      <span><svg width="16" height="20" aria-hidden="true"><line x1="8" y1="17" x2="8" y2="6"
-        stroke="var(--gold)" stroke-width="1.5"/><circle cx="8" cy="5" r="4"
+      <span><svg width="14" height="12" aria-hidden="true"><circle cx="7" cy="6" r="4"
         fill="var(--gold)"/></svg> gut und günstig</span>
-      <span><svg width="16" height="20" aria-hidden="true"><line x1="8" y1="3" x2="8" y2="14"
-        stroke="var(--muted)" stroke-width="1" opacity=".5"/><circle cx="8" cy="15" r="4"
+      <span><svg width="14" height="12" aria-hidden="true"><circle cx="7" cy="6" r="4"
         fill="none" stroke="var(--muted)" stroke-width="1.1" opacity=".55"/></svg>
         ausserhalb der Regel</span>
-      <span>Länge = Abweichung in Notenpunkten</span></p>
+      <span>je Punkt ein Wein</span></p>
     <div id="chart"></div>
   </div>
 
@@ -892,16 +893,20 @@ function chart(list) {
       + ` x2="${sx(Math.pow(10, x1)).toFixed(1)}" y2="${sy(erwartet(Math.pow(10, x1))).toFixed(1)}"/>`
     : "";
 
-  /* Je Wein ein Vektor von der Trendlinie zu seinem Punkt: Richtung = mehr oder
-     weniger Note fürs Geld, Länge = wie viel. Der Punkt sitzt an der Spitze. Weine im
-     markierten Feld sind gefüllt und golden, alle anderen hohl und leise — die
-     Kennung hängt damit nicht an der Farbe allein, das Feld ist beschriftet. */
+  /* Nur der Punkt. Die Striche zur Trendlinie standen bei 174 Weinen so dicht, dass
+     sie das Feld zugezogen haben — die Abweichung liest man am Abstand zur Linie
+     ohnehin ab, und als Zahl steht sie in der Tabelle. Weine im markierten Feld sind
+     gefüllt und golden, alle anderen hohl und leise; die Kennung hängt nicht an der
+     Farbe allein, das Feld ist beschriftet. */
   const circles = pts.map((p, i) => {
-    const x = sx(p.price).toFixed(1), yP = sy(p.rating).toFixed(1);
-    const yE = fit ? sy(erwartet(p.price)).toFixed(1) : yP;
     const cls = gut(p) ? " good" : "";
-    return `<line class="vec${cls}" x1="${x}" y1="${yE}" x2="${x}" y2="${yP}"/>`
-      + `<circle class="pt${cls}" data-i="${i}" cx="${x}" cy="${yP}" r="4"/>`;
+    const x = sx(p.price).toFixed(1), y = sy(p.rating).toFixed(1);
+    /* Ein unsichtbarer Trefferkreis vor jedem Punkt. Zwei Gründe: hohle Punkte haben
+       `fill:none`, und damit ist ihre Fläche in SVG nicht anklickbar — es reagierte
+       nur die 1 px dünne Kontur. Und mit r=10 ist das Ziel auch mit dem Finger
+       oder einer unruhigen Hand erreichbar. */
+    return `<circle class="hit" data-i="${i}" cx="${x}" cy="${y}" r="10"/>`
+      + `<circle class="pt${cls}" cx="${x}" cy="${y}" r="4"/>`;
   }).join("");
 
   /* Benannt werden die Weine, die die Regel erfüllen — sie sind der Punkt der
@@ -916,7 +921,7 @@ function chart(list) {
   }).join("");
 
   box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img"
-      aria-label="Vivino-Note gegen Preis, ${pts.length} Weine. Eine Trendlinie zeigt die Note, die für diesen Preis üblich ist; je Wein zeigt ein Vektor die Abweichung davon. Markiert ist der Bereich ab Note ${gRating.toFixed(1)} bis CHF ${gPrice.toFixed(0)}: ${imFeld.length} von ${pts.length} Weinen.">
+      aria-label="Vivino-Note gegen Preis, ${pts.length} Weine. Eine Trendlinie zeigt die Note, die für diesen Preis üblich ist. Markiert ist der Bereich ab Note ${gRating.toFixed(1)} bis CHF ${gPrice.toFixed(0)}: ${imFeld.length} von ${pts.length} Weinen.">
     ${zone}${g}
     <line class="axis" x1="${L}" y1="${T+ph}" x2="${L}" y2="${T}"/>
     <line class="axis" x1="${L}" y1="${T+ph}" x2="${L+pw}" y2="${T+ph}"/>
@@ -974,7 +979,9 @@ function chart(list) {
     if (y + h > innerHeight - 8) y = ev.clientY - h - m;
     tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
   };
-  host.addEventListener("mouseover", e => { if (e.target.classList.contains("pt")) show(e.target, e); });
+  /* Über data-i statt über die Klasse: so greift es am Trefferkreis wie am Punkt. */
+  const treffer = e => e.target.closest && e.target.closest("[data-i]");
+  host.addEventListener("mouseover", e => { const el = treffer(e); if (el) show(el, e); });
   host.addEventListener("mousemove", e => { if (tip.classList.contains("on")) place(e); });
   host.addEventListener("mouseout", () => tip.classList.remove("on"));
   /* Auf Touch gibt es kein Hover. Zwischen 721 und 900 px ist das Diagramm sichtbar
@@ -982,12 +989,12 @@ function chart(list) {
      Erstes Antippen zeigt den Wein, zweites Antippen öffnet ihn. */
   let armed = null;
   host.addEventListener("click", e => {
-    if (!e.target.classList.contains("pt")) return;
-    const p = pts[+e.target.dataset.i];
+    const el = treffer(e); if (!el) return;
+    const p = pts[+el.dataset.i];
     const touch = !matchMedia("(hover: hover)").matches;
-    if (touch && armed !== e.target) {
-      armed = e.target;
-      show(e.target, e.touches ? e.touches[0] : e);
+    if (touch && armed !== el) {
+      armed = el;
+      show(el, e.touches ? e.touches[0] : e);
       return;
     }
     armed = null;
@@ -996,7 +1003,7 @@ function chart(list) {
   });
   // Tippen daneben schliesst den Tooltip wieder.
   addEventListener("pointerdown", e => {
-    if (!e.target.classList || !e.target.classList.contains("pt")) {
+    if (!treffer(e)) {
       armed = null; tip.classList.remove("on");
     }
   }, { passive: true });
