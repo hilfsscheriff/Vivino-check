@@ -55,6 +55,14 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
     """
     urls = d.get("urls") or {}
     cheapest = d.get("cheapest_retailer") or ""
+    style = d.get("style") or ""
+    # Ein Pill "unbekannt" kostet dieselbe Aufmerksamkeit wie "jetzt trinken" und
+    # sagt nichts. Nur die Anzeige entfällt: ``style`` bleibt gesetzt, damit der
+    # Filter-Chip "unbekannt" weiter greift — dessen Beschriftung kommt aus
+    # STYLE_LABELS, nicht von hier.
+    style_label = "" if style == "unbekannt" else (
+        d.get("style_label") or STYLE_LABELS.get(style, "")
+    )
     return {
         "key": d.get("dedup_key") or d.get("name") or "",
         "name": d.get("name") or "",
@@ -83,8 +91,8 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
         "url": urls.get(cheapest) or next(iter(urls.values()), ""),
         "market": d.get("market_price"),
         "bargain": d.get("bargain_percent"),
-        "style": d.get("style") or "",
-        "styleLabel": d.get("style_label") or STYLE_LABELS.get(d.get("style") or "", ""),
+        "style": style,
+        "styleLabel": style_label,
         "maturity": d.get("maturity") or "",
         "maturityShort": d.get("maturity_short") or "",
         "maturityRegion": d.get("maturity_region") or "",
@@ -194,12 +202,25 @@ _TEMPLATE = r"""<!doctype html>
   :root {
     --ink:#241f20; --muted:#5f5658; --line:#e2dadd; --brand:#6b1030;
     --bg:#fffdfd; --panel:#f8f4f5; --chip:#efe8ea; --accent:#6b1030;
+    /* Zwei Linienstärken nach Zweck: --line trennt (Tabellenzeilen, Kartenrand)
+       und darf leise sein, --line-strong umrandet Bedienelemente und muss sich
+       vom Hintergrund abheben — sonst liest sich ein Chip als Beschriftung
+       statt als Schalter. Gemessen >= 3:1 gegen Seitenhintergrund, Karte und
+       Chipfläche — der jeweils hellste Wert, der das noch schafft. */
+    --line-strong:#918085;
+    /* Mindesthöhe für Bedienelemente. Auf Zeigergeräten kompakt, auf Touch
+       44 px — dort entscheidet die Treffgenauigkeit, hier die Dichte. */
+    --control-h:36px;
   }
   @media (prefers-color-scheme: dark) {
     :root { --ink:#eee8ea; --muted:#a89fa2; --line:#393134; --brand:#eaa6bd;
-            --bg:#151113; --panel:#1e181a; --chip:#2a2225; --accent:#eaa6bd; }
+            --bg:#151113; --panel:#1e181a; --chip:#2a2225; --accent:#eaa6bd;
+            --line-strong:#7b6f73; }
   }
+  @media (pointer: coarse) { :root { --control-h:44px; } }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  /* Ein Fokusstil für alles Bedienbare — vorher hing das Aussehen am Browser. */
+  :focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
   html { -webkit-text-size-adjust:100%; }
   body { margin:0; background:var(--bg); color:var(--ink);
          font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -211,15 +232,16 @@ _TEMPLATE = r"""<!doctype html>
   .search { position:sticky; top:0; z-index:5; background:var(--bg);
             padding:8px 0 10px; margin-bottom:2px; }
   .search input { width:100%; font-size:1rem; padding:11px 13px; border-radius:11px;
-                  border:1px solid var(--line); background:var(--panel); color:var(--ink); }
+                  border:1px solid var(--line-strong); background:var(--panel); color:var(--ink); }
   .search input::placeholder { color:var(--muted); }
   fieldset { border:0; margin:0 0 10px; padding:0; }
   legend { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
            color:var(--muted); margin-bottom:5px; padding:0; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; }
-  .chip { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line);
+  .chip { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line-strong);
           background:var(--chip); color:inherit; font:inherit; font-size:.8rem;
-          padding:7px 11px; border-radius:999px; cursor:pointer; min-height:36px; }
+          padding:7px 11px; border-radius:999px; cursor:pointer;
+          min-height:var(--control-h); }
   .chip[aria-pressed="true"] { background:var(--accent); color:var(--bg);
                                border-color:var(--accent); font-weight:600; }
   .chip .dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
@@ -231,7 +253,8 @@ _TEMPLATE = r"""<!doctype html>
   .count { font-size:.85rem; color:var(--muted); }
   .count b { color:var(--ink); }
   .reset { background:none; border:0; color:var(--brand); font:inherit;
-           font-size:.82rem; cursor:pointer; padding:6px 0; text-decoration:underline; }
+           font-size:.82rem; cursor:pointer; padding:6px 0; text-decoration:underline;
+           min-height:var(--control-h); }
   /* ---- Diagramm ---- */
   .card { border:1px solid var(--line); border-radius:14px; background:var(--panel);
           padding:12px; margin-bottom:16px; }
@@ -267,15 +290,22 @@ _TEMPLATE = r"""<!doctype html>
   .filters .fine { border-top:1px solid var(--line); padding-top:11px; margin-top:13px; }
   .controls { display:flex; flex-wrap:wrap; gap:9px 14px; align-items:center;
               font-size:.82rem; color:var(--muted); }
-  .controls label { display:flex; gap:6px; align-items:center; white-space:nowrap; }
+  .controls label { display:flex; gap:6px; align-items:center; white-space:nowrap;
+                    min-height:var(--control-h); }
   .controls select { font:inherit; color:var(--ink); background:var(--bg);
-                     border:1px solid var(--line); border-radius:8px; padding:5px 7px;
-                     max-width:100%; }
-  .controls select:focus-visible, .chip:focus-visible, .reset:focus-visible
-    { outline:2px solid var(--brand); outline-offset:2px; }
+                     border:1px solid var(--line-strong); border-radius:8px;
+                     padding:5px 7px; max-width:100%; min-height:var(--control-h); }
   .controls .cb { cursor:pointer; }
-  .controls input[type=checkbox] { accent-color:var(--brand); width:15px; height:15px; }
+  .controls input[type=checkbox] { accent-color:var(--brand); width:20px; height:20px;
+                                   flex:0 0 auto; }
   .colhint { font-size:.74rem; color:var(--muted); margin:0 0 10px; }
+  /* Farbe und Füllung sind die beiden Kodierungen im Diagramm. Ohne diese Zeile
+     ist die Händlerfarbe nur über die Filter-Chips zu erraten und der hohle
+     Kreis gar nicht zu deuten. Anders als .colhint auch unter 767 px sichtbar:
+     das Diagramm selbst verschwindet erst bei 720 px. */
+  .legend { font-size:.74rem; color:var(--muted); margin:0 0 8px; }
+  .legend .ring { display:inline-block; width:9px; height:9px; border-radius:50%;
+                  border:1.8px solid var(--muted); vertical-align:baseline; }
   /* Auf dem Handy ist thead ausgeblendet — dort ist der Hinweis schlicht falsch. */
   @media (max-width: 767px) {
     .colhint { display:none; }
@@ -295,6 +325,10 @@ _TEMPLATE = r"""<!doctype html>
     tr { display:block; border-bottom:1px solid var(--line); padding:10px 2px; }
     td { display:block; border:0; padding:2px 0; }
     td[data-l]::before { content:attr(data-l) " "; color:var(--muted); font-size:.74rem; }
+    /* In der Tabelle hält ein "—" die Spalte ausgerichtet. In der Kartenansicht
+       gibt es keine Spalte mehr — dort ist es nur eine Zeile ohne Inhalt, und
+       beim Marktpreis betrifft das die Mehrheit der Weine. */
+    td.noval { display:none; }
     .chart { display:none; }
   }
   #tip { position:fixed; z-index:20; pointer-events:none; opacity:0; transition:opacity .1s;
@@ -321,8 +355,9 @@ _TEMPLATE = r"""<!doctype html>
            aria-label="Weine durchsuchen">
   </div>
 
+  <main>
   <div class="card filters">
-    <fieldset><legend>Lauf</legend><div class="chips" id="fRun"></div></fieldset>
+    <fieldset id="runBox"><legend>Lauf</legend><div class="chips" id="fRun"></div></fieldset>
     <fieldset><legend>Trinkreife</legend><div class="chips" id="fMat"></div></fieldset>
     <fieldset><legend>Sorte</legend><div class="chips" id="fStyle"></div></fieldset>
     <fieldset><legend>Händler</legend><div class="chips" id="fShop"></div></fieldset>
@@ -365,13 +400,15 @@ _TEMPLATE = r"""<!doctype html>
     </fieldset>
 
     <div class="bar">
-      <span class="count" id="count"></span>
+      <span class="count" id="count" aria-live="polite"></span>
       <button class="reset" id="reset" type="button">Filter zurücksetzen</button>
     </div>
   </div>
 
   <div class="card chart">
     <h2>Vivino-Bewertung gegen Preis</h2>
+    <p class="legend">Farbe = Händler · <span class="ring"></span> hohler Kreis =
+       Vivino-Treffer unsicher, die Note kann zu einem anderen Wein gehören</p>
     <div id="chart"></div>
   </div>
 
@@ -380,6 +417,7 @@ _TEMPLATE = r"""<!doctype html>
     <p class="colhint">Spaltentitel antippen sortiert · nochmal antippen kehrt um</p>
     <div id="table"></div>
   </div>
+  </main>
 
   <footer>
     <p><b>Bewertungen</b> von <a href="https://www.vivino.com" target="_blank" rel="noopener">Vivino</a>.
@@ -396,7 +434,10 @@ _TEMPLATE = r"""<!doctype html>
        einmal geladen ist.</p>
   </footer>
 </div>
-<div id="tip" role="tooltip"></div>
+<!-- Kein role="tooltip": der Kasten hängt an keinem aria-describedby und wäre für
+     assistive Technik ein Versprechen ohne Beziehung. Die Tabelle ist die
+     zugängliche Entsprechung zum Diagramm. -->
+<div id="tip"></div>
 
 <script>
 const D = __PAYLOAD__;
@@ -425,6 +466,11 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const chf = v => v == null ? "" : "CHF " + Number(v).toFixed(2)
   .replace(/\B(?=(\d{3})+(?!\d))/, "'");
+/* Die Händlernamen tragen den Jahrgang meist schon in sich ("Pomerol AOC 2007
+   Château Lafleur"). Ihn dann noch anzuhängen, druckt ihn zweimal — bei den
+   allermeisten Weinen. Nur anhängen, wenn er im Namen fehlt. */
+const vintageSuffix = w => (w.vintage && !String(w.name).includes(String(w.vintage)))
+  ? " " + w.vintage : "";
 
 function currentRun() { return D.runs.find(r => r.id === S.run) || D.runs[0]; }
 
@@ -452,10 +498,17 @@ function visible() {
 function chart(list) {
   const pts = list.filter(w => w.rating != null && w.price > 0);
   const box = document.getElementById("chart");
+  const card = document.querySelector(".chart");
+  // Passt kein Wein zur Auswahl, hat das Diagramm nichts zu sagen — dann ganz weg.
+  // Vorher stand hier "Die Tabelle zeigt alle", während die Tabelle leer war.
+  // Der Leerzustand gehört an eine Stelle, nicht an zwei widersprechende.
+  card.hidden = list.length === 0;
+  if (list.length === 0) return;
   if (pts.length < 2) {
     box.innerHTML = '<p class="empty">' +
       (pts.length ? "Nur ein Wein mit Vivino-Note — siehe Tabelle."
-                  : "Kein Wein mit Vivino-Note in dieser Auswahl. Die Tabelle zeigt alle.") +
+                  : "Kein Wein dieser Auswahl hat eine Vivino-Note. Die Tabelle "
+                    + "zeigt sie trotzdem, mit Preis und Händler.") +
       "</p>";
     return;
   }
@@ -505,7 +558,7 @@ function chart(list) {
   const show = (el, ev) => {
     const p = pts[+el.dataset.i]; if (!p) return;
     const row = (k, v) => `<div class="r"><span class="k">${k}</span><span>${v}</span></div>`;
-    let h = `<span class="n">${esc(p.name)}${p.vintage ? " " + p.vintage : ""}</span>`;
+    let h = `<span class="n">${esc(p.name)}${vintageSuffix(p)}</span>`;
     h += row("Vivino", p.rating.toFixed(1) + "/5" + (p.ratingCount ? ` (${p.ratingCount})` : ""));
     if (p.fuzzy) h += row("Achtung", `<span class="warn">Namensabgleich unbestätigt`
       + (p.matchedName ? ` — gefunden: „${esc(p.matchedName)}"` : "") + `</span>`);
@@ -577,15 +630,16 @@ function table(list) {
         + Math.abs(w.bargain).toFixed(0) + "%</span>";
     const shop = w.url ? `<a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(shopName(w.cheapest))}</a>`
                        : esc(shopName(w.cheapest));
+    const vs = vintageSuffix(w);
     return `<tr>
       <td data-l="Wein"><span class="wine">${esc(w.name)}</span>
-        ${w.vintage ? `<span class="meta"> ${w.vintage}</span>` : ""}
+        ${vs ? `<span class="meta">${vs}</span>` : ""}
         ${w.styleLabel ? `<br><span class="pill">${esc(w.styleLabel)}</span>` : ""}
         ${w.maturityShort ? ` <span class="pill">${esc(w.maturityShort)}</span>` : ""}</td>
       <td data-l="Vivino">${vivino}</td>
       <td data-l="Preis/75cl" class="num">${chf(w.price)}</td>
       <td data-l="Wo kaufen">${shop}</td>
-      <td data-l="gegen Markt" class="num">${bargain}</td>
+      <td data-l="gegen Markt" class="num${w.bargain == null ? " noval" : ""}">${bargain}</td>
     </tr>`;
   }).join("");
   const COLS = [
@@ -623,6 +677,10 @@ function chip(label, pressed, onClick, extra = "") {
 
 function buildFilters() {
   const run = document.getElementById("fRun"); run.innerHTML = "";
+  // Ein einzelner Lauf ist keine Wahl. Die Gruppe kostet sonst Legende plus
+  // Chipzeile auf dem knappsten Platz der Seite — dem ersten Handy-Bildschirm.
+  // Das Datum steht ohnehin schon in der Stand-Zeile darüber.
+  document.getElementById("runBox").hidden = D.runs.length < 2;
   D.runs.forEach(r => run.append(chip(
     r.label, S.run === r.id, () => { S.run = r.id; },
     `<span class="n">${r.wines.length}</span>&nbsp;`)));
@@ -647,8 +705,13 @@ function render() {
   buildFilters();
   const list = visible(), total = currentRun().wines.length;
   const rated = list.filter(w => w.rating != null).length;
+  // Der Marktpreis fehlt bei der Mehrheit der Weine. Wer nach Ersparnis sortiert,
+  // soll wissen, wie viele Weine dazu überhaupt eine Angabe haben — sonst liest
+  // sich die Spalte voller "—" wie ein Fehler statt wie eine Lücke in den Daten.
+  const priced = list.filter(w => w.bargain != null).length;
   document.getElementById("count").innerHTML =
-    `<b>${list.length}</b> von ${total} Weinen · ${rated} mit Vivino-Note`;
+    `<b>${list.length}</b> von ${total} Weinen · ${rated} mit Vivino-Note`
+    + ` · ${priced} mit Marktpreis`;
   document.getElementById("tblTitle").textContent =
     list.length === total ? "Alle Weine" : "Gefilterte Weine";
   chart(list); table(list);
