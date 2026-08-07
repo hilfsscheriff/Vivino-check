@@ -23,7 +23,7 @@ from .models import (
     VivinoStatus,
     WineRow,
 )
-from .names import distinctive_tokens, dedup_key, normalized_name
+from .names import dedup_key, distinctive_tokens, normalized_name, tokenize
 from .prices import PRICE_BANDS, price_band
 
 
@@ -184,8 +184,13 @@ def resolve_shared_ratings(rows: list[WineRow]) -> list[WineRow]:
     for gruppe in nach_wein.values():
         if len(gruppe) < 2:
             continue
-        # Gleiche unterscheidende Wörter = derselbe Wein in anderem Jahrgang.
-        signaturen = {frozenset(distinctive_tokens(r.name)) for r in gruppe}
+        # Verglichen wird über **alle** Identitätswörter, nicht nur die
+        # unterscheidenden. Der Jahrgang ist ohnehin schon heraus, „Legaris Crianza"
+        # 2020/2021/2022 ergeben also dieselbe Menge. Qualitätsstufen dagegen müssen
+        # zählen: „Porte de Novembre" und „Porte de Novembre **Ice**" sind zwei Weine,
+        # und weil „Ice" als Süssweinmerkmal gilt, fiele es aus den unterscheidenden
+        # Wörtern heraus — die drei Zeilen sähen identisch aus und blieben alle stehen.
+        signaturen = {frozenset(tokenize(r.name)) for r in gruppe}
         if len(signaturen) < 2:
             continue
 

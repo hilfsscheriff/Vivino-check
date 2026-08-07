@@ -559,3 +559,30 @@ def test_a_missing_producer_still_caps_the_confidence():
         retailer_vintage=2025, source_vintage=2025, source_has_vintage_rating=True,
     )
     assert d.confidence is MatchConfidence.FUZZY, d.reason
+
+
+@pytest.mark.parametrize("retailer,source,marker", [
+    ("Navarra DO Chivite Coleccion 125 (2017) – Rotwein, Spanien",
+     "Chivite Navarra Vendimia Tardia Coleccion 125", "Vendimia"),
+    ("La Porte de Novembre VdP Suisse Maison Gilliard",
+     "Maison Gilliard Porte de Novembre Ice", "Ice"),
+])
+def test_sweet_wine_markers_are_a_different_wine(retailer, source, marker):
+    """„Passito", „Recioto" und „Eiswein" standen schon in den Qualitätsstufen, die
+    fremdsprachigen Entsprechungen nicht — und daran fiel es auf: ein roter „Chivite
+    Coleccion 125" bekam die Note des gleichnamigen **Vendimia Tardía**, eines
+    Spätlese-Süssweins desselben Hauses.
+
+    Diese Wörter stehen nie zufällig da: wer sie auf einer Seite liest und auf der
+    anderen nicht, hat zwei verschiedene Weine vor sich."""
+    d = match_wine(retailer, source)
+    assert not d.matched, d.reason
+    assert marker in d.reason
+
+
+def test_a_real_late_harvest_still_matches():
+    """Gegenprobe: steht die Angabe auf beiden Seiten, ist es derselbe Wein."""
+    assert match_wine(
+        "Navarra DO Chivite Coleccion 125 Vendimia Tardia",
+        "Chivite Navarra Vendimia Tardia Coleccion 125",
+    ).matched

@@ -77,6 +77,17 @@ PACKAGING_NOISE = {
 #: trennt und verhindert, dass ein 13-Franken-Wein die Bewertung eines
 #: 130-Franken-Weins bekommt.
 DISCRIMINATING = {
+    # Süssweinmerkmale. "Passito", "Recioto" und "Eiswein" standen schon hier, die
+    # fremdsprachigen Entsprechungen nicht — und daran fiel es auf: „Chivite Navarra
+    # Coleccion 125" (rot) bekam die Note von „Chivite Navarra **Vendimia Tardía**
+    # Coleccion 125", einem Spätlese-Süsswein desselben Hauses. „La Porte de Novembre"
+    # bekam die des „Porte de Novembre **Ice**".
+    #
+    # Diese Wörter stehen nie zufällig da: wer sie auf einer Seite liest und auf der
+    # anderen nicht, hat zwei verschiedene Weine vor sich.
+    "vendimia", "tardia", "vendemmia", "tardiva", "ice", "muffato", "botrytis",
+    "moelleux", "liquoreux",
+
     # Lagen- und Qualitätsstufen
     "classico", "classica", "riserva", "riserve", "reserva", "reserve", "gran",
     "grande", "selezione", "superiore", "supérieur", "superieur", "cru", "premier",

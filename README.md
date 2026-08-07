@@ -466,6 +466,21 @@ Drei von zehn geprüften Weinhändlern verbieten das Auslesen vollständig. Das 
 respektiert, nicht umgangen. Gerstl, Martel und Bindella wären technisch erreichbar,
 nutzen aber je ein eigenes System — dort wäre je ein eigener Adapter nötig.
 
+### Süssweinmerkmale sind ein anderer Wein
+
+„Passito", „Recioto" und „Eiswein" standen schon in den Qualitätsstufen, die
+fremdsprachigen Entsprechungen nicht — und daran fiel es auf: ein **roter** „Chivite
+Coleccion 125" bekam die Note des gleichnamigen **Vendimia Tardía**, eines
+Spätlese-Süssweins desselben Hauses. Ergänzt sind `vendimia`, `tardia`, `vendemmia`,
+`tardiva`, `ice`, `muffato`, `botrytis`, `moelleux`, `liquoreux`.
+
+Die Ergänzung hatte eine Nebenwirkung, die erst der Livelauf zeigte: weil „Ice" nun als
+Qualitätsstufe gilt, fällt es aus den *unterscheidenden* Wörtern heraus — und der
+Zeilenvergleich oben hielt „Porte de Novembre" und „Porte de Novembre **Ice**" plötzlich
+für Jahrgänge desselben Weins. Er vergleicht jetzt über **alle** Identitätswörter. Der
+Jahrgang ist ohnehin schon heraus, Legaris Crianza 2020/2021/2022 ergeben also weiterhin
+dieselbe Menge und behalten ihre Note.
+
 ## Trinkreife
 
 **Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232
@@ -827,7 +842,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-403 Tests: 396 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+408 Tests: 401 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die
