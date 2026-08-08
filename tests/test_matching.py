@@ -627,3 +627,17 @@ def test_a_winery_named_parker_survives():
     from winecheck.names import distinctive_tokens
     assert "parker" in distinctive_tokens("Parker Coonawarra Estate Terra Rossa")
     assert "parker" not in distinctive_tokens("Vieux Télégraphe Parker 95")
+
+
+def test_a_higher_tier_is_a_different_wine():
+    """„Murua Rioja Reserva **Especial**" für CHF 17.90 bekam die Note der schlichten
+    „Murua Reserva" — zwei Weine desselben Guts, eine Ausbaustufe auseinander.
+    „Selezione" stand schon in den Qualitätsstufen, die spanischen Entsprechungen
+    nicht."""
+    d = match_wine("Murua Rioja Reserva Especial Bodegas Murua", "Murua Murua Reserva 2017")
+    assert not d.matched, d.reason
+    assert "Especial" in d.reason
+
+
+def test_the_plain_reserva_still_matches_its_own_entry():
+    assert match_wine("Rioja Reserva Bodegas Murua", "Murua Murua Reserva 2017").matched

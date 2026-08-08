@@ -36,6 +36,7 @@ import re
 from selectolax.parser import HTMLParser, Node
 
 from ..models import Offer
+from ..names import tokenize
 from .base import RetailerAdapter, looks_like_wine, parse_price
 
 #: „CHF 13.90 statt CHF 15.40" — der zweite Preis ist der reguläre.
@@ -48,6 +49,18 @@ _RE_JAHRGANG = re.compile(r"\b(19[5-9]\d|20[0-4]\d)\b")
 
 def _text(node: Node | None) -> str:
     return " ".join(node.text().split()) if node is not None else ""
+
+
+
+def _enthalten(name: str, produzent: str) -> bool:
+    """Steckt der Produzentenname schon im Weinnamen?
+
+    Verglichen werden Wörter, nicht Zeichenfolgen: „Bodegas Murua" gilt als enthalten,
+    wenn „Murua" im Namen steht — „Bodegas" ist eine Betriebsform und zählt nicht.
+    """
+    woerter = {w for w in tokenize(produzent) if len(w) > 2}
+    im_namen = set(tokenize(name))
+    return bool(woerter) and woerter <= im_namen
 
 
 class ShopwareAdapter(RetailerAdapter):
@@ -71,7 +84,13 @@ class ShopwareAdapter(RetailerAdapter):
         # Die Beschreibung trägt bei diesen Läden den Produzenten („Château Barka").
         # Für Vivino ist der das wichtigste Wort, im Namen steht er nicht.
         produzent = _text(box.css_first(".product-description"))
-        voll = f"{name} {produzent}".strip() if produzent else name
+        # Nur anhängen, wenn er nicht schon drinsteht: „Murua Rioja Reserva Especial"
+        # plus „Bodegas Murua" ergab die Abfrage „murua especial murua", und ein
+        # doppeltes Wort hilft der Suche nicht.
+        if produzent and not _enthalten(name, produzent):
+            voll = f"{name} {produzent}".strip()
+        else:
+            voll = name
 
         # Nicht jeder Laden nutzt .product-price; Caratello schreibt die Preise ohne
         # eigene Klasse in die Kachel. Der Kacheltext als Rückfall kostet nichts.

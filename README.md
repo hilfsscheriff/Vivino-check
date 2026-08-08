@@ -527,6 +527,23 @@ klickt einmal; ein Klick auf „Rotwein" hebt die Vorauswahl auf. „Filter zur�
 führt auf den Standard zurück, nicht auf leer — sonst landet man in einem Zustand, den
 man beim Laden nie sieht.
 
+### Ausbaustufen sind verschiedene Weine
+
+„Murua Rioja Reserva **Especial**" für CHF 17.90 bekam die Note der schlichten „Murua
+Reserva" — zwei Weine desselben Guts, eine Stufe auseinander. „Selezione" stand schon in
+den Qualitätsstufen, die spanischen und weiteren Entsprechungen nicht: ergänzt sind
+`especial`, `special`, `speciale`, `seleccion`, `seleccionada`, `limitada`, `limitata`,
+`edicion`, `edizione`, `singolare`.
+
+Die richtige Especial steht wie schon „Thunevin-Calvet Les Dentelles" **nicht in Vivinos
+Suchindex** — alle 33 Murua-Weine kommen, sie nicht. Übrig bleibt der
+Produzenten-Durchschnitt, als solcher gekennzeichnet und aus Rangliste und Diagramm
+ausgeschlossen.
+
+Nebenbei: Shopware hängt den Produzenten nur noch an, wenn er nicht schon im Namen steht
+— „Murua Rioja Reserva Especial" plus „Bodegas Murua" ergab die Abfrage
+„murua especial murua".
+
 ## Trinkreife
 
 **Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232
@@ -888,7 +905,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-420 Tests: 413 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+422 Tests: 415 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die

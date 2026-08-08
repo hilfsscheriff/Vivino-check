@@ -77,6 +77,16 @@ PACKAGING_NOISE = {
 #: trennt und verhindert, dass ein 13-Franken-Wein die Bewertung eines
 #: 130-Franken-Weins bekommt.
 DISCRIMINATING = {
+    # Ausbaustufen über der Grundqualität. „Selezione" stand schon hier, die
+    # spanischen und weiteren Entsprechungen nicht — und daran fiel es auf: „Murua
+    # Rioja Reserva **Especial**" (CHF 17.90) bekam die Note der schlichten „Murua
+    # Reserva". Zwei verschiedene Weine desselben Guts, eine Stufe auseinander.
+    #
+    # Diese Wörter stehen nie zufällig da; wer sie auf einer Seite liest und auf der
+    # anderen nicht, hat den falschen Wein.
+    "especial", "special", "speciale", "seleccion", "seleccionada", "limitada",
+    "limitata", "edicion", "edizione", "singolare",
+
     # Süssweinmerkmale. "Passito", "Recioto" und "Eiswein" standen schon hier, die
     # fremdsprachigen Entsprechungen nicht — und daran fiel es auf: „Chivite Navarra
     # Coleccion 125" (rot) bekam die Note von „Chivite Navarra **Vendimia Tardía**
