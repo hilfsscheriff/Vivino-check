@@ -145,7 +145,11 @@ def attach_maturity(rows: list[WineRow], table=None) -> list[WineRow]:
     if not tbl.entries:
         return rows
     for row in rows:
-        row.maturity = tbl.lookup(row.name, row.vintage)
+        # Der bei Vivino gefundene Name geht zusätzlich ein — aber nur dort, wo die
+        # Tabelle nach dem *Stil* fragt, nicht bei der Regionssuche. Er trägt oft
+        # die Rebsorte, die der Händler weglässt.
+        stil_name = (row.vivino.matched_name if row.vivino else "") or ""
+        row.maturity = tbl.lookup(row.name, row.vintage, stil_name=stil_name)
     return rows
 
 

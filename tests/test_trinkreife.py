@@ -247,3 +247,71 @@ def test_yaml_records_its_source():
     assert src["pdf"].endswith(".pdf")
     assert src["fetched_at"]
     assert data["legend"]
+
+
+# ------------------------------------------------- Stil schlägt Region
+# Die Vinum-Tabelle löst nur bis Region plus Farbe auf. Für Süditalien ist das zu
+# grob: dieselbe Zeile deckt den Aglianico ab, der zwanzig Jahre kann, und den
+# Alltags-Primitivo, der nach drei Jahren müde wird. Achtzehn Primitivo im Bestand
+# trugen "zu jung — reifen lassen", darunter Jahrgang 2025.
+
+def _tabelle():
+    from winecheck.trinkreife import Table
+    return Table.load()
+
+
+def test_primitivo_wird_nicht_zum_lagern_empfohlen():
+    t = _tabelle()
+    m = t.lookup("Mottura Stilio Primitivo di Manduria", 2024)
+    assert m is not None
+    assert m.code == "*", "Primitivo soll getrunken und nicht gelagert werden"
+
+
+def test_appassimento_zaehlt_mit():
+    """Der Ausbau, mit dem Primitivo meist daherkommt — ebenfalls auf sofort gemacht.
+
+    Die Region muss trotzdem erkennbar sein: ohne sie gibt die Tabelle grundsätzlich
+    keine Auskunft, und daran ändert die Stilregel nichts. Sie korrigiert eine
+    vorhandene Empfehlung, sie erfindet keine.
+    """
+    t = _tabelle()
+    assert t.lookup("Santi Nobile Appassimento Salento Puglia", 2025).code == "*"
+    assert t.lookup("Irgendein Appassimento ohne Herkunft", 2025) is None
+
+
+def test_die_herkunft_der_auskunft_wird_offengelegt():
+    """Sonst behauptete der Bericht eine Vinum-Zeile für eine Aussage, die aus
+    einer anderen Quelle stammt."""
+    t = _tabelle()
+    m = t.lookup("A Mano Primitivo di Puglia IGT", 2025)
+    assert "Stil vor Region" in m.region_label
+    assert "Primitivo" in m.region_label
+
+
+def test_riserva_behaelt_die_regionszeile():
+    """"Primitivo di Manduria Riserva" ist genau der Wein, für den die
+    Süditalien-Zeile gemacht ist: längerer Holzausbau, gesetzliche Mindestreife."""
+    t = _tabelle()
+    m = t.lookup("Primitivo di Manduria Riserva Vecchie Vigne", 2019)
+    assert m.stil == ""
+    assert "Stil vor Region" not in m.region_label
+
+
+def test_andere_suditaliener_bleiben_unberuehrt():
+    """Der Aglianico teilt sich die Zeile mit dem Primitivo und kann wirklich liegen."""
+    t = _tabelle()
+    m = t.lookup("Aglianico del Vulture Basilikata", 2021)
+    assert m.stil == ""
+
+
+def test_die_regel_zieht_nur_herunter_nie_hinauf():
+    """"Austrinken" bleibt stehen — ein alter Primitivo wird durch eine Stilregel
+    nicht wieder jung.
+
+    Die Süditalien-Zeile führt 2014 als "m" (Zenit überschritten). Würde die Regel
+    stumpf auf "jetzt trinken" setzen, machte sie aus einer Warnung eine Empfehlung.
+    """
+    t = _tabelle()
+    m = t.lookup("Mottura Stilio Primitivo di Manduria", 2014)
+    assert m.code == "m", "eine Abwärtskorrektur darf keine Aufwertung werden"
+    assert m.stil == ""

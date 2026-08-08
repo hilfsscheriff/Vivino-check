@@ -71,6 +71,41 @@ MATURITY_SHORT: dict[str, str] = {
 #: Sortierung von „am besten jetzt" nach „lieber warten" — für Ranglisten.
 MATURITY_ORDER = ("*", "k", "m", "g", "-")
 
+#: Weinstile, deren Trinkfenster der **Stil** bestimmt und nicht die Herkunft.
+#:
+#: Die Vinum-Tabelle hat als feinste Auflösung Region plus Farbe. Für die meisten
+#: Gebiete reicht das, für Süditalien nicht: dieselbe Zeile „Apulien, Basilikata,
+#: Kalabrien / rot" deckt den Aglianico del Vulture ab, der zwanzig Jahre kann, und
+#: den Alltags-Primitivo, der nach drei Jahren müde wird. Achtzehn Primitivo im
+#: Bestand trugen darum „zu jung — reifen lassen", darunter Jahrgang 2025.
+#:
+#: Diese Liste korrigiert das, aber nur in **eine** Richtung: sie zieht eine
+#: Reifeempfehlung auf „jetzt trinken" herunter, sie verlängert nie. Das ist der
+#: Unterschied zwischen „die Tabelle ist hier zu grob" und „ich weiss es besser als
+#: die Quelle". Wo die Tabelle ohnehin schon zum Trinken rät, ändert sich nichts.
+#:
+#: Erkennbar an der abweichenden Herkunftsangabe im Bericht: dort steht dann nicht
+#: die Vinum-Region, sondern der Stil.
+FRUEHTRINKER: dict[str, tuple[str, ...]] = {
+    # Der Anlass. Gilt für Primitivo und für den Appassimento-Ausbau, mit dem er
+    # meist daherkommt — beide sind auf sofortigen Genuss gemacht.
+    "Primitivo, Appassimento": ("primitivo", "appassimento", "appassite"),
+    # Ausdrücklich junge Weine. Novello und Nouveau dürfen laut Herkunftsrecht
+    # frühestens im Erntejahr in den Verkauf und sind binnen Monaten zu trinken.
+    "Novello / Nouveau": ("novello", "nouveau", "primeur"),
+}
+
+#: Was den Stil-Vorrang wieder aufhebt.
+#:
+#: „Primitivo di Manduria **Riserva**" ist genau der Wein, für den die
+#: Süditalien-Zeile gemacht ist: längerer Holzausbau, gesetzlich vorgeschriebene
+#: Mindestreife, und er kann tatsächlich liegen. Wer solche Weine mit demselben
+#: Pinsel anstreicht wie den Supermarkt-Primitivo, macht denselben Fehler noch
+#: einmal, nur andersherum.
+FRUEHTRINKER_AUSNAHMEN = (
+    "riserva", "reserva", "reserve", "gran seleccion", "gran selezione",
+)
+
 _STAR = "★"
 
 #: Füllfarben der Weingläser am Zeilenanfang.
@@ -534,6 +569,20 @@ def display_region(region: str) -> str:
     return DISPLAY_NAMES.get(region, region)
 
 
+def _fruehtrinker(low: str) -> str:
+    """Welcher Frühtrinker-Stil steckt im Namen — oder keiner?
+
+    ``low`` ist der bereits kleingeschriebene und akzentbefreite Name.
+    Zurückgegeben wird die Stilbezeichnung für den Bericht, sonst ein leerer String.
+    """
+    if any(_word_in(w, low) for w in FRUEHTRINKER_AUSNAHMEN):
+        return ""
+    for label, marker in FRUEHTRINKER.items():
+        if any(_word_in(m, low) for m in marker):
+            return label
+    return ""
+
+
 @dataclass
 class Match:
     """Eine Trinkreife-Auskunft samt Begründung."""
@@ -544,6 +593,10 @@ class Match:
     vintage: int
     quality: str | None = None
     older_peaks: list[int] = field(default_factory=list)
+    #: Gesetzt, wenn der Stil die Regionszeile überstimmt hat — siehe
+    #: :data:`FRUEHTRINKER`. Steht dann anstelle der Region im Bericht, damit
+    #: sichtbar bleibt, worauf die Auskunft beruht.
+    stil: str = ""
 
     @property
     def short(self) -> str:
@@ -555,6 +608,14 @@ class Match:
 
     @property
     def region_label(self) -> str:
+        """Worauf die Auskunft beruht.
+
+        Normalerweise die Zeile der Vinum-Tabelle. Hat der Stil sie überstimmt,
+        steht der Stil hier — sonst behauptete der Bericht eine Herkunft für eine
+        Aussage, die aus einer anderen Quelle stammt.
+        """
+        if self.stil:
+            return f"{self.stil} (Stil vor Region)"
         return display_region(self.region)
 
     @property
@@ -575,7 +636,19 @@ class Table:
     def load(cls, path: Path | str | None = None) -> Table:
         return cls(load(path))
 
-    def lookup(self, name: str, vintage: int | None, wine_type: str = "unbekannt") -> Match | None:
+    #: Codes, die eine Reifeempfehlung aussprechen. Nur diese werden vom Stil
+    #: überstimmt — „austrinken" oder „zu alt" bleibt stehen, denn ein alter
+    #: Primitivo wird durch eine Stilregel nicht wieder jung.
+    _REIFT_NOCH = frozenset({"g", "k"})
+
+    def lookup(
+        self,
+        name: str,
+        vintage: int | None,
+        wine_type: str = "unbekannt",
+        *,
+        stil_name: str = "",
+    ) -> Match | None:
         """Trinkreife für einen Wein — oder None, wenn nichts Eindeutiges zu sagen ist.
 
         Ohne Jahrgang, ohne erkennbare Region oder bei widersprüchlichen Kandidaten
@@ -616,11 +689,31 @@ class Table:
             # Mehrere Regionen oder Weinarten treffen zu und widersprechen sich.
             return None
         best = candidates[0]
+        code = best.maturity[vintage]
+        # Für die Stilprüfung zählt auch der bei Vivino gefundene Name: Händler
+        # lassen die Rebsorte oft weg. "Puglia IGP 2024 Suolo Rosso (Salento)"
+        # heisst dort "Suolo Rosso Primitivo - Merlot" — nur so ist er als
+        # Primitivo zu erkennen.
+        #
+        # Ausdrücklich *nur* für den Stil, nicht für die Regionssuche: ein zweiter
+        # Name kann eine weitere Herkunft ins Spiel bringen und damit die Zeile
+        # wechseln, aus der die Auskunft stammt. Die Stilregel darf präzisieren,
+        # sie darf die Quelle nicht verschieben.
+        stil = _fruehtrinker(low)
+        if not stil and stil_name:
+            stil = _fruehtrinker(strip_accents(stil_name.lower()))
+        if stil and code in self._REIFT_NOCH:
+            # Nur herunterziehen, nie verlängern: die Tabelle ist hier zu grob,
+            # nicht falsch. Siehe FRUEHTRINKER.
+            code = "*"
+        else:
+            stil = ""
         return Match(
-            code=best.maturity[vintage],
+            code=code,
             region=best.region,
             wine_type=best.wine_type,
             vintage=vintage,
             quality=best.quality.get(vintage),
             older_peaks=best.older_peaks,
+            stil=stil,
         )

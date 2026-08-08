@@ -822,6 +822,11 @@ _TEMPLATE = r"""<!doctype html>
         </label>
         <label class="cb" title="Nur Weine mit bestätigtem Namensabgleich — ohne unsichere Treffer, ohne Produzenten-Mittelwerte, ohne Weine ohne Eintrag"><input type="checkbox" id="fFound"> nur bei Vivino gefunden</label>
         <label class="cb"><input type="checkbox" id="fBargain"> nur unter Marktpreis</label>
+        <!-- Nicht dasselbe wie der Quellen-Chip "Schweizer Handel": der zeigt jeden
+             Wein, den ein Schweizer Laden führt — auch wenn Vivino ihn billiger hat
+             und darum in der Kaufspalte steht. Dieses Kästchen entfernt genau die
+             Zeilen, deren Kauflink zu Vivino führt. -->
+        <label class="cb" title="Blendet Weine aus, deren angezeigtes Angebot von Vivino stammt"><input type="checkbox" id="fNoVivino"> ohne Vivino-Shop</label>
         <!-- Je ausblendbarer Rebsorte ein Kästchen; gebaut aus D.grapeFilters. -->
         <span id="fGrapes"></span>
       </div>
@@ -924,7 +929,7 @@ const S = { run: D.runs[0].id, mat: new Set(), style: new Set([STANDARD_SORTE]),
                für die es die Seite gibt. Nach Note allein eröffnete die Liste mit den
                teuersten Flaschen. */
             sort: "value", dir: -1, minRating: STANDARD_NOTE, maxPrice: STANDARD_PREIS,
-            onlyBargain: false, hideGrapes: new Set(),
+            onlyBargain: false, hideGrapes: new Set(), noVivino: false,
             onlyFound: false, limit: PAGE };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -984,6 +989,7 @@ function visible() {
     if (S.maxPrice != null && !(w.price != null && w.price <= S.maxPrice)) return false;
     if (S.onlyBargain && !(w.bargain != null && w.bargain > 0)) return false;
     if (S.hideGrapes.size && (w.grapes || []).some(g => S.hideGrapes.has(g))) return false;
+    if (S.noVivino && w.cheapest === "vivinoshop") return false;
     // "Bei Vivino gefunden" heisst: bestätigter Namensabgleich. Nicht dabei sind
     // fuzzy-Treffer (Name passt nur ungefähr), Produzenten-Mittelwerte und die
     // Weine ohne Eintrag. Das sind genau die gefüllten Punkte im Diagramm.
@@ -1367,7 +1373,8 @@ function activeFilterCount() {
   return S.mat.size + S.style.size + S.shop.size
     + (S.src !== STANDARD_QUELLE ? 1 : 0)
     + (S.q.trim() ? 1 : 0) + (S.minRating != null ? 1 : 0) + (S.maxPrice != null ? 1 : 0)
-    + (S.onlyBargain ? 1 : 0) + (S.onlyFound ? 1 : 0) + S.hideGrapes.size;
+    + (S.onlyBargain ? 1 : 0) + (S.onlyFound ? 1 : 0) + (S.noVivino ? 1 : 0)
+    + S.hideGrapes.size;
 }
 
 function render() {
@@ -1415,6 +1422,9 @@ document.getElementById("fMaxPrice").addEventListener("change", e => {
 document.getElementById("fBargain").addEventListener("change", e => {
   S.onlyBargain = e.target.checked; refilter();
 });
+document.getElementById("fNoVivino").addEventListener("change", e => {
+  S.noVivino = e.target.checked; refilter();
+});
 document.getElementById("fFound").addEventListener("change", e => {
   S.onlyFound = e.target.checked; refilter();
 });
@@ -1451,7 +1461,7 @@ document.getElementById("reset").addEventListener("click", () => {
   S.style = new Set([STANDARD_SORTE]);
   S.src = STANDARD_QUELLE;
   S.minRating = STANDARD_NOTE; S.maxPrice = STANDARD_PREIS;
-  S.onlyBargain = false; S.onlyFound = false; S.hideGrapes.clear();
+  S.onlyBargain = false; S.onlyFound = false; S.noVivino = false; S.hideGrapes.clear();
   (D.grapeFilters || []).forEach(g => {
     const box = document.getElementById("fGrape_" + g.key);
     if (box) box.checked = false;
@@ -1461,6 +1471,7 @@ document.getElementById("reset").addEventListener("click", () => {
   document.getElementById("fMinRating").value = String(STANDARD_NOTE);
   document.getElementById("fMaxPrice").value = String(STANDARD_PREIS);
   document.getElementById("fBargain").checked = false;
+  document.getElementById("fNoVivino").checked = false;
   document.getElementById("fFound").checked = false;
   syncSort();
   render();
