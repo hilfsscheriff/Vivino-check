@@ -619,3 +619,44 @@ def test_key_falls_back_to_the_original_name():
     raw = "Rioja DOCa Crianza Bodegas Izadi (2022) – Rotwein, Spanien (0.75l)"
     wine = _wine_from_snapshot({"name": raw})
     assert wine["key"] == raw
+
+
+# --------------------------------------------------------- Rebsorte ausblenden
+def test_primitivo_wird_aus_beiden_namen_erkannt():
+    """Händler lassen die Sorte oft weg — der Vivino-Name trägt sie.
+
+    "Santi Nobile Cento X Cento" heisst dort "… Appassimento Primitivo"; nur über
+    den zweiten Namen ist der Wein als Primitivo zu erkennen.
+    """
+    from winecheck.report.site import _sorten
+
+    assert _sorten({"name": "Mottura Stilio Primitivo di Manduria"}) == ["primitivo"]
+    assert _sorten({"name": "Santi Nobile Cento X Cento",
+                    "matchedName": "Santi Nobile Appassimento Primitivo"}) == ["primitivo"]
+    assert _sorten({"name": "Barolo DOCG Riserva"}) == []
+
+
+def test_sortenerkennung_prueft_wortgrenzen():
+    """Ein Produzentenname darf nicht mitgenommen werden."""
+    from winecheck.report.site import _sorten
+
+    assert _sorten({"name": "Cantine Primitivoli Rosso"}) == []
+
+
+def test_zinfandel_gilt_nicht_als_primitivo():
+    """Botanisch dieselbe Rebe, im Glas etwas anderes.
+
+    Wer Primitivo ausblendet, meint nicht zwingend auch den kalifornischen
+    Zinfandel — das wäre eine Entscheidung, die ihm niemand abnehmen sollte.
+    """
+    from winecheck.report.site import _sorten
+
+    assert _sorten({"name": "Ridge Lytton Springs Zinfandel"}) == []
+
+
+def test_sortenfilter_steht_auf_der_seite(doc):
+    text = doc()
+    assert 'id="fGrapes"' in text
+    assert "S.hideGrapes" in text
+    # Aus dem Bestand gebaut, nicht fest verdrahtet.
+    assert "D.grapeFilters" in text

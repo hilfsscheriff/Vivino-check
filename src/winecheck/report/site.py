@@ -69,6 +69,42 @@ VALUE_MIN_SAMPLE = 12
 #: über die Weine folgte.
 MARKTPLATZ_QUELLEN = frozenset({"vivinoshop"})
 
+#: Rebsorten, die sich auf der Seite gezielt ausblenden lassen.
+#:
+#: Anlass war Primitivo: 23 der 168 Weine in der Standardansicht sind welcher, und
+#: sie besetzen die ersten fünf Plätze der Preis-Leistungs-Rangliste. Das ist kein
+#: Rechenfehler — süsslich ausgebaute Appassimento-Weine werden auf Vivino von
+#: vielen Gelegenheitstrinkern hoch bewertet und sind günstig. Wer sie nicht mag,
+#: sortiert an ihnen vorbei, und dafür gibt es jetzt einen Schalter.
+#:
+#: Bewusst nur die Sorte selbst, nicht ihre Synonyme: Primitivo und Zinfandel sind
+#: botanisch dieselbe Rebe, ein kalifornischer Zinfandel schmeckt aber anders als
+#: ein apulischer Appassimento. Wer „Primitivo" ausblendet, meint nicht zwingend
+#: auch die sechs Zinfandel im Bestand.
+#:
+#: Ein weiterer Eintrag hier genügt, damit auf der Seite ein Kästchen mehr steht.
+AUSBLENDBARE_SORTEN: dict[str, tuple[str, str]] = {
+    "primitivo": ("Primitivo", r"primitivo"),
+}
+
+#: Auf Wortgrenzen geprüft, damit ein Produzentenname wie „Primitivoli" nicht
+#: mitgenommen wird.
+_SORTEN_RE = {
+    key: re.compile(rf"(?<![a-zäöüéèàç]){muster}(?![a-zäöüéèàç])", re.I)
+    for key, (_, muster) in AUSBLENDBARE_SORTEN.items()
+}
+
+
+def _sorten(wine: dict[str, Any]) -> list[str]:
+    """Welche der ausblendbaren Rebsorten stehen in diesem Wein?
+
+    Gesucht wird im Händlernamen **und** im bei Vivino gefundenen Namen: Händler
+    lassen die Sorte oft weg. „Santi Nobile Cento X Cento" heisst bei Vivino
+    „… Appassimento Primitivo", und nur über den zweiten Namen ist er zu erkennen.
+    """
+    heu = f"{wine.get('name') or ''} {wine.get('matchedName') or ''}"
+    return [key for key, rx in _SORTEN_RE.items() if rx.search(heu)]
+
 
 def _add_value_scores(wines: list[dict[str, Any]]) -> None:
     """Rechnet je Quellenart getrennt — Schweizer Handel und Marktplatz.
@@ -309,6 +345,8 @@ _SHORT_KEYS = {
     # Kennzeichnung der Quellenart — siehe MARKTPLATZ_QUELLEN.
     "marketplace": "mp",
     "swiss": "ch",
+    # Ausblendbare Rebsorten, siehe AUSBLENDBARE_SORTEN.
+    "grapes": "g",
 }
 
 
@@ -357,6 +395,7 @@ def build(
             # Schweizer Ansicht, obwohl er dort zu kaufen ist.
             w["marketplace"] = bool(haendler & MARKTPLATZ_QUELLEN)
             w["swiss"] = bool(haendler - MARKTPLATZ_QUELLEN)
+            w["grapes"] = _sorten(w)
 
     # Je Lauf gerechnet: jeder hat sein eigenes Preisniveau.
     for run in runs:
@@ -387,6 +426,14 @@ def build(
             for r in retailers
         ],
         "styles": [{"key": s, "label": STYLE_LABELS[s]} for s in styles],
+        # Ein Kästchen je Rebsorte, die im Bestand tatsächlich vorkommt. Ein
+        # Schalter, der nichts ausblendet, wäre nur Ballast.
+        "grapeFilters": [
+            {"key": k, "label": AUSBLENDBARE_SORTEN[k][0],
+             "count": sum(1 for run in runs for w in run["wines"] if k in (w.get("grapes") or []))}
+            for k in AUSBLENDBARE_SORTEN
+            if any(k in (w.get("grapes") or []) for run in runs for w in run["wines"])
+        ],
         # Ohne Farbe: die Trinkreife hat den Farbkanal an die Händler abgegeben.
         # Die Reihenfolge der Chips („jetzt" nach „später") trägt die Abstufung,
         # die Beschriftung den Wert.
@@ -775,6 +822,8 @@ _TEMPLATE = r"""<!doctype html>
         </label>
         <label class="cb" title="Nur Weine mit bestätigtem Namensabgleich — ohne unsichere Treffer, ohne Produzenten-Mittelwerte, ohne Weine ohne Eintrag"><input type="checkbox" id="fFound"> nur bei Vivino gefunden</label>
         <label class="cb"><input type="checkbox" id="fBargain"> nur unter Marktpreis</label>
+        <!-- Je ausblendbarer Rebsorte ein Kästchen; gebaut aus D.grapeFilters. -->
+        <span id="fGrapes"></span>
       </div>
     </fieldset>
     </details>
@@ -837,7 +886,7 @@ const KEYS = { n:"name", y:"vintage", p:"price", r:"rating", rc:"ratingCount",
   vu:"vivinoUrl", rs:"retailers", c:"cheapest", u:"url", m:"market", b:"bargain",
   s:"style", sl:"styleLabel", t:"maturity", ts:"maturityShort", tr:"maturityRegion",
   q:"vintageQuality", f:"falstaff", k:"key", wr:"wineryRating",
-                   fz:"fuzzy", mn:"matchedName", vs:"valueScore", vsa:"valueScoreAll" };
+                   fz:"fuzzy", mn:"matchedName", vs:"valueScore", vsa:"valueScoreAll", g:"grapes" };
 D.runs.forEach(run => {
   run.wines = run.wines.map(w => {
     const o = { retailers: [], name: "", style: "", maturity: "", styleLabel: "",
@@ -875,7 +924,7 @@ const S = { run: D.runs[0].id, mat: new Set(), style: new Set([STANDARD_SORTE]),
                für die es die Seite gibt. Nach Note allein eröffnete die Liste mit den
                teuersten Flaschen. */
             sort: "value", dir: -1, minRating: STANDARD_NOTE, maxPrice: STANDARD_PREIS,
-            onlyBargain: false,
+            onlyBargain: false, hideGrapes: new Set(),
             onlyFound: false, limit: PAGE };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -934,6 +983,7 @@ function visible() {
     if (S.minRating != null && !(w.rating != null && w.rating >= S.minRating)) return false;
     if (S.maxPrice != null && !(w.price != null && w.price <= S.maxPrice)) return false;
     if (S.onlyBargain && !(w.bargain != null && w.bargain > 0)) return false;
+    if (S.hideGrapes.size && (w.grapes || []).some(g => S.hideGrapes.has(g))) return false;
     // "Bei Vivino gefunden" heisst: bestätigter Namensabgleich. Nicht dabei sind
     // fuzzy-Treffer (Name passt nur ungefähr), Produzenten-Mittelwerte und die
     // Weine ohne Eintrag. Das sind genau die gefüllten Punkte im Diagramm.
@@ -1317,7 +1367,7 @@ function activeFilterCount() {
   return S.mat.size + S.style.size + S.shop.size
     + (S.src !== STANDARD_QUELLE ? 1 : 0)
     + (S.q.trim() ? 1 : 0) + (S.minRating != null ? 1 : 0) + (S.maxPrice != null ? 1 : 0)
-    + (S.onlyBargain ? 1 : 0) + (S.onlyFound ? 1 : 0);
+    + (S.onlyBargain ? 1 : 0) + (S.onlyFound ? 1 : 0) + S.hideGrapes.size;
 }
 
 function render() {
@@ -1376,6 +1426,24 @@ document.getElementById("fFound").addEventListener("change", e => {
 document.getElementById("fMinRating").value = String(STANDARD_NOTE);
 document.getElementById("fMaxPrice").value = String(STANDARD_PREIS);
 
+/* Die Sorten-Kästchen stehen einmal fest: sie hängen am Bestand, nicht an der
+   aktuellen Auswahl. Neu aufzubauen hiesse, sie dem Besucher unter dem Finger
+   wegzuziehen. */
+(D.grapeFilters || []).forEach(g => {
+  const label = document.createElement("label");
+  label.className = "cb";
+  label.title = `${g.count} Weine im Bestand tragen ${g.label} im Namen`;
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.id = "fGrape_" + g.key;
+  box.addEventListener("change", e => {
+    if (e.target.checked) S.hideGrapes.add(g.key); else S.hideGrapes.delete(g.key);
+    refilter();
+  });
+  label.append(box, document.createTextNode(" " + g.label + " ausblenden"));
+  document.getElementById("fGrapes").append(label);
+});
+
 document.getElementById("reset").addEventListener("click", () => {
   // Zurücksetzen heisst: auf den Standard, nicht auf leer. Sonst führt der Knopf zu
   // einem Zustand, den man beim Laden nie sieht.
@@ -1383,7 +1451,11 @@ document.getElementById("reset").addEventListener("click", () => {
   S.style = new Set([STANDARD_SORTE]);
   S.src = STANDARD_QUELLE;
   S.minRating = STANDARD_NOTE; S.maxPrice = STANDARD_PREIS;
-  S.onlyBargain = false; S.onlyFound = false;
+  S.onlyBargain = false; S.onlyFound = false; S.hideGrapes.clear();
+  (D.grapeFilters || []).forEach(g => {
+    const box = document.getElementById("fGrape_" + g.key);
+    if (box) box.checked = false;
+  });
   S.sort = "value"; S.dir = -1; S.limit = PAGE;
   document.getElementById("q").value = "";
   document.getElementById("fMinRating").value = String(STANDARD_NOTE);
