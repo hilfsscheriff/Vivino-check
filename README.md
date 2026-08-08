@@ -481,6 +481,26 @@ für Jahrgänge desselben Weins. Er vergleicht jetzt über **alle** Identitätsw
 Jahrgang ist ohnehin schon heraus, Legaris Crianza 2020/2021/2022 ergeben also weiterhin
 dieselbe Menge und behalten ihre Note.
 
+### Vivinos Weintyp schlägt das fehlende Farbwort
+
+Ein weisser „Vermentino San Felice Toscana IGT" für CHF 11.50 bekam die 4.2 aus 23'690
+Bewertungen eines „San Felice Campogiovanni **Brunello di Montalcino**". Beide Namen
+tragen kein Farbwort — die Farbe steckt allein in der **Rebsorte**, und genau daran
+scheiterte die bisherige Prüfung, die Farbwörter gegen Farbwörter hielt.
+
+Vivino liefert `wine.type_id` mit, und der kommt aus deren Weindatenbank statt aus einer
+Namensanalyse. Kandidaten, deren Typ der Farbe des Händlernamens widerspricht, fliegen
+jetzt raus, **bevor** überhaupt verglichen wird. Schaum- und Süsswein bleiben aussen vor:
+ein Prosecco darf weiss *und* Schaumwein sein.
+
+Die erste Fassung hatte prompt einen Fehlalarm: „Chianti Classico Riserva **Il Grigio**
+da San Felice" ist ein Roter, „Grigio" gehört zum Weinnamen und nicht zur Sorte. Steht
+eine Rebsorte hinter einem Artikel (il, la, le, el …), ist sie ein Eigenname und taugt
+nicht als Farbquelle.
+
+Aufgefallen ist es, weil der gescannte Vivino-Link des Nutzers auf **genau den Eintrag**
+zeigte, den wir zugeordnet hatten — der beste Beleg, den ein Fehltreffer haben kann.
+
 ## Trinkreife
 
 **Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232
@@ -842,7 +862,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-408 Tests: 401 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+416 Tests: 409 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die

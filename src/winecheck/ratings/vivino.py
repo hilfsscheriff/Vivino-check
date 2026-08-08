@@ -23,6 +23,7 @@ tragendes Element, nicht Feinschliff.
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.parse
 from dataclasses import dataclass, field
@@ -37,7 +38,7 @@ from ..models import (
     VivinoStatus,
     vivino_search_url,
 )
-from ..names import distinctive_tokens, tokenize
+from ..names import GRAPE_NAMES, VIVINO_TYPE_IDS, strip_accents, wine_style, distinctive_tokens, tokenize
 
 API_URL = "https://www.vivino.com/api/explore/explore"
 WINE_URL = "https://www.vivino.com/de/{slug}/w/{wine_id}"
@@ -270,6 +271,48 @@ def _i(v: object) -> int:
         return 0
 
 
+#: Rebsorte hinter einem Artikel — „Il Grigio", „La Rosa", „Le Merle". Dann ist sie
+#: Bestandteil eines Eigennamens, nicht die Sorte des Weins.
+_RE_EIGENNAME_SORTE = re.compile(
+    r"\b(?:il|lo|la|le|los|las|les|el|der|die|das)\s+("
+    + "|".join(sorted(GRAPE_NAMES, key=len, reverse=True))
+    + r")\b"
+)
+
+
+#: Farben, die einander ausschliessen. Schaum- und Süsswein bleiben draussen: ein
+#: „Prosecco" kann als Schaumwein *und* weiss geführt sein, das ist kein Widerspruch.
+_FARBEN = {"rot", "weiss", "rose"}
+
+
+def _farbkonflikt(retailer_name: str, type_id: int | None) -> bool:
+    """Widerspricht Vivinos Weintyp der Farbe, die der Händlername nennt?
+
+    Die verlässlichste Farbprüfung, die zu haben ist: ``type_id`` kommt aus Vivinos
+    Weindatenbank, nicht aus einer Namensanalyse. Der Händlername wiederum verrät die
+    Farbe oft nur über die **Rebsorte** — und genau daran scheiterte die bisherige
+    Prüfung, die Farbwörter gegen Farbwörter hielt: „Vermentino San Felice Toscana IGT"
+    für CHF 11.50 bekam die 4.2 eines „San Felice Campogiovanni **Brunello di
+    Montalcino**". Beide Namen tragen kein Farbwort, Vermentino ist aber eine weisse
+    Sorte und Brunello ein Roter.
+    """
+    if type_id is None:
+        return False
+    quelle = VIVINO_TYPE_IDS.get(type_id)
+    if quelle not in _FARBEN:
+        return False
+    # Steht die Rebsorte hinter einem Artikel, ist sie ein Eigenname und keine
+    # Sortenangabe: „Chianti Classico Riserva **Il Grigio** da San Felice" ist ein
+    # Roter, obwohl „Grigio" nach Pinot Grigio aussieht. Solche Namen sind als
+    # Farbquelle unbrauchbar — dann lieber nicht sperren.
+    if _RE_EIGENNAME_SORTE.search(strip_accents(retailer_name.lower())):
+        return False
+    haendler = wine_style(retailer_name, None)
+    if haendler not in _FARBEN:
+        return False
+    return haendler != quelle
+
+
 def classify(
     retailer_name: str,
     retailer_vintage: int | None,
@@ -289,6 +332,10 @@ def classify(
             zirkulär.
     """
     hosts = exclude_hosts or set()
+    # Kandidaten mit widersprechender Farbe fliegen raus, bevor überhaupt verglichen
+    # wird — ein Roter kann die Note eines Weissen nicht tragen, wie ähnlich der Name
+    # auch sei.
+    candidates = [c for c in candidates if not _farbkonflikt(retailer_name, c.type_id)]
     if not candidates:
         return VivinoResult.miss(
             VivinoStatus.NO_ENTRY,

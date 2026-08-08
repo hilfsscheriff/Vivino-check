@@ -298,3 +298,32 @@ def test_rank_prefers_a_real_match_over_a_producer_average():
     assert r[VivinoStatus.EXACT] > r[VivinoStatus.WINE_LEVEL] > r[VivinoStatus.AMBIGUOUS]
     assert r[VivinoStatus.AMBIGUOUS] > r[VivinoStatus.WINERY_LEVEL]
     assert r[VivinoStatus.WINERY_LEVEL] > r[VivinoStatus.NO_ENTRY]
+
+
+# ------------------------- Farbe über Vivinos Weintyp (Regression 8.8.2026)
+
+@pytest.mark.parametrize("name,type_id,konflikt", [
+    # Ein weisser Vermentino bekam die 4.2 eines Brunello di Montalcino für CHF 11.50.
+    # Beide Namen tragen kein Farbwort — die Farbe steckt nur in der Rebsorte.
+    ("Vermentino San Felice Toscana IGT 2025, 75 cl", 1, True),
+    ("Toscana Colli Aretini – Il Borro Chardonnay", 1, True),
+    ("Roncaia Merlot Bianco Ticino DOC", 1, True),
+    ("Pinot Grigio delle Venezie", 1, True),
+    # Passt zusammen: kein Konflikt.
+    ("Vermentino San Felice Toscana IGT 2025, 75 cl", 2, False),
+    # Schaumwein ist keine Farbe — ein Prosecco darf weiss *und* Schaumwein sein.
+    ("Chardonnay Reserve", 3, False),
+    # Ohne Farbhinweis im Namen wird nicht gesperrt.
+    ("Barolo DOCG Fontanafredda", 1, False),
+])
+def test_vivino_wine_type_beats_a_missing_colour_word(name, type_id, konflikt):
+    from winecheck.ratings.vivino import _farbkonflikt
+    assert _farbkonflikt(name, type_id) is konflikt
+
+
+def test_a_grape_after_an_article_is_a_proper_name():
+    """„Chianti Classico Riserva **Il Grigio** da San Felice" ist ein Roter — „Grigio"
+    gehört zum Weinnamen, nicht zur Sorte. Die erste Fassung der Farbprüfung nahm ihm
+    seine korrekte Note weg; solche Namen taugen nicht als Farbquelle."""
+    from winecheck.ratings.vivino import _farbkonflikt
+    assert _farbkonflikt("Chianti Classico Riserva Il Grigio da San Felice", 1) is False
