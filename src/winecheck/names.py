@@ -234,7 +234,27 @@ def extract_vintage(text: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def tokenize(text: str, *, keep_discriminating: bool = True) -> list[str]:
+#: Kritikernamen, die Händler in den Weinnamen schreiben („Vieux Télégraphe **Parker
+#: 95**"). Für Vivino ist das kein Namensbestandteil — der Wein hiess dort nie so.
+#: Ungefiltert gilt „Parker" als fehlender Bestandteil und stuft einen Volltreffer auf
+#: „unbestätigt" herunter.
+#:
+#: Entfernt wird nur, wenn eine **Zahl folgt**. Sonst verschwände das Weingut Parker in
+#: Coonawarra, und ähnliche Fälle gibt es bei fast jedem dieser Namen.
+#: Die vollständige Tabelle zum *Auslesen* der Noten steht in ``adapters.base``.
+_KRITIKER = (
+    "parker", "falstaff", "suckling", "decanter", "vinum", "spectator", "wine spectator",
+    "gaultmillau", "gault millau", "penin", "atkin", "dunnuck", "galloni", "vinous",
+    "wine advocate", "advocate", "enthusiast", "veronelli", "gambero",
+)
+_RE_KRITIKERNOTE = re.compile(
+    r"\b(?:" + "|".join(_KRITIKER) + r")\s*[:\-]?\s*\d{1,3}(?:\s*(?:/|von)\s*100)?",
+    re.I,
+)
+
+
+def tokenize(text: str, *, keep_discriminating: bool = True,
+             keep_alias: bool = False) -> list[str]:
     """Zerlegt einen Weinnamen in identitätstragende Tokens.
 
     Entfernt Akzente, Jahrgang, Volumen, Gebinde, rechtliche Bezeichnungen,
@@ -242,7 +262,11 @@ def tokenize(text: str, *, keep_discriminating: bool = True) -> list[str]:
     Lagennamen und — sofern ``keep_discriminating`` — die Qualitätsstufen.
     """
     # Zweitnamen in Klammern zuerst weg — "Cune (CVNE)" ist ein Produzent, nicht zwei.
-    t = strip_accents(strip_alias(text or "").lower())
+    # Für die *Suchabfrage* bleiben sie stehen (``keep_alias``): dort ist jeder
+    # Produzentenname Gold wert, während er für den Identitätsvergleich stört.
+    roh = (text or "") if keep_alias else strip_alias(text or "")
+    roh = _RE_KRITIKERNOTE.sub(" ", roh)
+    t = strip_accents(roh.lower())
     t = _RE_VOLUME_CHUNK.sub(" ", t)
     t = _RE_PACK_CHUNK.sub(" ", t)
     t = _RE_PCT.sub(" ", t)
@@ -404,6 +428,19 @@ def colour_from_text(text: str) -> str | None:
 def distinctive_tokens(text: str) -> list[str]:
     """Nur die unterscheidenden Tokens, in ursprünglicher Reihenfolge."""
     return [t for t in tokenize(text) if is_distinctive(t)]
+
+
+
+def query_tokens(text: str) -> list[str]:
+    """Unterscheidende Tokens **für die Suche** — Klammerinhalte zählen mit.
+
+    Mövenpick nennt den Produzenten nur in der Adresse; wir hängen ihn in Klammern an
+    („… Quinta do Vale Meão (Olazabal Filhos)"). Für Vivino ist er das wichtigste Wort,
+    für den Namensvergleich dagegen ein Zusatz, den die Quelle nicht kennen muss —
+    sonst rechnet der Matcher **uns** an, was wir selbst ergänzt haben, und stuft einen
+    Volltreffer auf „unbestätigt" herunter.
+    """
+    return [t for t in tokenize(text, keep_alias=True) if is_distinctive(t)]
 
 
 def discriminating_tokens(tokens: list[str]) -> set[str]:

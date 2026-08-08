@@ -38,7 +38,7 @@ from ..models import (
     VivinoStatus,
     vivino_search_url,
 )
-from ..names import GRAPE_NAMES, VIVINO_TYPE_IDS, strip_accents, wine_style, distinctive_tokens, tokenize
+from ..names import GRAPE_NAMES, VIVINO_TYPE_IDS, query_tokens, strip_accents, wine_style, distinctive_tokens, tokenize
 
 API_URL = "https://www.vivino.com/api/explore/explore"
 WINE_URL = "https://www.vivino.com/de/{slug}/w/{wine_id}"
@@ -553,7 +553,7 @@ class VivinoAdapter:
         greift die lange Abfrage. Deshalb *beide* versuchen und das bessere nehmen,
         statt sich auf eine Strategie festzulegen.
         """
-        short = " ".join(distinctive_tokens(name)[:4])
+        short = " ".join(query_tokens(name)[:4])
         # Dritter Versuch, nach Bewertungs*anzahl* sortiert. Grund: die Standard-
         # sortierung nach Note begräbt bei grossen Häusern genau die Weine, die man
         # im Regal findet. „Faiveley" liefert 207 Treffer, angeführt von

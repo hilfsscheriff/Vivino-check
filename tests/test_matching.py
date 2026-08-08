@@ -586,3 +586,44 @@ def test_a_real_late_harvest_still_matches():
         "Navarra DO Chivite Coleccion 125 Vendimia Tardia",
         "Chivite Navarra Vendimia Tardia Coleccion 125",
     ).matched
+
+
+def test_our_own_producer_hint_does_not_count_against_the_match():
+    """Mövenpick nennt den Produzenten nur in der Adresse; wir hängen ihn an. Stand er
+    ohne Klammern im Namen, rechnete der Matcher **uns** an, was wir selbst ergänzt
+    hatten: „Douro DOC 2023 Quinta do Vale Meão, Olazabal Filhos" gegen „Quinta do Vale
+    Meão Douro 2023" wurde `fuzzy`, weil die Quelle „Olazabal Filhos" nicht nennt — den
+    Firmennamen, den Vivino gar nicht führt. In Klammern trägt der Name den Produzenten
+    für die Suche, ohne den Vergleich zu stören."""
+    d = match_wine(
+        "Douro DOC 2023 Quinta do Vale Meão (Olazabal Filhos)",
+        "Quinta do Vale Meão Douro 2023",
+        retailer_vintage=2023, source_vintage=2023, source_has_vintage_rating=True,
+    )
+    assert d.confidence is MatchConfidence.EXACT, d.reason
+
+
+def test_the_query_still_sees_the_producer_in_parentheses():
+    """Gegenprobe: für die Suche ist der Produzent das wichtigste Wort und muss bleiben."""
+    from winecheck.names import query_tokens
+    assert "olazabal" in query_tokens("Douro DOC 2023 Quinta do Vale Meão (Olazabal Filhos)")
+
+
+def test_a_critic_score_in_the_name_is_not_part_of_the_name():
+    """„Châteauneuf-du-Pape Vieux Télégraphe **Parker 95**" — Vivino kennt keine
+    Kritikernote im Weinnamen, also galt „Parker" als fehlender Bestandteil und stufte
+    einen Volltreffer auf „unbestätigt"."""
+    d = match_wine(
+        "Châteauneuf-du-Pape Vieux Télégraphe Parker 95, AOC 2023, 75 cl",
+        "Domaine du Vieux Télégraphe Châteauneuf-du-Pape (La Crau) 2023",
+        retailer_vintage=2023, source_vintage=2023, source_has_vintage_rating=True,
+    )
+    assert d.confidence is MatchConfidence.EXACT, d.reason
+
+
+def test_a_winery_named_parker_survives():
+    """Entfernt wird nur, wenn eine Zahl folgt — sonst verschwände das Weingut Parker
+    in Coonawarra."""
+    from winecheck.names import distinctive_tokens
+    assert "parker" in distinctive_tokens("Parker Coonawarra Estate Terra Rossa")
+    assert "parker" not in distinctive_tokens("Vieux Télégraphe Parker 95")

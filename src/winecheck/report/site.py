@@ -759,7 +759,13 @@ D.runs.forEach(run => {
    waren 223 nur über „Filter verfeinern" erreichbar, und die Tabelle allein trug
    über 800 Tabstopps. */
 const PAGE = 50;
-const S = { run: D.runs[0].id, mat: new Set(), style: new Set(), shop: new Set(), q: "",
+/* Rotwein ist vorgewählt — er macht den grössten Teil des Sortiments aus, und wer
+   etwas anderes sucht, klickt einmal. Ohne Vorauswahl beginnt jeder Besuch mit einer
+   Liste, in der Schaumwein, Süsswein und „unbekannt" dazwischenliegen. Ein Klick auf
+   „Rotwein" hebt die Vorauswahl wieder auf. */
+const STANDARD_SORTE = "rot";
+const S = { run: D.runs[0].id, mat: new Set(), style: new Set([STANDARD_SORTE]),
+            shop: new Set(), q: "",
             /* Standard ist Preis-Leistung: „welche Flasche lohnt sich" ist die Frage,
                für die es die Seite gibt. Nach Note allein eröffnete die Liste mit den
                teuersten Flaschen. */
@@ -1238,7 +1244,10 @@ document.getElementById("fFound").addEventListener("change", e => {
   S.onlyFound = e.target.checked; refilter();
 });
 document.getElementById("reset").addEventListener("click", () => {
-  S.mat.clear(); S.style.clear(); S.shop.clear(); S.q = "";
+  // Zurücksetzen heisst: auf den Standard, nicht auf leer. Sonst führt der Knopf zu
+  // einem Zustand, den man beim Laden nie sieht.
+  S.mat.clear(); S.shop.clear(); S.q = "";
+  S.style = new Set([STANDARD_SORTE]);
   S.minRating = null; S.maxPrice = null; S.onlyBargain = false; S.onlyFound = false;
   S.sort = "value"; S.dir = -1; S.limit = PAGE;
   document.getElementById("q").value = "";

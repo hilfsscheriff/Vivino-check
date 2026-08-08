@@ -501,6 +501,32 @@ nicht als Farbquelle.
 Aufgefallen ist es, weil der gescannte Vivino-Link des Nutzers auf **genau den Eintrag**
 zeigte, den wir zugeordnet hatten — der beste Beleg, den ein Fehltreffer haben kann.
 
+### Was wir selbst ergänzen, darf nicht gegen den Treffer zählen
+
+Mövenpick nennt den Produzenten nur in der Adresse, wir hängen ihn an. Stand er ohne
+Klammern im Namen, rechnete der Matcher **uns** an, was wir selbst ergänzt hatten:
+„Douro DOC 2023 Quinta do Vale Meão, **Olazabal Filhos**" gegen „Quinta do Vale Meão
+Douro 2023" wurde `fuzzy`, weil die Quelle den Firmennamen nicht nennt — den Vivino gar
+nicht führt. In Klammern trägt der Name den Produzenten für die **Suche**, ohne den
+Identitätsvergleich zu stören; `tokenize` entfernt Klammern ohnehin, `query_tokens`
+behält sie.
+
+### Kritikernoten gehören nicht zum Weinnamen
+
+„Châteauneuf-du-Pape Vieux Télégraphe **Parker 95**" — Vivino kennt keine Note im
+Weinnamen, also galt „Parker" als fehlender Bestandteil und stufte einen Volltreffer auf
+„unbestätigt". Solche Angaben fliegen jetzt raus, **aber nur wenn eine Zahl folgt**:
+sonst verschwände das Weingut Parker in Coonawarra.
+
+Beides zusammen: `fuzzy` von 78 auf 52, `exact` von 118 auf 126.
+
+### Rotwein ist vorgewählt
+
+Er macht den grössten Teil des Sortiments aus (246 von 608). Wer etwas anderes sucht,
+klickt einmal; ein Klick auf „Rotwein" hebt die Vorauswahl auf. „Filter zurücksetzen"
+führt auf den Standard zurück, nicht auf leer — sonst landet man in einem Zustand, den
+man beim Laden nie sieht.
+
 ## Trinkreife
 
 **Keine erreichbare Quelle führt Trinkreife als Datenfeld.** Vivino nicht — 232
@@ -862,7 +888,7 @@ bleiben blockiert, bis das anders entschieden wird.
 uv run pytest
 ```
 
-416 Tests: 409 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
+420 Tests: 413 laufen offline, 7 sind Netzwerktests (mit `WINECHECK_LIVE=1`
 aktivieren). Schwerpunkte:
 
 * **Matching** — alle Beispielpaare aus dem Auftrag, plus Regressionen für die

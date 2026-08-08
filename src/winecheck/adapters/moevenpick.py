@@ -83,7 +83,9 @@ class MoevenpickAdapter(RetailerAdapter):
         # die Vivino-Suche trägt.
         producer = producer_from_url(name, href)
         if producer:
-            name = f"{name}, {producer}"
+            # In Klammern: so trägt der Name den Produzenten für die Vivino-Suche,
+            # ohne dass er beim Namensvergleich als fehlender Bestandteil zählt.
+            name = f"{name} ({producer})"
         # Jahrgangs-Sets tragen ihre Flaschenzahl nur in der Adresse.
         flaschen = bottles_from_url(href)
         gebinde = attrs_text
