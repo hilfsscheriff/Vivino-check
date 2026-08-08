@@ -87,8 +87,19 @@ def _add_value_scores(wines: list[dict[str, Any]]) -> None:
         if gruppe:
             _value_scores_einer_gruppe(gruppe)
 
+    # Zusätzlich eine Zahl über beide Welten hinweg. Sie wird gebraucht, sobald die
+    # Seite Handel und Marktplatz gemeinsam zeigt — das ist die Standardansicht.
+    # Ohne sie stünden in einer Liste zwei Zahlen nebeneinander, die aus getrennten
+    # Regressionen stammen und schlicht nicht dasselbe messen: eine 0.3 aus der
+    # Marktplatz-Gruppe hiesse "gut für einen Marktplatzwein", eine 0.3 aus dem
+    # Handel "gut für einen Schweizer Ladenwein". Sortiert man danach, vergleicht
+    # man Äpfel mit Birnen.
+    _value_scores_einer_gruppe(wines, feld="valueScoreAll")
 
-def _value_scores_einer_gruppe(wines: list[dict[str, Any]]) -> None:
+
+def _value_scores_einer_gruppe(
+    wines: list[dict[str, Any]], *, feld: str = "valueScore"
+) -> None:
     """Trägt in jeden Wein ein, wie weit seine Note über dem Preisniveau liegt.
 
     „Gut und günstig" ist die Frage, für die es die Seite gibt — im Diagramm ist es
@@ -124,7 +135,7 @@ def _value_scores_einer_gruppe(wines: list[dict[str, Any]]) -> None:
         expected = intercept + slope * math.log10(w["price"])
         count = w.get("ratingCount") or 0
         damping = count / (count + VALUE_RATING_ANCHOR)
-        w["valueScore"] = (w["rating"] - expected) * damping
+        w[feld] = (w["rating"] - expected) * damping
 
 
 #: Farbwörter, wie die Händler sie an den Namen hängen.
@@ -291,7 +302,10 @@ _SHORT_KEYS = {
     "maturity": "t", "maturityShort": "ts", "maturityRegion": "tr",
     "vintageQuality": "q", "falstaff": "f", "key": "k",
     "wineryRating": "wr", "fuzzy": "fz", "matchedName": "mn",
+    # Zwei Preis-Leistungs-Zahlen: „vs" gilt innerhalb einer Warenwelt, „vsa" über
+    # beide hinweg. Welche angezeigt wird, entscheidet der Quellenfilter.
     "valueScore": "vs",
+    "valueScoreAll": "vsa",
     # Kennzeichnung der Quellenart — siehe MARKTPLATZ_QUELLEN.
     "marketplace": "mp",
     "swiss": "ch",
@@ -744,6 +758,7 @@ _TEMPLATE = r"""<!doctype html>
             <option value="10">CHF 10</option>
             <option value="20">CHF 20</option>
             <option value="40">CHF 40</option>
+            <option value="50">CHF 50</option>
             <option value="80">CHF 80</option>
           </select>
         </label>
@@ -822,7 +837,7 @@ const KEYS = { n:"name", y:"vintage", p:"price", r:"rating", rc:"ratingCount",
   vu:"vivinoUrl", rs:"retailers", c:"cheapest", u:"url", m:"market", b:"bargain",
   s:"style", sl:"styleLabel", t:"maturity", ts:"maturityShort", tr:"maturityRegion",
   q:"vintageQuality", f:"falstaff", k:"key", wr:"wineryRating",
-                   fz:"fuzzy", mn:"matchedName", vs:"valueScore" };
+                   fz:"fuzzy", mn:"matchedName", vs:"valueScore", vsa:"valueScoreAll" };
 D.runs.forEach(run => {
   run.wines = run.wines.map(w => {
     const o = { retailers: [], name: "", style: "", maturity: "", styleLabel: "",
@@ -843,15 +858,24 @@ const PAGE = 50;
    Liste, in der Schaumwein, Süsswein und „unbekannt" dazwischenliegen. Ein Klick auf
    „Rotwein" hebt die Vorauswahl wieder auf. */
 const STANDARD_SORTE = "rot";
-/* "ch" = Schweizer Handel, "mp" = Vivino-Marktplatz. Vorgewählt ist der Handel:
-   das ist die Frage, für die es die Seite gibt — was lohnt sich hier zu kaufen. */
-const STANDARD_QUELLE = "ch";
+/* "alle" = beide Welten, "ch" = nur Schweizer Handel, "mp" = nur Vivino-Marktplatz.
+   Vorgewählt sind beide: der Marktplatz liefert in die Schweiz und gehört damit zur
+   Auswahl. Damit die gemeinsame Liste vergleichbar bleibt, wird in dieser Ansicht
+   die über beide Welten gerechnete Preis-Leistungs-Zahl verwendet — siehe
+   valueOf(). */
+const STANDARD_QUELLE = "alle";
+/* Die Standardauswahl beantwortet die häufigste Frage: ein guter Rotwein für den
+   Alltag. Ohne Grenzen eröffnet die Liste mit Flaschen zu dreihundert Franken und
+   mit Weinen, die niemand bewertet hat. Ein Klick hebt jede dieser Grenzen auf. */
+const STANDARD_NOTE = 4;
+const STANDARD_PREIS = 50;
 const S = { run: D.runs[0].id, mat: new Set(), style: new Set([STANDARD_SORTE]),
             shop: new Set(), src: STANDARD_QUELLE, q: "",
             /* Standard ist Preis-Leistung: „welche Flasche lohnt sich" ist die Frage,
                für die es die Seite gibt. Nach Note allein eröffnete die Liste mit den
                teuersten Flaschen. */
-            sort: "value", dir: -1, minRating: null, maxPrice: null, onlyBargain: false,
+            sort: "value", dir: -1, minRating: STANDARD_NOTE, maxPrice: STANDARD_PREIS,
+            onlyBargain: false,
             onlyFound: false, limit: PAGE };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -870,9 +894,15 @@ const vintageSuffix = w => (w.vintage && !String(w.name).includes(String(w.vinta
   ? " " + w.vintage : "";
 /* Der Wert, nach dem standardmässig sortiert wird, muss auch dastehen — sonst ist die
    Reihenfolge nicht nachvollziehbar. 0 heisst „genau im Preisniveau". */
+/* Zwei Preis-Leistungs-Zahlen liegen bereit: eine je Warenwelt, eine über beide.
+   Zeigt die Seite nur eine Welt, gilt deren eigene — sie misst "gut für einen
+   Schweizer Ladenwein" bzw. "gut für einen Marktplatzwein". Stehen beide Welten in
+   derselben Liste, muss die gemeinsame gelten, sonst würden zwei Zahlen sortiert,
+   die nicht dasselbe messen. */
+const valueOf = w => (S.src === "alle" ? w.valueScoreAll : w.valueScore);
 const valueText = w => {
-  if (w.valueScore == null) return '<span class="meta">—</span>';
-  const v = w.valueScore;
+  if (valueOf(w) == null) return '<span class="meta">—</span>';
+  const v = valueOf(w);
   return (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(2);
 };
 
@@ -1040,7 +1070,7 @@ function chart(list) {
       + (p.matchedName ? ` — gefunden: „${esc(p.matchedName)}"` : "") + `</span>`);
     if (p.styleLabel) h += row("Sorte", esc(p.styleLabel));
     if (p.maturityShort) h += row("Trinkreife", "<b>" + esc(p.maturityShort) + "</b>");
-    if (p.valueScore != null) h += row("Preis-Leistung", valueText(p));
+    if (valueOf(p) != null) h += row("Preis-Leistung", valueText(p));
     h += row("Preis/75cl", chf(p.price));
     h += row("Händler", esc((D.retailers.find(r => r.key === p.cheapest) || {}).name || p.cheapest));
     if (p.bargain != null) {
@@ -1127,7 +1157,7 @@ function table(list) {
     price:   w => w.price,
     shop:    w => shopName(w.cheapest).toLowerCase(),
     bargain: w => w.bargain,
-    value:   w => w.valueScore,
+    value:   w => valueOf(w),
   };
   const key = KEYS[S.sort] || KEYS.value;
   const sorted = list.slice().sort((a, b) => {
@@ -1167,8 +1197,8 @@ function table(list) {
         ${w.styleLabel ? `<span class="pill">${esc(w.styleLabel)}</span>` : ""}
         ${w.maturityShort ? `<span class="pill">${esc(w.maturityShort)}</span>` : ""}
         ${istGut(w) ? `<br><span class="marker">◆ gut und günstig</span>` : ""}</td>
-      <td data-l="Preis-Leistung" class="pl${w.valueScore == null ? " noval" : ""}${
-        (w.valueScore ?? 0) < 0 ? " neg" : ""}">${valueText(w)}</td>
+      <td data-l="Preis-Leistung" class="pl${valueOf(w) == null ? " noval" : ""}${
+        (valueOf(w) ?? 0) < 0 ? " neg" : ""}">${valueText(w)}</td>
       <td data-l="Vivino">${vivino}</td>
       <td data-l="Preis/75cl" class="num">${chf(w.price)}</td>
       <td data-l="Wo kaufen">${shop}</td>
@@ -1244,7 +1274,7 @@ function buildFilters() {
   D.styles.forEach(s => st.append(chip(s.label, S.style.has(s.key), toggle(S.style, s.key))));
 
   const sr = document.getElementById("fSrc"); sr.innerHTML = "";
-  [["ch", "Schweizer Handel"], ["mp", "Vivino-Marktplatz"]].forEach(([k, label]) => {
+  [["alle", "alle"], ["ch", "Schweizer Handel"], ["mp", "Vivino-Marktplatz"]].forEach(([k, label]) => {
     sr.append(chip(label, S.src === k, () => { S.src = k; S.shop.clear(); render(); }));
   });
 
@@ -1252,7 +1282,7 @@ function buildFilters() {
   // Ohne Farbpunkt: der Händler trägt hier keine Farbe, nur seinen Namen.
   /* Nur die Händler der gewählten Welt: "Vivino Aktionen" in der Liste der
      Schweizer Händler wäre ein Filter, der nie einen Treffer ergibt. */
-  D.retailers.filter(r => (r.key === "vivinoshop") === (S.src === "mp"))
+  D.retailers.filter(r => S.src === "alle" || (r.key === "vivinoshop") === (S.src === "mp"))
     .forEach(r => sh.append(chip(r.name, S.shop.has(r.key), toggle(S.shop, r.key))));
 }
 
@@ -1338,17 +1368,26 @@ document.getElementById("fBargain").addEventListener("change", e => {
 document.getElementById("fFound").addEventListener("change", e => {
   S.onlyFound = e.target.checked; refilter();
 });
+/* Erst hier, nach den Ereignishandlern: die Auswahlfelder tragen ihren Standardwert
+   nicht im HTML, sondern bekommen ihn beim Laden. Ohne das zeigte die Liste 50 Franken
+   und Note 4, während in den Feldern "alle" stünde — der Besucher hielte die Auswahl
+   für einen Fehler. Die Konstanten bleiben die einzige Quelle: auch „Zurücksetzen"
+   greift auf sie zurück. */
+document.getElementById("fMinRating").value = String(STANDARD_NOTE);
+document.getElementById("fMaxPrice").value = String(STANDARD_PREIS);
+
 document.getElementById("reset").addEventListener("click", () => {
   // Zurücksetzen heisst: auf den Standard, nicht auf leer. Sonst führt der Knopf zu
   // einem Zustand, den man beim Laden nie sieht.
   S.mat.clear(); S.shop.clear(); S.q = "";
   S.style = new Set([STANDARD_SORTE]);
   S.src = STANDARD_QUELLE;
-  S.minRating = null; S.maxPrice = null; S.onlyBargain = false; S.onlyFound = false;
+  S.minRating = STANDARD_NOTE; S.maxPrice = STANDARD_PREIS;
+  S.onlyBargain = false; S.onlyFound = false;
   S.sort = "value"; S.dir = -1; S.limit = PAGE;
   document.getElementById("q").value = "";
-  document.getElementById("fMinRating").value = "";
-  document.getElementById("fMaxPrice").value = "";
+  document.getElementById("fMinRating").value = String(STANDARD_NOTE);
+  document.getElementById("fMaxPrice").value = String(STANDARD_PREIS);
   document.getElementById("fBargain").checked = false;
   document.getElementById("fFound").checked = false;
   syncSort();
