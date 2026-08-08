@@ -36,13 +36,40 @@ QUESTIONABLE_DISCOUNT = 45.0
 #: Definiert ist sie in models.py — prices.py importiert models, nicht umgekehrt.
 __all__ = ["QUESTIONABLE_BARGAIN"]
 
+#: Flaschengrössen, die als Wort dastehen statt als Zahl. Schlüssel sind fertige
+#: Suchmuster, weil eines davon eine Ausnahme braucht.
+#:
+#: „Demi" allein ist die halbe Flasche. „Demi-Sec" ist dagegen eine Geschmacksangabe
+#: — und weil der Bindestrich als Wortgrenze zählt, traf ``\bdemi\b`` sie mit. Vier
+#: Weine bekamen so 375 statt 750 ml und damit den doppelten Literpreis: der Moët
+#: Ice Impérial stand mit CHF 93.90 statt 46.95 da, wurde als unsicher eingestuft und
+#: fiel aus der Rangliste. „Demi-Bouteille" bleibt die halbe Flasche.
+#: Der Grundpreis, den der Schweizer Detailhandel neben den Verkaufspreis druckt:
+#: „(100 ml = -.62)", „(1 L = 12.50)", „(100 g = 1.10)". Vorgeschrieben ist er, damit
+#: sich Packungsgrössen vergleichen lassen — für die Frage, wie gross die Flasche ist,
+#: sagt er nichts.
+#:
+#: Ohne diesen Schnitt las die Volumensuche in „Italien, 75 cl, 2024 (100 ml = -.62)"
+#: zwei Grössen, hielt das für widersprüchlich und verwarf den Preis. Der Wein stand
+#: dann ohne Betrag im Bericht. Dieselbe Falle in anderer Schreibweise steckte bei
+#: Vino Vintana in „(10,00 CHF* / 1 Liter)".
+_RE_GRUNDPREIS = re.compile(
+    r"\(\s*\d+(?:[.,]\d+)?\s*(?:ml|cl|dl|lt?|g|kg)\s*=\s*[^)]*\)", re.I
+)
+
+
+def _ohne_grundpreis(text: str) -> str:
+    """Entfernt Grundpreisangaben, bevor nach Flaschengrössen gesucht wird."""
+    return _RE_GRUNDPREIS.sub(" ", text)
+
+
 _NAMED_VOLUMES = {
-    "piccolo": 200,
-    "halbflasche": 375,
-    "demi": 375,
-    "magnum": 1500,
-    "doppelmagnum": 3000,
-    "jeroboam": 3000,
+    r"\bpiccolo\b": 200,
+    r"\bhalbflasche\b": 375,
+    r"\bdemi\b(?!\s*[-\s]?sec)": 375,
+    r"\bmagnum\b": 1500,
+    r"\bdoppelmagnum\b": 3000,
+    r"\bjeroboam\b": 3000,
 }
 
 # "6 x 75 cl", "12 × 0.75 l", "6*75cl"
@@ -104,7 +131,7 @@ def parse_gebinde(text: str) -> tuple[int | None, int | None, str, bool]:
     ``sicher`` ist False, sobald etwas mehrdeutig bleibt — dann wird der Wein nicht
     gerankt, statt eine Zahl zu erfinden.
     """
-    t = text or ""
+    t = _ohne_grundpreis(text or "")
     notes: list[str] = []
     units: int | None = None
     ml: int | None = None
@@ -123,8 +150,8 @@ def parse_gebinde(text: str) -> tuple[int | None, int | None, str, bool]:
             units = int(next(g for g in mp.groups() if g))
         # Volumen separat suchen; mehrere abweichende Angaben -> unsicher.
         vols = {v for v in (_to_ml(_num(a), b) for a, b in _RE_VOLUME.findall(t)) if v}
-        for word, wml in _NAMED_VOLUMES.items():
-            if re.search(rf"\b{word}\b", t, re.I):
+        for muster, wml in _NAMED_VOLUMES.items():
+            if re.search(muster, t, re.I):
                 vols.add(wml)
         if len(vols) == 1:
             ml = vols.pop()

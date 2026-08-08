@@ -895,9 +895,13 @@ const D = __PAYLOAD__;
 const KEYS = { n:"name", y:"vintage", p:"price", r:"rating", rc:"ratingCount",
   vu:"vivinoUrl", rs:"retailers", c:"cheapest", u:"url", m:"market", b:"bargain",
   s:"style", sl:"styleLabel", t:"maturity", ts:"maturityShort", tr:"maturityRegion",
-                   dw:"drinkWindow", mc:"maturityConflict",
+  dw:"drinkWindow", mc:"maturityConflict",
   q:"vintageQuality", f:"falstaff", k:"key", wr:"wineryRating",
-                   fz:"fuzzy", mn:"matchedName", vs:"valueScore", vsa:"valueScoreAll", g:"grapes" };
+  fz:"fuzzy", mn:"matchedName", vs:"valueScore", vsa:"valueScoreAll", g:"grapes",
+  /* Die Quellenart. Fehlten diese beiden, war w.swiss im Browser immer undefiniert
+     und der Quellenfilter zeigte in jeder Einzelstellung null Weine — nur "alle"
+     funktionierte, weil es keine der beiden Bedingungen prüft. */
+  mp:"marketplace", ch:"swiss" };
 D.runs.forEach(run => {
   run.wines = run.wines.map(w => {
     const o = { retailers: [], name: "", style: "", maturity: "", styleLabel: "",
@@ -939,7 +943,10 @@ const S = { run: D.runs[0].id, mat: new Set(), style: new Set([STANDARD_SORTE]),
             onlyFound: false, limit: PAGE };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
-const chf = v => v == null ? "" : "CHF " + Number(v).toFixed(2)
+/* Null ist kein Preis. Weine, deren Preisbasis unsicher blieb, kommen ohne Betrag
+   in den Bericht — als "CHF 0.00" gedruckt las sich das wie ein Gratisangebot.
+   Ein Strich sagt, was gemeint ist: hier steht keine belastbare Zahl. */
+const chf = v => (v == null || v === 0) ? "—" : "CHF " + Number(v).toFixed(2)
   .replace(/\B(?=(\d{3})+(?!\d))/, "'");
 /* Die Händlernamen tragen den Jahrgang meist schon in sich ("Pomerol AOC 2007
    Château Lafleur"). Ihn dann noch anzuhängen, druckt ihn zweimal — bei den

@@ -199,3 +199,73 @@ def test_real_vat_hints_are_still_recognised(text, expect_excl):
         assert r.price_per_bottle_incl_vat == pytest.approx(108.1, abs=0.05)
     else:
         assert r.price_per_bottle_incl_vat == pytest.approx(100.0, abs=0.05)
+
+
+def test_demi_sec_ist_keine_halbe_flasche():
+    """"Demi" allein ist die halbe Flasche, "Demi-Sec" eine Geschmacksangabe.
+
+    Weil der Bindestrich als Wortgrenze zählt, traf das Muster für die halbe
+    Flasche sie mit. Vier Weine bekamen 375 statt 750 ml und damit den doppelten
+    Literpreis; als unsicher eingestuft fielen sie aus der Rangliste.
+    """
+    from winecheck.prices import normalize_price
+
+    n = normalize_price(46.95, "Moët & Chandon Ice Impérial (Demi-Sec) Champagne, 75 cl",
+                        price_basis="bottle", default_vat_included=True)
+    assert n.bottle_ml == 750
+    assert n.price_per_bottle_incl_vat == 46.95
+    assert n.confidence.value == "high"
+
+
+def test_demi_sec_ohne_bindestrich_ebenso():
+    from winecheck.prices import normalize_price
+
+    n = normalize_price(30.0, "Champagne Demi Sec Brut 75 cl",
+                        price_basis="bottle", default_vat_included=True)
+    assert n.bottle_ml == 750
+
+
+def test_die_echte_halbe_flasche_bleibt_erkannt():
+    """Sonst wäre aus der Berichtigung ein neuer Fehler geworden."""
+    from winecheck.prices import normalize_price
+
+    assert normalize_price(20.0, "Demi-Bouteille Sauternes 2019",
+                           price_basis="bottle", default_vat_included=True).bottle_ml == 375
+    assert normalize_price(20.0, "Halbflasche Sauternes",
+                           price_basis="bottle", default_vat_included=True).bottle_ml == 375
+
+
+def test_grundpreis_ist_keine_flaschengroesse():
+    """Der Schweizer Detailhandel druckt "(100 ml = -.62)" neben den Preis.
+
+    Vorgeschrieben ist die Angabe, damit sich Packungsgrössen vergleichen lassen;
+    über die Flaschengrösse sagt sie nichts. Ungefiltert las die Volumensuche in
+    "Italien, 75 cl, 2024 (100 ml = -.62)" zwei Grössen, hielt das für
+    widersprüchlich und verwarf den Preis — der Wein stand ohne Betrag im Bericht.
+    """
+    from winecheck.prices import normalize_price
+
+    n = normalize_price(4.60, "Zeni Bardolino DOC Classico Italien, 75 cl, 2024 (100 ml = -.62)",
+                        price_basis="auto", default_vat_included=True)
+    assert n.bottle_ml == 750
+    assert n.price_per_bottle_incl_vat == 4.60
+    assert n.confidence.value == "high"
+
+
+def test_grundpreis_je_liter_ebenso():
+    from winecheck.prices import normalize_price
+
+    n = normalize_price(9.90, "Chianti DOCG 75 cl (1 L = 13.20)",
+                        price_basis="auto", default_vat_included=True)
+    assert n.bottle_ml == 750
+
+
+def test_das_gebinde_bleibt_neben_dem_grundpreis_erhalten():
+    """Sonst wäre aus der Berichtigung ein Kartonpreis je Flasche geworden."""
+    from winecheck.prices import normalize_price
+
+    n = normalize_price(56.40, "Merlot 6 x 75 cl (100 ml = 1.10)",
+                        price_basis="auto", default_vat_included=True)
+    assert n.units == 6
+    assert n.bottle_ml == 750
+    assert n.price_per_bottle_incl_vat == 9.40

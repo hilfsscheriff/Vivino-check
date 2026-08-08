@@ -165,6 +165,11 @@ class VivinoShopAdapter(RetailerAdapter):
             self.bewertungen.append({
                 "name": name, "vintage": jahrgang, "wine_id": wein_id,
                 "rating": float(note), "rating_count": anzahl, "url": url,
+                # Die Farbe. Sie kommt aus Vivinos Weindatenbank und ist damit
+                # verlässlicher als jede Namensanalyse — ohne sie fielen 400 Weine
+                # auf "unbekannt" zurück, weil Namen wie "Astrale Special Edition"
+                # oder "The Guv'nor" kein Farbwort enthalten.
+                "wine_type_id": wein.get("type_id"),
             })
 
         return self.make_offer(
@@ -172,8 +177,12 @@ class VivinoShopAdapter(RetailerAdapter):
             url=url,
             price_text=float(betrag),
             reference_text=float(vorher),
-            # Die Flaschengrösse steht fest — geprüft wurde sie oben.
-            gebinde_text=f"75 cl {name}",
+            # Nur die Grösse, ohne den Namen. Sie steht oben schon fest
+            # (``bottle_type.id == 1``), und der Name kann sie nur noch
+            # durcheinanderbringen: „Moët & Chandon Ice Impérial (Demi-Sec)" wurde
+            # über das „Demi" als halbe Flasche gelesen, womit die Normalisierung
+            # zwei Volumen fand und den Wein als unsicher aus der Rangliste warf.
+            gebinde_text="75 cl",
             article_no=str(p.get("sku") or "") or None,
             vintage=jahrgang,
             vat_included=True,
@@ -242,6 +251,7 @@ class VivinoShopAdapter(RetailerAdapter):
                     "matched_name": b["name"],
                     "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
                     "match_confidence": "exact",
+                    "wine_type_id": b.get("wine_type_id"),
                     # Kein Marktpreis: er käme von Vivino und würde mit einem
                     # Vivino-Preis verglichen. Der Vergleich wäre zirkulär, und
                     # die Schnäppchen-Spalte bliebe eine Aussage über sich selbst.

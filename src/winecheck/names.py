@@ -534,6 +534,33 @@ _ROSE = ("rosewein", "rose", "rosato", "rosado", "blush", "oeil de perdrix", "ch
 _RED_WORDS = ("rotwein", "rosso", "rouge", "tinto", "vino rosso", "red wine")
 _WHITE_WORDS = ("weisswein", "bianco", "blanc", "blanco", "white wine", "vin blanc")
 
+#: Rebsorten und Herkünfte, die es nur in einer Farbe gibt.
+#:
+#: Sie greifen erst, wenn kein Farbwort dasteht und Vivino nichts weiss. „Grande
+#: Alberone Platinum Collection Zinfandel" und „Fabiano Amarone della Valpolicella"
+#: trugen bis dahin „unbekannt", obwohl beide unstrittig rot sind.
+#:
+#: Aufgenommen ist nur, was eindeutig ist. Pinot fehlt — es gibt Pinot Noir, Grigio
+#: und Blanc. Grenache fehlt — es gibt Grenache Blanc. Chardonnay steht dagegen
+#: drin: einen roten gibt es nicht.
+_RED_GRAPES = (
+    "zinfandel", "primitivo", "amarone", "valpolicella", "ripasso", "barolo",
+    "barbaresco", "brunello", "chianti", "montepulciano", "aglianico", "nebbiolo",
+    "sangiovese", "barbera", "dolcetto", "negroamaro", "nero d avola", "corvina",
+    "cabernet sauvignon", "merlot", "syrah", "shiraz", "malbec", "tempranillo",
+    "garnacha", "monastrell", "mourvedre", "carmenere", "petit verdot", "tannat",
+    "zweigelt", "blaufrankisch", "lemberger", "dornfelder", "spatburgunder",
+    "rioja", "ribera del duero", "priorat", "bordeaux superieur", "saint-emilion",
+    "pomerol", "medoc", "chateauneuf", "cornas", "hermitage", "gigondas",
+)
+_WHITE_GRAPES = (
+    "chardonnay", "sauvignon blanc", "riesling", "gruner veltliner", "gewurztraminer",
+    "pinot grigio", "pinot gris", "verdejo", "albarino", "vermentino", "viognier",
+    "chasselas", "fendant", "muller-thurgau", "silvaner", "soave", "gavi",
+    "sancerre", "chablis", "pouilly-fume", "vinho verde", "godello", "arneis",
+    "falanghina", "greco di tufo", "fiano", "petite arvine", "sylvaner",
+)
+
 
 def wine_style(name: str, vivino_type_id: int | None = None) -> str:
     """Sorte eines Weins, für Filter und Anzeige.
@@ -570,6 +597,10 @@ def wine_style(name: str, vivino_type_id: int | None = None) -> str:
     if has(_ROSE):
         return "rose"
     red_word, white_word = has(_RED_WORDS), has(_WHITE_WORDS)
+    # Erst wenn kein Farbwort dasteht, entscheidet die Rebsorte oder die Herkunft.
+    # Farbwörter behalten den Vorrang, sonst würde "Bianco di Merlot" zum Roten.
+    if not red_word and not white_word:
+        red_word, white_word = has(_RED_GRAPES), has(_WHITE_GRAPES)
     if red_word != white_word:
         return "rot" if red_word else "weiss"
     # Rückfall über Rebsorten.

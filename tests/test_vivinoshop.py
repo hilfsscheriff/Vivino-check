@@ -22,7 +22,8 @@ def _treffer(*, betrag=10.0, vorher=20.0, flasche=1, note=4.2, jahr=2020):
     return {
         "vintage": {
             "id": 111, "year": jahr,
-            "wine": {"id": 222, "name": "Rioja Reserva", "winery": {"name": "Imperial"}},
+            "wine": {"id": 222, "name": "Rioja Reserva", "type_id": 1,
+                     "winery": {"name": "Imperial"}},
             "statistics": {"ratings_average": note, "ratings_count": 900},
         },
         "price": {"id": 333, "amount": betrag, "discounted_from": vorher,
@@ -62,6 +63,9 @@ def test_note_wird_zum_saeen_gesammelt(adapter):
         "name": "Imperial Rioja Reserva", "vintage": 2020, "wine_id": 222,
         "rating": 4.4, "rating_count": 900,
         "url": "https://www.vivino.com/w/222",
+        # Die Farbe muss mit. Ohne sie fielen 400 Weine auf "unbekannt" zurück,
+        # weil Namen wie "Astrale Special Edition" kein Farbwort enthalten.
+        "wine_type_id": 1,
     }]
 
 

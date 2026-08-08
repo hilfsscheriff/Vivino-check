@@ -660,3 +660,22 @@ def test_sortenfilter_steht_auf_der_seite(doc):
     assert "S.hideGrapes" in text
     # Aus dem Bestand gebaut, nicht fest verdrahtet.
     assert "D.grapeFilters" in text
+
+
+def test_jeder_kurzschluessel_wird_wieder_entpackt(doc):
+    """Sonst ist das Feld im Browser undefiniert und der Filter greift ins Leere.
+
+    Genau das ist passiert: "mp" und "ch" fehlten in der Entpack-Tabelle, w.swiss
+    blieb undefiniert, und der Quellenfilter zeigte in den Stellungen "Schweizer
+    Handel" und "Vivino-Marktplatz" null von 1391 Weinen. Nur "alle" ging, weil es
+    keine der beiden Bedingungen prüft.
+    """
+    import re
+
+    from winecheck.report.site import _SHORT_KEYS
+
+    text = doc()
+    tabelle = text.split("const KEYS =", 1)[1].split("};", 1)[0]
+    entpackt = set(re.findall(r'(\w+)\s*:\s*"', tabelle))
+    fehlt = {kurz for kurz in _SHORT_KEYS.values() if kurz not in entpackt}
+    assert not fehlt, f"nicht entpackt: {sorted(fehlt)}"
