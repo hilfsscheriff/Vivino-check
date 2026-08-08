@@ -472,10 +472,39 @@ STYLE_LABELS: dict[str, str] = {
     "rot": "Rotwein",
     "weiss": "Weisswein",
     "rose": "Rosé",
+    # Champagner steht neben Schaumwein, nicht darunter. Von den 85 Schaumweinen im
+    # Bestand sind 39 Champagner, und ein Champagner ist gegenüber einem Prosecco
+    # eine andere Kaufentscheidung: andere Preisklasse, andere Herkunft, anderer
+    # Anlass. In einer gemeinsamen Kachel geht beides ineinander auf.
+    "champagner": "Champagner",
     "schaumwein": "Schaumwein",
     "suesswein": "Süsswein",
     "unbekannt": "unbekannt",
 }
+
+#: Was als Champagner zählt: die geschützte Ursprungsbezeichnung selbst und die
+#: Häuser, die sie nicht immer im Produktnamen führen. „Dom Pérignon" und „Krug"
+#: stehen bei manchen Händlern ohne das Wort Champagne da.
+#:
+#: Bewusst eng gehalten. Crémant, Franciacorta und Cava werden nach derselben
+#: Methode gemacht, dürfen sich aber nicht Champagner nennen — und wer hier filtert,
+#: meint die Appellation, nicht das Verfahren.
+#: Nicht aufgenommen sind Häuser, deren Name auch anderswo vorkommt: „Mumm" führt
+#: auch Mumm Napa, „Roederer" auch Roederer Estate aus dem Anderson Valley. Beide
+#: machen Schaumwein, aber keinen Champagner, und ein falscher Treffer wäre hier
+#: schlimmer als ein fehlender — die Kachel soll halten, was sie verspricht.
+#: „Louis Roederer" steht darum ausgeschrieben da.
+_CHAMPAGNE = (
+    "champagne", "champagner",
+    "dom perignon", "dom pérignon", "krug", "ruinart", "bollinger",
+    "veuve clicquot", "taittinger", "pol roger", "billecart", "deutz", "gosset",
+    "laurent-perrier", "laurent perrier", "moet", "moët",
+    "perrier-jouet", "perrier jouët", "perrier-jouët",
+    "piper-heidsieck", "piper heidsieck", "charles heidsieck",
+    "louis roederer", "lanson", "nicolas feuillatte", "drappier",
+    "philipponnat", "jacquart", "ayala", "delamotte", "henriot", "pommery",
+    "canard-duchene", "canard-duchêne", "joseph perrier", "besserat",
+)
 
 #: Vivinos ``wine.type_id`` — verlässlicher als jede Namensanalyse.
 VIVINO_TYPE_IDS: dict[int, str] = {
@@ -518,14 +547,22 @@ def wine_style(name: str, vivino_type_id: int | None = None) -> str:
     Erst danach Farbe, und Farbwörter schlagen Rebsortennamen — sonst wird
     "Bianco di Merlot" zum Rotwein.
     """
-    if vivino_type_id is not None and vivino_type_id in VIVINO_TYPE_IDS:
-        return VIVINO_TYPE_IDS[vivino_type_id]
-
     low = strip_accents((name or "").lower())
 
     def has(words: tuple[str, ...]) -> bool:
         return any(_style_re(w).search(low) for w in words)
 
+    if vivino_type_id is not None and vivino_type_id in VIVINO_TYPE_IDS:
+        aus_vivino = VIVINO_TYPE_IDS[vivino_type_id]
+        # Vivino kennt Champagner nicht als eigene Art — dort ist alles type_id 3
+        # "Sparkling". Die Verfeinerung muss darum über den Namen laufen, sonst
+        # landen ausgerechnet die sicher zugeordneten Champagner in der Sammelkachel.
+        if aus_vivino == "schaumwein" and has(_CHAMPAGNE):
+            return "champagner"
+        return aus_vivino
+
+    if has(_CHAMPAGNE):
+        return "champagner"
     if has(_SPARKLING):
         return "schaumwein"
     if has(_SWEET):
