@@ -116,3 +116,16 @@ def test_ohne_streichpreis_kein_angebot(adapter):
         "CHF 14.30 / 75 cl", liter="19.07", jahr="2019",
     ))
     assert o is None
+
+
+def test_relativer_link_wird_absolut(adapter):
+    """44 tote Links, weil "/edizione-bianco_21164700" so übernommen wurde.
+
+    Auf der Berichtsseite löste der Browser sie gegen deren eigene Adresse auf.
+    """
+    o = adapter._parse_box(
+        _kachel("Chianti Classico DOCG", "Weingut Y Kräftig - würzig - lang",
+                "CHF 14.00 / 75 cl", statt="20.00"),
+        "https://www.wine-outlet.ch/shop/alle-produkte?limit=48",
+    )
+    assert o.url == "https://www.wine-outlet.ch/x_1"

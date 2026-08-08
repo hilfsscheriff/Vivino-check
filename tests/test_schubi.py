@@ -141,3 +141,31 @@ def test_mehrwegglas_ist_kein_trinkglas():
     assert not kein_wein("Herbstgold Rosé VdP Mehrwegglas, 50 cl")
     assert kein_wein("Riedel Weinglas 2er-Set")
     assert kein_wein("Rotweingläser 6er-Pack")
+
+
+def test_relativer_link_wird_absolut(adapter):
+    """Schubi verlinkt relativ — im Bericht muss die Adresse vollständig sein.
+
+    Unverändert übernommen löst der Browser "/b-binigrau-…html" gegen die Adresse
+    der *Berichtsseite* auf. Aus einem Wein wurde so
+    hilfsscheriff.github.io/b-binigrau-…: zwölf tote Links.
+    """
+    o = adapter._parse_box(
+        _kachel(
+            '<a class="product__title" href="/b-binigrau-a10145.html">Binigrau bi Negre 2023</a>'
+            '<span class="product__bottle-size">75 cl</span>' + _preisblock("28.50", "39.00")
+        ),
+        "https://www.schubiweine.ch/aktionen.html",
+    )
+    assert o.url == "https://www.schubiweine.ch/b-binigrau-a10145.html"
+
+
+def test_absoluter_link_bleibt_unangetastet(adapter):
+    o = adapter._parse_box(
+        _kachel(
+            '<a class="product__title" href="https://www.schubiweine.ch/x.html">Barolo DOCG 2019</a>'
+            '<span class="product__bottle-size">75 cl</span>' + _preisblock("28.50", "39.00")
+        ),
+        "https://www.schubiweine.ch/aktionen.html",
+    )
+    assert o.url == "https://www.schubiweine.ch/x.html"

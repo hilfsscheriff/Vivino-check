@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import time
+import urllib.parse
 from dataclasses import dataclass, field
 from functools import lru_cache
 
@@ -184,6 +185,21 @@ def _endung_re(word: str) -> re.Pattern[str]:
     Damit trifft „glas" auch in „Wein**glas**", nicht nur alleinstehend.
     """
     return re.compile(rf"{re.escape(word)}(?![a-zäöüéèàç])")
+
+
+def absolute_url(href: str, page_url: str) -> str:
+    """Macht einen Händler-Link absolut.
+
+    Viele Shops schreiben ihre Produktlinks relativ (``/edizione-bianco_21164700``).
+    Unverändert übernommen landen sie im Bericht und auf der Webseite — und dort
+    löst der Browser sie gegen **deren** Adresse auf. Aus einem Wein bei Wine-Outlet
+    wurde so ``hilfsscheriff.github.io/edizione-bianco_21164700``: ein toter Link.
+
+    Ist ``href`` bereits absolut, bleibt er unangetastet.
+    """
+    if not href:
+        return ""
+    return urllib.parse.urljoin(page_url, href)
 
 
 def parse_price(text: str | None) -> float | None:

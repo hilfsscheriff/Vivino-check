@@ -21,11 +21,13 @@ import typer
 from .adapters.base import FetchReport, RetailerAdapter
 from .adapters.aktionis import AktionisAdapter
 from .adapters.denner import DennerAdapter
+from .adapters.gerstl import GerstlAdapter
 from .adapters.moevenpick import MoevenpickAdapter
 from .adapters.aligro import AligroAdapter
 from .adapters.prodega import ProdegaAdapter
 from .adapters.schubi import SchubiAdapter
 from .adapters.shopware import ShopwareAdapter
+from .adapters.vivinoshop import VivinoShopAdapter
 from .adapters.wineoutlet import WineOutletAdapter
 from .aggregate import (
     attach_maturity,
@@ -53,10 +55,12 @@ ADAPTERS: dict[str, type[RetailerAdapter]] = {
     "aktionis": AktionisAdapter,
     "aligro": AligroAdapter,
     "denner": DennerAdapter,
+    "gerstl": GerstlAdapter,
     "moevenpick": MoevenpickAdapter,
     "prodega": ProdegaAdapter,
     "schubi": SchubiAdapter,
     "shopware": ShopwareAdapter,
+    "vivinoshop": VivinoShopAdapter,
     "wineoutlet": WineOutletAdapter,
 }
 
@@ -154,6 +158,15 @@ def fetch(
                     cache.clear_offers(key)
             for offer in report.offers:
                 cache.put_offer(cfg.key, offer.name, offer.vintage, _offer_payload(offer))
+            # Quellen, die ihre Vivino-Note mitliefern, legen sie gleich im
+            # Bewertungs-Cache ab. 'rate' findet sie dort und fragt gar nicht erst
+            # nach — das spart nicht nur Abfragen, es schliesst auch aus, dass die
+            # Suche einen anderen Wein findet als den tatsächlich angebotenen.
+            saeen = getattr(adapter, "saee_bewertungen", None)
+            if saeen is not None and report.status == "ok":
+                n = saeen(cache)
+                if n:
+                    _echo(f"  {cfg.key:<14} {n} Noten in den Bewertungs-Cache gelegt")
             _echo(f"  {cfg.key:<14} {report.status:<8} {report.count:>4} Positionen  {report.message[:90]}")
 
     STATE_DIR.mkdir(parents=True, exist_ok=True)

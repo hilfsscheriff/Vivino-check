@@ -35,7 +35,7 @@ from selectolax.parser import HTMLParser, Node
 
 from ..models import Offer
 from ..names import tokenize
-from .base import RetailerAdapter, parse_price
+from .base import RetailerAdapter, absolute_url, parse_price
 
 _RE_PREIS = re.compile(r"(?:CHF|Fr\.?)\s*([\d'’.,]+)", re.I)
 #: „(CHF 33.73 / L.)" — der vom Laden gerechnete Literpreis.
@@ -75,7 +75,7 @@ class WineOutletAdapter(RetailerAdapter):
         tree = HTMLParser(html)
         offers: list[Offer] = []
         for box in tree.css("article.product-elem"):
-            offer = self._parse_box(box)
+            offer = self._parse_box(box, url)
             if offer is not None:
                 offers.append(offer)
         return offers
@@ -111,7 +111,7 @@ class WineOutletAdapter(RetailerAdapter):
             abs(p / liter - angeschrieben) <= angeschrieben * _TOLERANZ for p in preise
         )
 
-    def _parse_box(self, box: Node) -> Offer | None:
+    def _parse_box(self, box: Node, seiten_url: str = "https://www.wine-outlet.ch/") -> Offer | None:
         name = _text(box.css_first(".product-name"))
         if not name:
             return None
@@ -126,8 +126,11 @@ class WineOutletAdapter(RetailerAdapter):
         if aktuell is None or referenz is None or aktuell >= referenz:
             return None
 
+        # Wine-Outlet verlinkt relativ ("/edizione-bianco_21164700"). Unverändert
+        # übernommen löst der Browser den Link gegen die Adresse der *Berichtsseite*
+        # auf: aus dem Wein wurde hilfsscheriff.github.io/edizione-bianco_21164700.
         link = box.css_first("a[href]")
-        href = link.attributes.get("href", "") if link else ""
+        href = absolute_url(link.attributes.get("href", "") if link else "", seiten_url)
         if not self.ist_wein(voll, href):
             return None
 

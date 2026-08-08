@@ -35,7 +35,7 @@ from selectolax.parser import HTMLParser, Node
 
 from ..models import Offer
 from ..names import tokenize
-from .base import RetailerAdapter, parse_price
+from .base import RetailerAdapter, absolute_url, parse_price
 
 #: „CHF 28.50", „CHF 1'250.00"
 _RE_PREIS = re.compile(r"(?:CHF|Fr\.?)\s*([\d'’.,]+)", re.I)
@@ -64,12 +64,12 @@ class SchubiAdapter(RetailerAdapter):
         tree = HTMLParser(html)
         offers: list[Offer] = []
         for box in tree.css("div.productoverview__item"):
-            offer = self._parse_box(box)
+            offer = self._parse_box(box, url)
             if offer is not None:
                 offers.append(offer)
         return offers
 
-    def _parse_box(self, box: Node) -> Offer | None:
+    def _parse_box(self, box: Node, seiten_url: str = "https://www.schubiweine.ch/") -> Offer | None:
         titel = box.css_first("a.product__title")
         name = _text(titel)
         if not name:
@@ -90,7 +90,10 @@ class SchubiAdapter(RetailerAdapter):
         if aktuell >= referenz:
             return None
 
-        href = titel.attributes.get("href", "") if titel else ""
+        # Schubi verlinkt relativ ("/b-binigrau-…-a10145.html"). Unverändert
+        # übernommen löst der Browser den Link gegen die Adresse der *Berichtsseite*
+        # auf und landet auf github.io statt beim Händler.
+        href = absolute_url(titel.attributes.get("href", "") if titel else "", seiten_url)
         if not self.ist_wein(voll, href):
             return None
 

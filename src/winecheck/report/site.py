@@ -58,7 +58,37 @@ VALUE_RATING_ANCHOR = 50
 VALUE_MIN_SAMPLE = 12
 
 
+#: Quellen, deren Weine ihre Bewertung mitbringen statt sie über einen
+#: Namensabgleich zu finden. Aktuell nur Vivinos eigener Marktplatz.
+#:
+#: Diese Weine werden getrennt gerechnet und angezeigt. Der Grund ist kein
+#: Misstrauen gegen die Quelle, im Gegenteil: ihre Noten sind die verlässlichsten
+#: im ganzen Bestand. Aber bei den Schweizer Händlern tritt nur rund die Hälfte der
+#: Weine überhaupt an — die andere Hälfte findet bei Vivino keinen Eintrag. In einer
+#: gemeinsamen Rangliste gewänne der Marktplatz jeden Platz, ohne dass daraus etwas
+#: über die Weine folgte.
+MARKTPLATZ_QUELLEN = frozenset({"vivinoshop"})
+
+
 def _add_value_scores(wines: list[dict[str, Any]]) -> None:
+    """Rechnet je Quellenart getrennt — Schweizer Handel und Marktplatz.
+
+    Beide Gruppen haben ein eigenes Preisniveau: der Marktplatz liefert aus dem
+    Ausland, der Schweizer Handel nicht. Eine gemeinsame Regression legte über
+    beide dieselbe Erwartungskurve und machte den systematischen Preisunterschied
+    zu einer Aussage über die einzelnen Weine.
+    """
+    # Ein Wein, den auch ein Schweizer Händler führt, wird im Schweizer Preisniveau
+    # gerechnet — dort ist er zu kaufen. Rein im Marktplatz geführte Weine bilden
+    # die zweite Gruppe.
+    marktplatz = [w for w in wines if w.get("marketplace") and not w.get("swiss")]
+    handel = [w for w in wines if w.get("swiss") or not w.get("marketplace")]
+    for gruppe in (handel, marktplatz):
+        if gruppe:
+            _value_scores_einer_gruppe(gruppe)
+
+
+def _value_scores_einer_gruppe(wines: list[dict[str, Any]]) -> None:
     """Trägt in jeden Wein ein, wie weit seine Note über dem Preisniveau liegt.
 
     „Gut und günstig" ist die Frage, für die es die Seite gibt — im Diagramm ist es
@@ -262,6 +292,9 @@ _SHORT_KEYS = {
     "vintageQuality": "q", "falstaff": "f", "key": "k",
     "wineryRating": "wr", "fuzzy": "fz", "matchedName": "mn",
     "valueScore": "vs",
+    # Kennzeichnung der Quellenart — siehe MARKTPLATZ_QUELLEN.
+    "marketplace": "mp",
+    "swiss": "ch",
 }
 
 
@@ -298,6 +331,18 @@ def build(
     runs = [r for r in runs if r.get("wines")]
     if not runs:
         return None
+
+    # Jeder Wein weiss, aus welcher Art Quelle er kommt. Muss vor der Bewertung
+    # stehen: die Preis-Leistungs-Zahl wird je Gruppe getrennt gerechnet.
+    for run in runs:
+        for w in run["wines"]:
+            haendler = set(w.get("retailers") or [])
+            # Zwei getrennte Kennzeichen, kein Entweder-oder: ein Wein kann in
+            # beiden Welten stehen. "10 Vendemmie Tenuta Ulisse" verkaufen Schubi
+            # *und* Vivino. Mit einem einzigen Kennzeichen verschwand er aus der
+            # Schweizer Ansicht, obwohl er dort zu kaufen ist.
+            w["marketplace"] = bool(haendler & MARKTPLATZ_QUELLEN)
+            w["swiss"] = bool(haendler - MARKTPLATZ_QUELLEN)
 
     # Je Lauf gerechnet: jeder hat sein eigenes Preisniveau.
     for run in runs:
@@ -670,6 +715,12 @@ _TEMPLATE = r"""<!doctype html>
     <details id="filterBox">
     <summary>Filter <span class="n" id="filterCount"></span></summary>
     <fieldset id="runBox"><legend>Lauf</legend><div class="chips" id="fRun"></div></fieldset>
+    <!-- Die Quellenart trennt zwei Warenwelten, die nicht in dieselbe Rangliste
+         gehören: der Schweizer Handel, bei dem rund die Hälfte der Weine keine
+         auffindbare Note hat, und Vivinos Marktplatz, wo jeder Wein seine Note
+         mitbringt. Gemischt gewänne der Marktplatz jeden Platz, ohne dass daraus
+         etwas über die Weine folgte. Vorgewählt ist der Schweizer Handel. -->
+    <fieldset><legend>Quelle</legend><div class="chips" id="fSrc"></div></fieldset>
     <fieldset><legend>Trinkreife</legend><div class="chips" id="fMat"></div></fieldset>
     <fieldset><legend>Sorte</legend><div class="chips" id="fStyle"></div></fieldset>
     <fieldset><legend>Händler</legend><div class="chips" id="fShop"></div></fieldset>
@@ -792,8 +843,11 @@ const PAGE = 50;
    Liste, in der Schaumwein, Süsswein und „unbekannt" dazwischenliegen. Ein Klick auf
    „Rotwein" hebt die Vorauswahl wieder auf. */
 const STANDARD_SORTE = "rot";
+/* "ch" = Schweizer Handel, "mp" = Vivino-Marktplatz. Vorgewählt ist der Handel:
+   das ist die Frage, für die es die Seite gibt — was lohnt sich hier zu kaufen. */
+const STANDARD_QUELLE = "ch";
 const S = { run: D.runs[0].id, mat: new Set(), style: new Set([STANDARD_SORTE]),
-            shop: new Set(), q: "",
+            shop: new Set(), src: STANDARD_QUELLE, q: "",
             /* Standard ist Preis-Leistung: „welche Flasche lohnt sich" ist die Frage,
                für die es die Seite gibt. Nach Note allein eröffnete die Liste mit den
                teuersten Flaschen. */
@@ -829,6 +883,11 @@ function visible() {
   return currentRun().wines.filter(w => {
     if (S.mat.size && !S.mat.has(w.maturity || "?")) return false;
     if (S.style.size && !S.style.has(w.style || "?")) return false;
+    /* Die beiden Warenwelten werden nie gemeinsam gezeigt: ihre Preis-Leistungs-
+       Zahlen stammen aus getrennten Regressionen und sind untereinander nicht
+       vergleichbar. */
+    if (S.src === "ch" && !w.swiss) return false;
+    if (S.src === "mp" && !w.marketplace) return false;
     if (S.shop.size && !w.retailers.some(r => S.shop.has(r))) return false;
     // Der bei Vivino gefundene Name gehört in die Suche. Händler benennen Weine oft
     // ohne den Produzenten: Mövenpick führt „Mendoza 2021 Chardonnay Alta Angelica
@@ -1184,10 +1243,17 @@ function buildFilters() {
   const st = document.getElementById("fStyle"); st.innerHTML = "";
   D.styles.forEach(s => st.append(chip(s.label, S.style.has(s.key), toggle(S.style, s.key))));
 
+  const sr = document.getElementById("fSrc"); sr.innerHTML = "";
+  [["ch", "Schweizer Handel"], ["mp", "Vivino-Marktplatz"]].forEach(([k, label]) => {
+    sr.append(chip(label, S.src === k, () => { S.src = k; S.shop.clear(); render(); }));
+  });
+
   const sh = document.getElementById("fShop"); sh.innerHTML = "";
   // Ohne Farbpunkt: der Händler trägt hier keine Farbe, nur seinen Namen.
-  D.retailers.forEach(r => sh.append(chip(
-    r.name, S.shop.has(r.key), toggle(S.shop, r.key))));
+  /* Nur die Händler der gewählten Welt: "Vivino Aktionen" in der Liste der
+     Schweizer Händler wäre ein Filter, der nie einen Treffer ergibt. */
+  D.retailers.filter(r => (r.key === "vivinoshop") === (S.src === "mp"))
+    .forEach(r => sh.append(chip(r.name, S.shop.has(r.key), toggle(S.shop, r.key))));
 }
 
 /* Am Desktop ist der Aufklapper ausgeblendet — dort muss <details> offen sein, sonst
@@ -1219,6 +1285,7 @@ syncFilterBox();
 
 function activeFilterCount() {
   return S.mat.size + S.style.size + S.shop.size
+    + (S.src !== STANDARD_QUELLE ? 1 : 0)
     + (S.q.trim() ? 1 : 0) + (S.minRating != null ? 1 : 0) + (S.maxPrice != null ? 1 : 0)
     + (S.onlyBargain ? 1 : 0) + (S.onlyFound ? 1 : 0);
 }
@@ -1276,6 +1343,7 @@ document.getElementById("reset").addEventListener("click", () => {
   // einem Zustand, den man beim Laden nie sieht.
   S.mat.clear(); S.shop.clear(); S.q = "";
   S.style = new Set([STANDARD_SORTE]);
+  S.src = STANDARD_QUELLE;
   S.minRating = null; S.maxPrice = null; S.onlyBargain = false; S.onlyFound = false;
   S.sort = "value"; S.dir = -1; S.limit = PAGE;
   document.getElementById("q").value = "";

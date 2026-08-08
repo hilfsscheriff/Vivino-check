@@ -200,6 +200,52 @@ retailers:
       /de/aktionen antwortete 404. Alternativen laut Auftrag sind Schubi, Gerstl
       und Denz.
 
+  - key: gerstl
+    name: Gerstl Weinselektionen
+    channel: Onlineshop, Lieferung — Verkauf nur im 6er-Gebinde
+    tier: 2
+    domain: gerstl.ch
+    adapter: gerstl
+    enabled: true
+    status: ok
+    urls:
+      # robots.txt verbietet *?p=* und *&p=* — die Aktionsseite wird darum ohne
+      # Blätterparameter geholt. Sie führt ohnehin alle Aktionen auf einer Seite.
+      - https://www.gerstl.ch/aktionen/c
+    vat_included: true
+    price_basis: bottle
+    private_label_brands: []
+    wine_only: true
+    # Die Positionen liegen als JSON im <script id="ng-state">, nicht im HTML: die
+    # Kacheln tragen nur Tailwind-Hilfsklassen. Der Preis ist der Privatkundenpreis
+    # (prices.pr) — ws/hr/ek sind Handels-, Gastro- und Einkaufskonditionen.
+    note: "Preise pro 75cl-Flasche inkl. MwSt laut AGB. Mindestabnahme 6 Flaschen."
+    verified_at: "2026-08-08"
+
+  - key: vivinoshop
+    name: Vivino Aktionen
+    channel: Marktplatz, Lieferung in die Schweiz
+    tier: 2
+    domain: vivino.com
+    adapter: vivinoshop
+    enabled: true
+    status: ok
+    urls: []
+    vat_included: true
+    price_basis: bottle
+    private_label_brands: []
+    wine_only: true
+    # Sonderfall: Vivino ist in diesem Projekt die Bewertungsquelle und hier
+    # zugleich Händler. Jeder Wein bringt darum seine Note mit — kein
+    # Namensabgleich, keine Fehlzuordnung, keine Lücke. Genau deshalb werden diese
+    # Weine im Bericht getrennt ausgewiesen: sonst besetzten sie jeden Spitzenplatz,
+    # nur weil bei den Schweizer Händlern die Hälfte der Weine mangels auffindbarer
+    # Note gar nicht antritt. Die Schnäppchen-Spalte bleibt hier leer — sie vergliche
+    # einen Vivino-Preis mit einem Vivino-Preis.
+    role: reference_shop
+    note: "Preise in CHF pro 0,75-l-Flasche laut bottle_type; nur diese Flaschengrösse wird übernommen."
+    verified_at: "2026-08-08"
+
   - key: aktionis
     name: Aktionis
     channel: Aggregator, Kauf beim genannten Händler
