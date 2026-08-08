@@ -117,6 +117,18 @@ class VivinoResult:
     #: Vivinos ``wine.type_id`` — verlässlicher als jede Namensanalyse für die Sorte.
     wine_type_id: int | None = None
 
+    # -- Trinkfenster ------------------------------------------------------
+    #: Vivino nennt auf der Weinseite ein Trinkfenster, aber **nur mit
+    #: Jahrgangsparameter** (``/w/1099307?year=2011`` → 2014–2026). Ohne ihn sind
+    #: die Felder leer; daran ist die Angabe bei einer früheren Prüfung durchgerutscht.
+    #:
+    #: Anders als die Vinum-Tabelle gilt sie je Wein und Jahrgang statt je Region
+    #: und Farbe. Sie ersetzt Vinum nicht, sondern steht daneben: Vinum ist
+    #: redaktionell geprüft, Vivino ist feiner, und wo sie sich widersprechen, soll
+    #: man das sehen.
+    drink_from: int | None = None
+    drink_until: int | None = None
+
     def __post_init__(self) -> None:
         # Harte Zusicherung: die URL ist niemals leer. Ohne Weinseite die Suche.
         if not self.url:
@@ -598,6 +610,10 @@ class WineRow:
             "trinkreife_text": self.maturity.text if self.maturity else "",
             "trinkreife_code": self.maturity.code if self.maturity else "",
             "trinkreife_region": self.maturity.region_label if self.maturity else "",
+            # Vivinos Trinkfenster für genau diesen Wein und Jahrgang, und ob es der
+            # Vinum-Tabelle widerspricht. Beide Quellen behalten ihre Stimme.
+            "trinkfenster_vivino": self.maturity.fenster if self.maturity else "",
+            "trinkreife_widerspruch": self.maturity.widerspruch if self.maturity else "",
             "trinkreife_weinart": self.maturity.wine_type if self.maturity else "",
             "jahrgang_qualitaet": (self.maturity.quality or "") if self.maturity else "",
             "falstaff_reported_by": (self.falstaff.source_name or "") if self.falstaff else "",

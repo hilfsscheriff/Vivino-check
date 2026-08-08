@@ -322,6 +322,10 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
         "maturity": d.get("maturity") or "",
         "maturityShort": d.get("maturity_short") or "",
         "maturityRegion": d.get("maturity_region") or "",
+        # Vivinos Trinkfenster für genau diesen Wein und Jahrgang, und ob es der
+        # Vinum-Tabelle widerspricht. Beide Quellen behalten ihre Stimme.
+        "drinkWindow": d.get("maturity_window") or "",
+        "maturityConflict": d.get("maturity_conflict") or "",
         "vintageQuality": d.get("vintage_quality") or "",
         "falstaff": d.get("falstaff_points"),
         "rankSource": d.get("rank_source") or "",
@@ -336,6 +340,7 @@ _SHORT_KEYS = {
     "vivinoUrl": "vu", "retailers": "rs", "cheapest": "c", "url": "u",
     "market": "m", "bargain": "b", "style": "s", "styleLabel": "sl",
     "maturity": "t", "maturityShort": "ts", "maturityRegion": "tr",
+    "drinkWindow": "dw", "maturityConflict": "mc",
     "vintageQuality": "q", "falstaff": "f", "key": "k",
     "wineryRating": "wr", "fuzzy": "fz", "matchedName": "mn",
     # Zwei Preis-Leistungs-Zahlen: „vs" gilt innerhalb einer Warenwelt, „vsa" über
@@ -890,6 +895,7 @@ const D = __PAYLOAD__;
 const KEYS = { n:"name", y:"vintage", p:"price", r:"rating", rc:"ratingCount",
   vu:"vivinoUrl", rs:"retailers", c:"cheapest", u:"url", m:"market", b:"bargain",
   s:"style", sl:"styleLabel", t:"maturity", ts:"maturityShort", tr:"maturityRegion",
+                   dw:"drinkWindow", mc:"maturityConflict",
   q:"vintageQuality", f:"falstaff", k:"key", wr:"wineryRating",
                    fz:"fuzzy", mn:"matchedName", vs:"valueScore", vsa:"valueScoreAll", g:"grapes" };
 D.runs.forEach(run => {
@@ -1125,7 +1131,19 @@ function chart(list) {
     if (p.fuzzy) h += row("Achtung", `<span class="warn">Namensabgleich unbestätigt`
       + (p.matchedName ? ` — gefunden: „${esc(p.matchedName)}"` : "") + `</span>`);
     if (p.styleLabel) h += row("Sorte", esc(p.styleLabel));
-    if (p.maturityShort) h += row("Trinkreife", "<b>" + esc(p.maturityShort) + "</b>");
+    if (p.maturityShort) {
+      /* Woher die Auskunft stammt, gehört daneben — sonst liest sich die Vinum-Zeile
+         wie eine Aussage über genau diesen Wein, obwohl sie für eine ganze Region
+         gilt. Vivinos Fenster ist jahrgangsgenau und steht in Klammern dahinter. */
+      let m = "<b>" + esc(p.maturityShort) + "</b>";
+      if (p.drinkWindow) m += ` <span class="meta">Vivino ${esc(p.drinkWindow)}</span>`;
+      h += row("Trinkreife", m);
+      if (p.maturityRegion) h += row("Grundlage", `<span class="meta">${esc(p.maturityRegion)}</span>`);
+      /* Sind sich die beiden Quellen uneinig, steht das da. Beide behalten ihre
+         Stimme; wer es liest, entscheidet selbst. Das ist mehr wert, als wenn eine
+         von beiden stillschweigend gewinnt. */
+      if (p.maturityConflict) h += row("uneinig", `<span class="warn">${esc(p.maturityConflict)}</span>`);
+    }
     if (valueOf(p) != null) h += row("Preis-Leistung", valueText(p));
     h += row("Preis/75cl", chf(p.price));
     h += row("Händler", esc((D.retailers.find(r => r.key === p.cheapest) || {}).name || p.cheapest));

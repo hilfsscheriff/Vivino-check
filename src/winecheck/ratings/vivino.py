@@ -477,6 +477,19 @@ def classify(
     )
 
 
+#: Das Trinkfenster steckt als JSON im HTML der Weinseite. Zweimal codiert: einmal
+#: roh, einmal HTML-entitätenweise (``&quot;``). Gesucht wird die rohe Fassung; sie
+#: ist auf jeder geprüften Seite vorhanden.
+_RE_TRINKFENSTER = re.compile(
+    r'drinking_window"\s*:\s*\{\s*"start_year"\s*:\s*(null|\d{4})\s*,'
+    r'\s*"end_year"\s*:\s*(null|\d{4})'
+)
+
+
+def _jahr(rohwert: str) -> int | None:
+    return None if rohwert == "null" else int(rohwert)
+
+
 class VivinoAdapter:
     """Fragt Vivino für jeden Wein ab und liefert nie ein leeres Ergebnis."""
 
@@ -508,6 +521,31 @@ class VivinoAdapter:
         except json.JSONDecodeError as exc:
             raise Blocked(f"Vivino API lieferte kein JSON: {exc}", kind="parse") from exc
         return _parse_candidates(payload)
+
+    def _trinkfenster(self, url: str, vintage: int | None) -> tuple[int | None, int | None]:
+        """Holt das Trinkfenster von der Weinseite.
+
+        Der Jahrgangsparameter ist zwingend: ohne ihn liefert Vivino
+        ``start_year: null, end_year: null``, und die Angabe sieht aus, als gäbe es
+        sie nicht. Mit ihm steht sie da — und zwar je Jahrgang verschieden, was sie
+        erst brauchbar macht (Château Lafleur 2011 → 2014–2026, 2020 → 2023–2035).
+
+        Ein Fehlschlag ist kein Grund, die ganze Bewertung zu verlieren: dann bleibt
+        das Fenster eben leer.
+        """
+        if not vintage or "/w/" not in url:
+            return None, None
+        trenner = "&" if "?" in url else "?"
+        try:
+            res = self.fetcher.get(f"{url.split('#')[0]}{trenner}year={vintage}")
+        except Exception:
+            return None, None
+        if not res.ok:
+            return None, None
+        m = _RE_TRINKFENSTER.search(res.text)
+        if not m:
+            return None, None
+        return _jahr(m.group(1)), _jahr(m.group(2))
 
     # -- Öffentliche API ---------------------------------------------------
 
@@ -597,7 +635,25 @@ class VivinoAdapter:
                 self.source, name, vintage, refresh=refresh, retry_failed=retry_failed
             )
             if cached:
-                return _from_payload(cached)
+                result = _from_payload(cached)
+                # Nachziehen statt neu suchen. Ältere Cache-Einträge stammen aus der
+                # Zeit vor dem Trinkfenster; sie sind deswegen nicht schlecht. Wer
+                # hier den ganzen Eintrag verwürfe, suchte 1391 Weine neu — Stunden
+                # Arbeit für eine Angabe, die eine einzige Anfrage kostet.
+                #
+                # Unterschieden wird an ``drink_checked``, nicht an den Jahreszahlen:
+                # sonst wäre "geprüft, aber Vivino führt keines" nicht von "noch nie
+                # geprüft" zu trennen, und der Abruf liefe jede Woche neu.
+                if not cached.get("drink_checked") and result.rating is not None \
+                        and "/w/" in result.url:
+                    result.drink_from, result.drink_until = self._trinkfenster(
+                        result.url, vintage
+                    )
+                    self.cache.put_rating(
+                        self.source, name, vintage, _to_payload(result),
+                        status=result.status.value, retry_after=result.retry_after,
+                    )
+                return result
 
         try:
             result = self._best_of(name, vintage, query, exclude_hosts)
@@ -608,6 +664,11 @@ class VivinoAdapter:
                 f"Vivino nicht erreichbar ({exc}) — erneut ab {exc.retry_after or 'später'}",
                 retry_after=exc.retry_after,
             )
+
+        # Nur bei einem echten Weinfund: eine Suchurl hat keine Weinseite, und ein
+        # Produzenten-Mittelwert hat kein Trinkfenster.
+        if result.rating is not None and "/w/" in result.url:
+            result.drink_from, result.drink_until = self._trinkfenster(result.url, vintage)
 
         result.checked_at = time.strftime("%Y-%m-%dT%H:%M:%S")
         if self.cache is not None:
@@ -655,6 +716,11 @@ def _to_payload(r: VivinoResult) -> dict[str, Any]:
         "market_price_shop": r.market_price_shop,
         "market_price_note": r.market_price_note,
         "wine_type_id": r.wine_type_id,
+        "drink_from": r.drink_from,
+        "drink_until": r.drink_until,
+        # Merker, dass nachgeschaut wurde. Ohne ihn liefe der Abruf bei jedem Wein
+        # ohne Trinkfenster jede Woche erneut.
+        "drink_checked": True,
         "candidates": [
             {
                 "name": c.name,
@@ -688,6 +754,8 @@ def _from_payload(d: dict[str, Any]) -> VivinoResult:
         market_price_shop=d.get("market_price_shop") or "",
         market_price_note=d.get("market_price_note") or "",
         wine_type_id=d.get("wine_type_id"),
+        drink_from=d.get("drink_from"),
+        drink_until=d.get("drink_until"),
         candidates=[
             VivinoCandidate(
                 name=c.get("name") or "",

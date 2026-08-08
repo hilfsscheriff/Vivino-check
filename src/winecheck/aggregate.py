@@ -12,6 +12,8 @@ Gerechnet wird immer auf den Aktionspreis, nie auf den Rabatt.
 
 from __future__ import annotations
 
+from datetime import date
+
 from collections import defaultdict
 
 from .models import (
@@ -144,12 +146,39 @@ def attach_maturity(rows: list[WineRow], table=None) -> list[WineRow]:
     tbl = table if table is not None else Table.load()
     if not tbl.entries:
         return rows
+    from .trinkreife import Match, fenster_code
+
+    heute = date.today().year
     for row in rows:
         # Der bei Vivino gefundene Name geht zusätzlich ein — aber nur dort, wo die
         # Tabelle nach dem *Stil* fragt, nicht bei der Regionssuche. Er trägt oft
         # die Rebsorte, die der Händler weglässt.
         stil_name = (row.vivino.matched_name if row.vivino else "") or ""
-        row.maturity = tbl.lookup(row.name, row.vintage, stil_name=stil_name)
+        match = tbl.lookup(row.name, row.vintage, stil_name=stil_name)
+
+        von = row.vivino.drink_from if row.vivino else None
+        bis = row.vivino.drink_until if row.vivino else None
+
+        if match is not None:
+            # Vinum bleibt führend. Vivinos Fenster wird mitgeführt, damit ein
+            # Widerspruch sichtbar wird, statt dass eine der beiden Quellen
+            # stillschweigend gewinnt.
+            match.vivino_von, match.vivino_bis = von, bis
+        elif fenster_code(von, bis, heute):
+            # Die Tabelle schweigt — meist, weil die Region nicht zu erkennen war
+            # oder sie das Gebiet nicht führt. Dann trägt Vivino die Auskunft
+            # allein: sie gilt für genau diesen Wein und diesen Jahrgang und ist
+            # damit spezifischer als alles, was die Regionstabelle geliefert hätte.
+            match = Match(
+                code=fenster_code(von, bis, heute),
+                region="",
+                wine_type="unbekannt",
+                vintage=row.vintage or 0,
+                vivino_von=von,
+                vivino_bis=bis,
+                quelle="vivino",
+            )
+        row.maturity = match
     return rows
 
 

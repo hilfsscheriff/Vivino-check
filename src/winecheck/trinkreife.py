@@ -106,6 +106,40 @@ FRUEHTRINKER_AUSNAHMEN = (
     "riserva", "reserva", "reserve", "gran seleccion", "gran selezione",
 )
 
+
+def _heute() -> int:
+    from datetime import date
+
+    return date.today().year
+
+
+def fenster_code(von: int | None, bis: int | None, heute: int) -> str:
+    """Übersetzt ein Trinkfenster in einen Reifecode dieser Tabelle.
+
+    Vivino liefert neben den Jahreszahlen eine eigene ``status``-Zahl. Die wird
+    bewusst **nicht** verwendet: was 1, 2, 4 oder 5 bedeutet, steht nirgends
+    geschrieben, und die Zuordnung zu den fünf Beschriftungen der Oberfläche
+    (``drink_now``, ``hold``, ``past_its_peak`` …) wäre geraten. Château Lafleur
+    2007 trägt Status 5 und liegt mitten im Fenster — die naheliegende Deutung
+    „über dem Zenit" ist also schon widerlegt.
+
+    Aus zwei Jahreszahlen und dem heutigen Datum folgt dagegen zwingend, was gilt.
+    Das ist nachvollziehbar und bleibt richtig, auch wenn Vivino seine Statuszahlen
+    umnummeriert.
+
+    ``k`` („macht Spass, wird noch besser") wird für die erste Hälfte des Fensters
+    vergeben: der Wein ist trinkbar, hat aber noch Weg vor sich.
+    """
+    if von is None or bis is None or bis < von:
+        return ""
+    if heute < von:
+        return "g"
+    if heute > bis:
+        return "m"
+    if bis > von and heute < von + (bis - von) / 2:
+        return "k"
+    return "*"
+
 _STAR = "★"
 
 #: Füllfarben der Weingläser am Zeilenanfang.
@@ -598,6 +632,36 @@ class Match:
     #: sichtbar bleibt, worauf die Auskunft beruht.
     stil: str = ""
 
+    # -- Zweite Meinung ----------------------------------------------------
+    #: Vivinos Trinkfenster für genau diesen Wein und Jahrgang. Ersetzt die
+    #: Vinum-Auskunft nicht, sondern steht daneben — ausser die Tabelle schweigt,
+    #: dann trägt Vivino die Auskunft allein (``quelle == "vivino"``).
+    vivino_von: int | None = None
+    vivino_bis: int | None = None
+    quelle: str = "vinum"
+
+    @property
+    def fenster(self) -> str:
+        """„2014–2026" für den Bericht, sonst leer."""
+        if self.vivino_von is None or self.vivino_bis is None:
+            return ""
+        return f"{self.vivino_von}–{self.vivino_bis}"
+
+    @property
+    def widerspruch(self) -> str:
+        """Sagen die beiden Quellen Verschiedenes?
+
+        Beide behalten ihre Stimme; hier steht nur, dass sie sich uneinig sind.
+        Wer das liest, kann selbst entscheiden — und das ist mehr wert, als wenn
+        eine der beiden stillschweigend gewinnt.
+        """
+        if self.quelle != "vinum" or not self.fenster:
+            return ""
+        anderer = fenster_code(self.vivino_von, self.vivino_bis, _heute())
+        if not anderer or anderer == self.code:
+            return ""
+        return f"Vivino: {MATURITY_SHORT.get(anderer, anderer)} ({self.fenster})"
+
     @property
     def short(self) -> str:
         return MATURITY_SHORT.get(self.code, self.code)
@@ -614,6 +678,8 @@ class Match:
         steht der Stil hier — sonst behauptete der Bericht eine Herkunft für eine
         Aussage, die aus einer anderen Quelle stammt.
         """
+        if self.quelle == "vivino":
+            return f"Vivino-Trinkfenster {self.fenster}"
         if self.stil:
             return f"{self.stil} (Stil vor Region)"
         return display_region(self.region)

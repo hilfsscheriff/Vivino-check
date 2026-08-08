@@ -57,6 +57,10 @@ def snapshot(rows: list[WineRow]) -> list[dict[str, Any]]:
             "maturity": r.maturity.code if r.maturity else "",
             "maturity_short": r.maturity.short if r.maturity else "",
             "maturity_region": r.maturity.region_label if r.maturity else "",
+            # Vivinos Trinkfenster für genau diesen Wein und Jahrgang, und ob es der
+            # Vinum-Tabelle widerspricht. Beide Quellen behalten ihre Stimme.
+            "maturity_window": r.maturity.fenster if r.maturity else "",
+            "maturity_conflict": r.maturity.widerspruch if r.maturity else "",
             "vintage_quality": (r.maturity.quality or "") if r.maturity else "",
             "cheapest_retailer": r.cheapest_retailer,
             "urls": {p.retailer: p.url for p in r.prices if p.url},
