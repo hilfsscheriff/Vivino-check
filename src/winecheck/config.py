@@ -45,6 +45,15 @@ class SourceConfig:
     role: str = ""
     api: str = ""
     search_url: str = ""
+    #: Führt der Laden **nur** Wein? Dann muss im Namen kein Weinwort vorkommen.
+    #:
+    #: Die Vorfilterung verlangt sonst "Wein", "Merlot", "DOCG" oder ähnliches im
+    #: Text — nötig bei Denner, Aligro und Prodega, wo zwischen den Flaschen auch
+    #: Käse und Grillgut liegen. Bei einem reinen Weinhändler wirft dieselbe Regel
+    #: Weine weg, deren Name schlicht keines enthält: "Aalto 2023", "689 Six Eight
+    #: Nine Napa Valley", "4 kilos Tinto". Steht das hier auf ``true``, wird nur noch
+    #: ausgeschlossen, was ausdrücklich kein Wein ist — Gläser, Essig, Alkoholfreies.
+    wine_only: bool = False
     raw: dict[str, Any] = field(default_factory=dict)
 
     # -- Zugangsdaten ------------------------------------------------------

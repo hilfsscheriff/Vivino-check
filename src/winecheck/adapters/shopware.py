@@ -37,11 +37,20 @@ from selectolax.parser import HTMLParser, Node
 
 from ..models import Offer
 from ..names import tokenize
-from .base import RetailerAdapter, looks_like_wine, parse_price
+from .base import RetailerAdapter, parse_price
 
 #: „CHF 13.90 statt CHF 15.40" — der zweite Preis ist der reguläre.
 _RE_STATT = re.compile(r"statt\s*(?:CHF|Fr\.?)?\s*([\d'’.,]+)", re.I)
-_RE_PREIS = re.compile(r"(?:CHF|Fr\.?)\s*([\d'’.,]+)")
+#: Währung vorn („CHF 13.90") wie hinten („6,50 CHF*"). Shopware 6 stellt sie in
+#: der Standardausgabe nach, ältere Themes davor.
+_RE_PREIS = re.compile(r"(?:(?:CHF|Fr\.?)\s*([\d'’.,]+)|([\d'’.,]+)\s*(?:CHF|Fr\.?))")
+
+#: Ab wie vielen Wörtern ein Beschreibungsfeld als Fliesstext gilt und nicht mehr
+#: als Produzentenname. Vino Vintana füllt dasselbe Feld mit Werbetext („Aus Italien
+#: stammt dieser Rosé Spumante DOC der Casa Vinicola Caldirola, einem …"), Schwander
+#: und Caratello mit „Bodegas Murua". Angehängt wird nur der Name; der Werbetext
+#: würde die Vivino-Abfrage unbrauchbar machen.
+_PRODUZENT_MAX_WOERTER = 6
 
 #: Jahrgang im Namen oder in der Adresse: „…-talliya-2018-…"
 _RE_JAHRGANG = re.compile(r"\b(19[5-9]\d|20[0-4]\d)\b")
@@ -50,6 +59,27 @@ _RE_JAHRGANG = re.compile(r"\b(19[5-9]\d|20[0-4]\d)\b")
 def _text(node: Node | None) -> str:
     return " ".join(node.text().split()) if node is not None else ""
 
+
+
+def _preise(text: str) -> list[float]:
+    """Alle CHF-Beträge eines Textes, gleich ob die Währung vor oder hinter steht."""
+    aus = []
+    for vorn, hinten in _RE_PREIS.findall(text):
+        p = parse_price(vorn or hinten)
+        if p is not None:
+            aus.append(p)
+    return aus
+
+
+def _ist_produzentenname(text: str) -> bool:
+    """Sieht das Beschreibungsfeld nach einem Namen aus — oder nach Werbetext?
+
+    Zwei Merkmale unterscheiden sie zuverlässig: die Länge und der Satzpunkt.
+    Ein Produzent heisst „Bodegas Murua", ein Werbetext hört nicht auf.
+    """
+    if not text or "." in text:
+        return False
+    return len(text.split()) <= _PRODUZENT_MAX_WOERTER
 
 
 def _enthalten(name: str, produzent: str) -> bool:
@@ -77,13 +107,36 @@ class ShopwareAdapter(RetailerAdapter):
                 offers.append(offer)
         return offers
 
+    @staticmethod
+    def _gebinde(box: Node, voll: str, kachel_text: str) -> str:
+        """Der Text, aus dem die Flaschengrösse gelesen wird.
+
+        Steht sie in einem eigenen Feld (``span.price-unit-content``, „0.75 Liter"),
+        wird **nur** dieses genommen. Der ganze Kacheltext taugt dort nicht: daneben
+        steht der Referenzpreis „(10,00 CHF* / 1 Liter)", und die Normalisierung fand
+        dann zwei Volumen — 750 ml und 1000 ml. Uneindeutig heisst
+        ``price_confidence = low``, und damit fiel jeder Wein dieses Ladens aus der
+        Rangliste, obwohl seine Grösse sauber angeschrieben war.
+
+        Ohne eigenes Feld bleibt der Kacheltext: Caratello schreibt das Volumen frei
+        daneben („… 2016 , 150 cl"), und im Namen steht es bei keiner der 70
+        Positionen. Ohne diese Angabe ginge eine Magnum als 75-cl-Flasche durch und
+        landete zum halben Literpreis in der Rangliste.
+        """
+        einheit = _text(box.css_first(".price-unit-content"))
+        return f"{einheit} {voll}".strip() if einheit else f"{voll} {kachel_text}"
+
     def _parse_box(self, box: Node) -> Offer | None:
         name = _text(box.css_first(".product-name"))
         if not name:
             return None
-        # Die Beschreibung trägt bei diesen Läden den Produzenten („Château Barka").
-        # Für Vivino ist der das wichtigste Wort, im Namen steht er nicht.
+        # Die Beschreibung trägt bei manchen Läden den Produzenten („Château Barka").
+        # Für Vivino ist der das wichtigste Wort, im Namen steht er nicht. Bei anderen
+        # steht dort Werbeprosa — die muss draussen bleiben, sonst sucht Vivino nach
+        # einem halben Absatz.
         produzent = _text(box.css_first(".product-description"))
+        if not _ist_produzentenname(produzent):
+            produzent = ""
         # Nur anhängen, wenn er nicht schon drinsteht: „Murua Rioja Reserva Especial"
         # plus „Bodegas Murua" ergab die Abfrage „murua especial murua", und ein
         # doppeltes Wort hilft der Suche nicht.
@@ -99,11 +152,16 @@ class ShopwareAdapter(RetailerAdapter):
         if not preis_text:
             return None
 
-        # Ohne Streichpreis ist es kein Aktionsangebot, sondern Regalware.
+        # Ohne Streichpreis ist es kein Aktionsangebot, sondern Regalware. Zwei
+        # Schreibweisen: als Wort („statt CHF 15.40") oder als eigenes Element
+        # (``span.list-price``, Shopware-6-Standard, ganz ohne „statt").
         m_statt = _RE_STATT.search(preis_text)
-        if not m_statt:
-            return None
-        referenz = parse_price(m_statt.group(1))
+        if m_statt:
+            referenz = parse_price(m_statt.group(1))
+        else:
+            liste = _preise(_text(box.css_first(".list-price-price"))
+                            or _text(box.css_first(".list-price")))
+            referenz = liste[0] if liste else None
         if referenz is None:
             return None
 
@@ -111,8 +169,7 @@ class ShopwareAdapter(RetailerAdapter):
         # CHF 15.40", Caratello „statt CHF 215.00 CHF 189.00". Wer den ersten Preis
         # nimmt, erwischt beim zweiten Laden den alten. Der Aktionspreis ist immer der
         # niedrigste — das gilt in beiden Schreibweisen.
-        betraege = [p for p in (parse_price(x) for x in _RE_PREIS.findall(preis_text)) if p]
-        betraege = [p for p in betraege if p < referenz]
+        betraege = [p for p in _preise(preis_text) if p < referenz]
         if not betraege:
             # Kein echter Abschlag — lieber weglassen als einen Rabatt von 0 % oder
             # gar einen negativen auszuweisen.
@@ -122,21 +179,22 @@ class ShopwareAdapter(RetailerAdapter):
         link = box.css_first("a.product-name") or box.css_first("a[href]")
         href = link.attributes.get("href", "") if link else ""
 
-        if not looks_like_wine(voll, href):
+        if not self.ist_wein(voll, href):
             return None
 
-        jahr = _RE_JAHRGANG.search(f"{voll} {href}")
+        # Der **letzte** Jahrgang im Text, nicht der erste. Diese Läden hängen den
+        # Jahrgang hinten an; steht vorne eine Jahreszahl, gehört sie zum Namen:
+        # „Since 1974 Prosecco Superiore … Millesimato Dry 2025" ist ein 2025er, und
+        # mit dem ersten Treffer wäre daraus ein einundfünfzig Jahre alter Prosecco
+        # geworden — mit entsprechend absurder Trinkreife.
+        jahre = _RE_JAHRGANG.findall(f"{voll} {href}")
         return self.make_offer(
             name=voll,
             url=href,
             price_text=aktuell,
             reference_text=referenz,
-            # Der Kacheltext, nicht der Name: Caratello schreibt das Volumen daneben
-            # („… 2016 , 150 cl"), im Namen steht es bei keiner der 70 Positionen.
-            # Ohne diese Angabe geht eine Magnum als 75-cl-Flasche durch und landet
-            # zum halben Literpreis in der Rangliste.
-            gebinde_text=f"{voll} {kachel_text}",
-            vintage=int(jahr.group(1)) if jahr else None,
+            gebinde_text=self._gebinde(box, voll, kachel_text),
+            vintage=int(jahre[-1]) if jahre else None,
             vat_included=True,
             price_basis="bottle",
         )

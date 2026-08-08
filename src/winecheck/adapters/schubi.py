@@ -1,0 +1,113 @@
+"""Schubi Weine — die sauberste Aktionsquelle im Bestand.
+
+Der Laden schreibt alles an, was dieser Vergleich braucht, und zwar in eigenen
+Feldern statt in einem Fliesstext: Name, Jahrgang, Produzent, Flaschengrösse,
+Aktionspreis, Streichpreis und den Mehrwertsteuersatz. Es muss nichts geraten
+werden.
+
+Die Klassennamen führen in die Irre
+-----------------------------------
+``productdetail__price-norm`` trägt den **Aktions**preis, ``product__price-action``
+den **Streich**preis („statt CHF 39.00"). Das ist genau andersherum, als die Namen
+vermuten lassen. Verlassen wird sich darum nicht auf sie, sondern auf die Beträge:
+der Aktionspreis ist der kleinere. Bleibt richtig, auch wenn der Laden die
+Klassennamen irgendwann geraderückt.
+
+Nur Reduziertes
+---------------
+Es zählt, was einen Streichpreis trägt. Die Aktionsseite führt zwar ausschliesslich
+Aktionen, aber die Regel ist dieselbe wie bei allen anderen Läden: ohne
+Referenzpreis lässt sich Aktion nicht von Regalware unterscheiden.
+
+Umfang
+------
+Die Seite zeigt zwölf Weine, und dabei bleibt es — ``?p=2``, ``?limit=all`` und
+``?product_list_limit=36`` liefern alle dieselben zwölf. Die „702 Produkte" im
+Seitenkopf sind das Gesamtsortiment, nicht die Aktionen. Ein Blätterwerk zu bauen
+wäre also nutzlos.
+"""
+
+from __future__ import annotations
+
+import re
+
+from selectolax.parser import HTMLParser, Node
+
+from ..models import Offer
+from ..names import tokenize
+from .base import RetailerAdapter, parse_price
+
+#: „CHF 28.50", „CHF 1'250.00"
+_RE_PREIS = re.compile(r"(?:CHF|Fr\.?)\s*([\d'’.,]+)", re.I)
+
+
+def _text(node: Node | None) -> str:
+    return " ".join(node.text().split()) if node is not None else ""
+
+
+def _enthalten(name: str, produzent: str) -> bool:
+    """Steckt der Produzent schon im Weinnamen?
+
+    Wortweise verglichen: „Bodegas Binigrau" gilt als enthalten, wenn „Binigrau" im
+    Namen steht — „Bodegas" ist eine Betriebsform und trägt zur Unterscheidung
+    nichts bei. Ohne diese Prüfung stünde in der Vivino-Abfrage „binigrau …
+    binigrau", und ein doppeltes Wort hilft der Suche nicht.
+    """
+    woerter = {w for w in tokenize(produzent) if len(w) > 2}
+    return bool(woerter) and woerter <= set(tokenize(name))
+
+
+class SchubiAdapter(RetailerAdapter):
+    key = "schubi"
+
+    def parse(self, html: str, url: str) -> list[Offer]:
+        tree = HTMLParser(html)
+        offers: list[Offer] = []
+        for box in tree.css("div.productoverview__item"):
+            offer = self._parse_box(box)
+            if offer is not None:
+                offers.append(offer)
+        return offers
+
+    def _parse_box(self, box: Node) -> Offer | None:
+        titel = box.css_first("a.product__title")
+        name = _text(titel)
+        if not name:
+            return None
+
+        # Der Produzent steht separat und ist für Vivino das wichtigste Wort —
+        # im Titel fehlt er bei den meisten Positionen.
+        produzent = _text(box.css_first(".product__producer"))
+        voll = name if not produzent or _enthalten(name, produzent) else f"{name} {produzent}"
+
+        preis_text = _text(box.css_first(".product__price"))
+        if "statt" not in preis_text.lower():
+            return None
+        betraege = [p for p in (parse_price(x) for x in _RE_PREIS.findall(preis_text)) if p]
+        if len(betraege) < 2:
+            return None
+        aktuell, referenz = min(betraege), max(betraege)
+        if aktuell >= referenz:
+            return None
+
+        href = titel.attributes.get("href", "") if titel else ""
+        if not self.ist_wein(voll, href):
+            return None
+
+        # Die Flaschengrösse hat ein eigenes Feld („75 cl", „150 cl"). Ohne sie ginge
+        # eine Magnum als normale Flasche durch und landete zum halben Literpreis
+        # in der Rangliste.
+        gebinde = _text(box.css_first(".product__bottle-size"))
+
+        jahr = _text(box.css_first(".product__vintage"))
+        return self.make_offer(
+            name=voll,
+            url=href,
+            price_text=aktuell,
+            reference_text=referenz,
+            gebinde_text=f"{gebinde} {voll}".strip(),
+            vintage=int(jahr) if jahr.isdigit() else None,
+            # Steht wörtlich in jeder Kachel: „inkl. 8.1% MwSt."
+            vat_included=True,
+            price_basis="bottle",
+        )

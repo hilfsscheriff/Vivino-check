@@ -33,6 +33,7 @@ from typing import Any
 
 from ..names import STYLE_LABELS
 from ..trinkreife import MATURITY, MATURITY_SHORT, SOURCE_NAME, SOURCE_PAGE
+from .logo import SVG_MARK, schreibe_icons
 from .formatting import chf, datetime_ch
 
 #: Reihenfolge der Trinkreife-Filter: von „jetzt" nach „später".
@@ -343,7 +344,13 @@ def build(
     doc = doc.replace("__SOURCE_NAME__", html.escape(SOURCE_NAME))
     doc = doc.replace("__SOURCE_PAGE__", html.escape(SOURCE_PAGE))
     doc = doc.replace("__STAMP__", html.escape(datetime_ch()))
+    doc = doc.replace("__MARK__", SVG_MARK)
     p.write_text(doc, encoding="utf-8")
+
+    # Die Rasterfassung des Zeichens muss neben der Seite liegen: iOS lädt für den
+    # Startbildschirm ausschliesslich PNG. Fehlt sie, zeigt das Telefon wieder ein
+    # graues Feld mit dem ersten Buchstaben des Titels.
+    schreibe_icons(p.parent)
     return p
 
 
@@ -355,6 +362,17 @@ _TEMPLATE = r"""<!doctype html>
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="Aktuelle Weinaktionen der Schweizer Händler mit Vivino-Bewertung, Trinkreife und Marktpreisvergleich.">
 <title>__TITLE__</title>
+<!-- Startbildschirm. Ohne apple-touch-icon setzt iOS ein graues Feld mit dem ersten
+     Buchstaben des Titels — daher liegt neben dieser Seite ein PNG; SVG nimmt iOS
+     dafür nicht an. Der Kurzname muss kurz sein: unter dem Symbol ist nach rund
+     zwölf Zeichen Schluss, „Schweizer Weinaktionen" wurde zu „SchweizerWeina…". -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<meta name="apple-mobile-web-app-title" content="Weincheck">
+<meta name="application-name" content="Weincheck">
+<!-- Zwei Werte, damit die Systemleiste auf dem Telefon zum Seitengrund passt. -->
+<meta name="theme-color" content="#faf9f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141114" media="(prefers-color-scheme: dark)">
 <style>
   :root {
     /* ---------------------------------------------------------------- Etikette
@@ -414,6 +432,11 @@ _TEMPLATE = r"""<!doctype html>
   h1 { font-family:var(--serif); font-size:var(--fs-page-title); font-weight:400;
        margin:6px 0 0; letter-spacing:-.01em; line-height:1.05; }
   .sub { color:var(--muted); font-size:var(--fs-body-sm); margin:9px 0 0; }
+  /* Zeichen und Titel stehen nebeneinander; das Zeichen richtet sich an der
+     Versalhöhe aus, nicht am Kastenrand — sonst hängt es unter der Zeile. */
+  .head { display:flex; align-items:center; gap:16px; }
+  .head > div { min-width:0; }
+  .mark { flex:none; width:56px; height:56px; display:block; }
   /* Die Haarlinie unter dem Kopf ist das Etikettenmotiv: getrennt wird mit Linien,
      nicht mit Flächen. */
   .rule { height:1px; background:var(--ink); opacity:.8; margin:15px 0 0; }
@@ -616,8 +639,13 @@ _TEMPLATE = r"""<!doctype html>
 </head>
 <body>
 <div class="wrap">
-  <h1>__TITLE__</h1>
-  <p class="sub">Stand __STAMP__ · Preise auf CHF pro 75 cl inkl. MwSt normalisiert (8.1 %)</p>
+  <div class="head">
+    __MARK__
+    <div>
+      <h1>__TITLE__</h1>
+      <p class="sub">Stand __STAMP__ · Preise auf CHF pro 75 cl inkl. MwSt normalisiert (8.1 %)</p>
+    </div>
+  </div>
 
   <!-- Suchfeld, Treffermenge und Rückweg bleiben beim Scrollen stehen: wer in der
        Liste liest und die Auswahl ändern will, soll nicht nach oben zurück müssen.

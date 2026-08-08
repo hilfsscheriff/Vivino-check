@@ -305,6 +305,68 @@ retailers:
     note: "Italien-Spezialist St. Gallen. robots verbietet Query-Strings."
     verified_at: "2026-08-07"
 
+  - key: vinovintana
+    name: Vino Vintana
+    channel: Onlineshop, Lieferung
+    tier: 3
+    domain: vinovintana.ch
+    adapter: shopware
+    enabled: true
+    status: ok
+    urls:
+      - https://www.vinovintana.ch/wein-angebote-aktionswoche
+    # Reiner Weinhandel. Ohne dies fielen Weine ohne Weinwort im Namen heraus
+    # ("Aalto 2023", "689 Six Eight Nine Napa Valley", "4 kilos Tinto").
+    wine_only: true
+    vat_included: true
+    price_basis: bottle
+    private_label_brands: []
+    # Shopware 6 im Standardkleid: Streichpreis in span.list-price statt als "statt",
+    # Währung hinter der Zahl, Beschreibungsfeld voller Werbetext statt Produzent.
+    note: "Aktionswoche. Preise inkl. MwSt laut Fussnote am Preis."
+    verified_at: "2026-08-08"
+
+  - key: schubi
+    name: Schubi Weine
+    channel: Onlineshop, Lieferung
+    tier: 3
+    domain: schubiweine.ch
+    adapter: schubi
+    enabled: true
+    status: ok
+    urls:
+      # Nur diese eine Seite: ?p=2, ?limit=all und ?product_list_limit=36 liefern
+      # alle dieselben zwölf Weine. Die "702 Produkte" sind das Gesamtsortiment.
+      - https://www.schubiweine.ch/aktionen.html
+    # Reiner Weinhandel. Ohne dies fielen Weine ohne Weinwort im Namen heraus
+    # ("Aalto 2023", "689 Six Eight Nine Napa Valley", "4 kilos Tinto").
+    wine_only: true
+    vat_included: true
+    price_basis: bottle
+    private_label_brands: []
+    note: "Schreibt Produzent, Flaschengrösse und 'inkl. 8.1% MwSt.' je Kachel an."
+    verified_at: "2026-08-08"
+
+  - key: wineoutlet
+    name: Wine-Outlet
+    channel: Onlineshop, Lieferung
+    tier: 3
+    domain: wine-outlet.ch
+    adapter: wineoutlet
+    enabled: true
+    status: ok
+    urls:
+      # ?limit=48 holt die ganze Liste; ?page= und ?p= ändern nichts.
+      - https://www.wine-outlet.ch/shop/alle-produkte?limit=48
+    # Reiner Weinhandel. Ohne dies fielen Weine ohne Weinwort im Namen heraus
+    # ("Aalto 2023", "689 Six Eight Nine Napa Valley", "4 kilos Tinto").
+    wine_only: true
+    vat_included: true
+    price_basis: bottle
+    private_label_brands: []
+    note: "Restposten. Schreibt den Literpreis an — dient als Gegenprobe der Umrechnung."
+    verified_at: "2026-08-08"
+
   - key: aligro
     name: Aligro
     channel: Abholmarkt, Kundenkarte nötig

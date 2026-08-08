@@ -43,6 +43,29 @@ NOT_WINE = (
     "rimuss", "alkoholarm",
 )
 
+#: Zubehör, das fast immer als **zusammengesetztes** Wort auftritt: „Weinglas",
+#: „Rotweingläser", „Flaschenöffner". Für diese Wörter wird nur die *Endung*
+#: geprüft, nicht die ganze Wortgrenze.
+#:
+#: ``NOT_WINE`` verlangt links wie rechts eine Wortgrenze — richtig für „Essig",
+#: aber wirkungslos bei „Weinglas": vor dem g steht ein Buchstabe. Ein Weinglas kam
+#: dadurch als Wein durch, denn „wein" steckt ja drin. Aufgefallen ist das erst mit
+#: ``wine_only``: dort fehlt die zweite Hürde, die vorher zufällig manches abfing.
+NOT_WINE_SUFFIX = (
+    "glas", "gläser", "glaeser", "karaffe", "karaffen", "kelch", "kelche",
+    "öffner", "oeffner", "zieher", "kühler", "kuehler", "ständer", "staender",
+)
+
+#: Wörter, die auf ``NOT_WINE_SUFFIX`` enden und trotzdem Wein bezeichnen.
+#:
+#: „Mehrwegglas" ist die Pfandflasche, nicht das Trinkglas. Vier Weine der
+#: Zürcher Genossenschaft heissen so („Zürcher Cuvée weiss AOC, Mehrwegglas,
+#: 50 cl") und wären mit der Endungsregel stillschweigend verschwunden. Sie werden
+#: vor der Prüfung aus dem Text genommen.
+NOT_WINE_SUFFIX_AUSNAHMEN = (
+    "mehrwegglas", "mehrweggläser", "einwegglas", "pfandglas", "depotglas",
+)
+
 _RE_PRICE = re.compile(r"(\d{1,4}(?:['’]\d{3})*(?:[.,]\d{1,2})?)")
 
 #: Kritiker, deren Punkte Händler mit ausweisen. Schlüssel ist der interne Name,
@@ -116,21 +139,51 @@ def parse_critic_scores(*texts: str) -> tuple[dict[str, float], list[str]]:
 
 
 def looks_like_wine(*texts: str) -> bool:
-    """Grobe Vorfilterung.
+    """Grobe Vorfilterung für Läden mit gemischtem Sortiment.
 
     Auf Wortgrenzen geprüft, nicht als Teilstring: "Sch**wein**skoteletts" und
     "Sch**wein**sfleisch" enthalten "wein", sind aber kein Wein. Genau daran sind in
     der ersten Fassung Cervelas und Grillbrutzler durchgerutscht.
     """
+    if kein_wein(*texts):
+        return False
+    hay = " ".join(t for t in texts if t).lower()
+    return any(_word_re(hint).search(hay) for hint in WINE_HINTS)
+
+
+def kein_wein(*texts: str) -> bool:
+    """Ist das ausdrücklich **kein** Wein — Zubehör, Essig, Alkoholfreies?
+
+    Die Umkehrung von :func:`looks_like_wine` ohne dessen zweite Hälfte: es wird
+    nicht verlangt, dass ein Weinwort vorkommt. Für reine Weinhändler ist genau das
+    richtig, denn dort trägt ein guter Teil der Weine gar keines im Namen — "Aalto
+    2023", "689 Six Eight Nine Napa Valley", "4 kilos Tinto". Bei Schubi fielen so
+    fünf von zwölf Aktionen heraus, alles unstrittige Weine.
+
+    Der Schutz bleibt: Gläser, Karaffen und Essig fliegen weiterhin raus, und
+    Alkoholfreies ebenfalls — das ist hier nicht gemeint und unterliegt zudem dem
+    reduzierten MwSt-Satz von 2.6 % statt den 8.1 %, mit denen gerechnet wird.
+    """
     hay = " ".join(t for t in texts if t).lower()
     if any(_word_re(bad).search(hay) for bad in NOT_WINE):
-        return False
-    return any(_word_re(hint).search(hay) for hint in WINE_HINTS)
+        return True
+    for ausnahme in NOT_WINE_SUFFIX_AUSNAHMEN:
+        hay = hay.replace(ausnahme, " ")
+    return any(_endung_re(bad).search(hay) for bad in NOT_WINE_SUFFIX)
 
 
 @lru_cache(maxsize=512)
 def _word_re(word: str) -> re.Pattern[str]:
     return re.compile(rf"(?<![a-zäöüéèàç]){re.escape(word)}(?![a-zäöüéèàç])")
+
+
+@lru_cache(maxsize=512)
+def _endung_re(word: str) -> re.Pattern[str]:
+    """Wie :func:`_word_re`, aber ohne Grenze nach links — für Wortendungen.
+
+    Damit trifft „glas" auch in „Wein**glas**", nicht nur alleinstehend.
+    """
+    return re.compile(rf"{re.escape(word)}(?![a-zäöüéèàç])")
 
 
 def parse_price(text: str | None) -> float | None:
@@ -174,6 +227,17 @@ class RetailerAdapter:
     def __init__(self, cfg: SourceConfig, fetcher: Fetcher):
         self.cfg = cfg
         self.fetcher = fetcher
+
+    def ist_wein(self, *texts: str) -> bool:
+        """Vorfilterung, passend zum Sortiment des Ladens.
+
+        Bei gemischtem Sortiment muss ein Weinwort vorkommen; bei einem reinen
+        Weinhändler (``wine_only: true`` in der YAML) genügt es, dass nichts
+        ausdrücklich dagegen spricht. Siehe :func:`kein_wein`.
+        """
+        if self.cfg.wine_only:
+            return not kein_wein(*texts)
+        return looks_like_wine(*texts)
 
     # -- von Unterklassen zu implementieren -------------------------------
     def parse(self, html: str, url: str) -> list[Offer]:
