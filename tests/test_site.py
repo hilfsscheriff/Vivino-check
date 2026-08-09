@@ -437,11 +437,15 @@ def test_colour_has_three_jobs_only(doc):
 
 
 def test_good_and_cheap_is_an_absolute_rule(doc):
-    """Ab Note 4.2 und bis CHF 20, nur dieser Bereich — nicht der Abstand zur Linie."""
-    assert (GOOD_RATING_MIN, GOOD_PRICE_MAX) == (4.2, 20.0)
+    """Ab einer festen Note und bis zu einem festen Preis — nicht der Abstand zur Linie.
+
+    Die Schwellen selbst stehen hier bewusst *nicht*: sie sind eine Einstellung und
+    dürfen sich ändern. Geprüft wird, dass die Seite dieselben Werte benutzt wie der
+    Code — ein Auseinanderlaufen wäre der Fehler, nicht die Höhe der Schwelle.
+    """
     text = doc()
     payload = _payload(text)
-    assert payload["good"] == {"rating": 4.2, "price": 20.0}
+    assert payload["good"] == {"rating": GOOD_RATING_MIN, "price": GOOD_PRICE_MAX}
     # Tabelle und Diagramm müssen dieselbe Regel benutzen.
     assert "const istGut = w =>" in text
     assert "const gut = p => p.rating >= gRating" in text

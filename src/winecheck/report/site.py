@@ -44,7 +44,11 @@ MATURITY_FILTER_ORDER = ("*", "k", "m", "g", "-")
 #: Note und bis zu diesem Preis. Nur dieser Bereich. Absolut zu rechnen ist der
 #: schärfere Filter — „besser als üblich fürs Geld" trifft auch eine mittelmässige
 #: Flasche für CHF 8.
-GOOD_RATING_MIN = 4.2
+#:
+#: Note 4.3, nicht 4.2: eine 4.2 tragen 148 Weine im Bestand, eine 4.3 nur noch 71.
+#: Wenn die Auszeichnung etwas heissen soll, muss sie selten genug sein — bei 4.2
+#: bekäme sie fast jeder zweite günstige Wein, und dann sagt sie nichts mehr.
+GOOD_RATING_MIN = 4.3
 GOOD_PRICE_MAX = 20.0
 
 #: Flächen, gegen die Farben geprüft werden (hell, dunkel).
