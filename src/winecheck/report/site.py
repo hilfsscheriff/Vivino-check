@@ -1063,8 +1063,12 @@ const STANDARD_SORTE = "rot";
 const STANDARD_QUELLE = "alle";
 /* Die Standardauswahl beantwortet die häufigste Frage: ein guter Rotwein für den
    Alltag. Ohne Grenzen eröffnet die Liste mit Flaschen zu dreihundert Franken und
-   mit Weinen, die niemand bewertet hat. Ein Klick hebt jede dieser Grenzen auf. */
-const STANDARD_NOTE = 4;
+   mit Weinen, die niemand bewertet hat. Ein Klick hebt jede dieser Grenzen auf.
+
+   Note ab 4.2, nicht ab 4.0: eine 4.1 ist die häufigste Note im Bestand und damit
+   glattes Mittelfeld. Ab 4.2 beginnt das obere Drittel — das ist die Schwelle, ab
+   der sich das Hinschauen lohnt. */
+const STANDARD_NOTE = 4.2;
 const STANDARD_PREIS = 50;
 const S = { run: D.runs[0].id, mat: new Set(), style: new Set([STANDARD_SORTE]),
             shop: new Set(), src: STANDARD_QUELLE, q: "",
