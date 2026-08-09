@@ -17,6 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ..names import land as _land
 from ..models import VIVINO_LABELS, VivinoStatus, WineRow
 from .formatting import ch, chf, datetime_ch
 
@@ -57,6 +58,9 @@ def snapshot(rows: list[WineRow]) -> list[dict[str, Any]]:
             "maturity": r.maturity.code if r.maturity else "",
             "maturity_short": r.maturity.short if r.maturity else "",
             "maturity_region": r.maturity.region_label if r.maturity else "",
+            # Herkunftsland fuer den Filter. Aus dem Namen, sonst aus der
+            # Vinum-Region; ohne beides bleibt es leer statt geraten.
+            "country": _land(r.name, r.maturity.region_label if r.maturity else ""),
             # Vivinos Trinkfenster für genau diesen Wein und Jahrgang, und ob es der
             # Vinum-Tabelle widerspricht. Beide Quellen behalten ihre Stimme.
             "maturity_window": r.maturity.fenster if r.maturity else "",

@@ -27,6 +27,7 @@ import html
 import json
 import math
 import statistics
+from collections import Counter
 import re
 import time
 from pathlib import Path
@@ -452,6 +453,7 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
         "maturity": d.get("maturity") or "",
         "maturityShort": d.get("maturity_short") or "",
         "maturityRegion": d.get("maturity_region") or "",
+        "country": d.get("country") or "",
         # Vivinos Trinkfenster für genau diesen Wein und Jahrgang, und ob es der
         # Vinum-Tabelle widerspricht. Beide Quellen behalten ihre Stimme.
         "drinkWindow": d.get("maturity_window") or "",
@@ -470,7 +472,7 @@ _SHORT_KEYS = {
     "vivinoUrl": "vu", "retailers": "rs", "cheapest": "c", "url": "u",
     "market": "m", "bargain": "b", "style": "s", "styleLabel": "sl",
     "maturity": "t", "maturityShort": "ts", "maturityRegion": "tr",
-    "drinkWindow": "dw", "maturityConflict": "mc",
+    "drinkWindow": "dw", "maturityConflict": "mc", "country": "co",
     "vintageQuality": "q", "falstaff": "f", "key": "k",
     "wineryRating": "wr", "fuzzy": "fz", "matchedName": "mn",
     # Zwei Preis-Leistungs-Zahlen: „vs" gilt innerhalb einer Warenwelt, „vsa" über
@@ -561,6 +563,14 @@ def build(
             for r in retailers
         ],
         "styles": [{"key": s, "label": STYLE_LABELS[s]} for s in styles],
+        # Nach Häufigkeit sortiert, nicht alphabetisch: Italien und Frankreich
+        # stellen den Grossteil, und wer filtert, greift meist dorthin.
+        "countries": [
+            {"key": k, "label": f"{k} ({n})"}
+            for k, n in Counter(
+                w.get("country") for run in runs for w in run["wines"] if w.get("country")
+            ).most_common()
+        ],
         # Ein Kästchen je Rebsorte, die im Bestand tatsächlich vorkommt. Ein
         # Schalter, der nichts ausblendet, wäre nur Ballast.
         "grapeFilters": [
@@ -919,6 +929,10 @@ _TEMPLATE = r"""<!doctype html>
     <fieldset><legend>Quelle</legend><div class="chips" id="fSrc"></div></fieldset>
     <fieldset><legend>Trinkreife</legend><div class="chips" id="fMat"></div></fieldset>
     <fieldset><legend>Sorte</legend><div class="chips" id="fStyle"></div></fieldset>
+    <!-- Nur Länder, die im Bestand vorkommen, und nur solche mit erkanntem Land.
+         Wo weder Name noch Vinum-Region eines nennen, bleibt der Wein ohne — und
+         taucht dann in keinem Länderfilter auf, statt unter einem geratenen. -->
+    <fieldset><legend>Land</legend><div class="chips" id="fLand"></div></fieldset>
     <fieldset><legend>Händler</legend><div class="chips" id="fShop"></div></fieldset>
 
     <fieldset class="fine">
@@ -1032,7 +1046,7 @@ const D = __PAYLOAD__;
 const KEYS = { n:"name", y:"vintage", p:"price", r:"rating", rc:"ratingCount",
   vu:"vivinoUrl", rs:"retailers", c:"cheapest", u:"url", m:"market", b:"bargain",
   s:"style", sl:"styleLabel", t:"maturity", ts:"maturityShort", tr:"maturityRegion",
-  dw:"drinkWindow", mc:"maturityConflict",
+  dw:"drinkWindow", mc:"maturityConflict", co:"country",
   q:"vintageQuality", f:"falstaff", k:"key", wr:"wineryRating",
   fz:"fuzzy", mn:"matchedName", vs:"valueScore", vsa:"valueScoreAll", g:"grapes",
   /* Die Quellenart. Fehlten diese beiden, war w.swiss im Browser immer undefiniert
@@ -1075,7 +1089,7 @@ const STANDARD_QUELLE = "alle";
 const STANDARD_NOTE = 4.2;
 const STANDARD_PREIS = 50;
 const S = { run: D.runs[0].id, mat: new Set(), style: new Set([STANDARD_SORTE]),
-            shop: new Set(), src: STANDARD_QUELLE, q: "",
+            shop: new Set(), land: new Set(), src: STANDARD_QUELLE, q: "",
             /* Standard ist Preis-Leistung: „welche Flasche lohnt sich" ist die Frage,
                für die es die Seite gibt. Nach Note allein eröffnete die Liste mit den
                teuersten Flaschen. */
@@ -1127,6 +1141,7 @@ function visible() {
     if (S.src === "ch" && !w.swiss) return false;
     if (S.src === "mp" && !w.marketplace) return false;
     if (S.shop.size && !w.retailers.some(r => S.shop.has(r))) return false;
+    if (S.land.size && !S.land.has(w.country || "")) return false;
     // Der bei Vivino gefundene Name gehört in die Suche. Händler benennen Weine oft
     // ohne den Produzenten: Mövenpick führt „Mendoza 2021 Chardonnay Alta Angelica
     // Zapata", Vivino „Catena Zapata Angélica Zapata Chardonnay Alta". Wer nach
@@ -1500,6 +1515,9 @@ function buildFilters() {
     sr.append(chip(label, S.src === k, () => { S.src = k; S.shop.clear(); render(); }));
   });
 
+  const la = document.getElementById("fLand"); la.innerHTML = "";
+  D.countries.forEach(c => la.append(chip(c.label, S.land.has(c.key), toggle(S.land, c.key))));
+
   const sh = document.getElementById("fShop"); sh.innerHTML = "";
   // Ohne Farbpunkt: der Händler trägt hier keine Farbe, nur seinen Namen.
   /* Nur die Händler der gewählten Welt: "Vivino Aktionen" in der Liste der
@@ -1536,7 +1554,7 @@ addEventListener("resize", syncFilterBox);
 syncFilterBox();
 
 function activeFilterCount() {
-  return S.mat.size + S.style.size + S.shop.size
+  return S.mat.size + S.style.size + S.shop.size + S.land.size
     + (S.src !== STANDARD_QUELLE ? 1 : 0)
     + (S.q.trim() ? 1 : 0) + (S.minRating != null ? 1 : 0) + (S.maxPrice != null ? 1 : 0)
     + (S.onlyBargain ? 1 : 0) + (S.onlyFound ? 1 : 0) + (S.noVivino ? 1 : 0)
@@ -1623,7 +1641,7 @@ document.getElementById("fMaxPrice").value = String(STANDARD_PREIS);
 document.getElementById("reset").addEventListener("click", () => {
   // Zurücksetzen heisst: auf den Standard, nicht auf leer. Sonst führt der Knopf zu
   // einem Zustand, den man beim Laden nie sieht.
-  S.mat.clear(); S.shop.clear(); S.q = "";
+  S.mat.clear(); S.shop.clear(); S.land.clear(); S.q = "";
   S.style = new Set([STANDARD_SORTE]);
   S.src = STANDARD_QUELLE;
   S.minRating = STANDARD_NOTE; S.maxPrice = STANDARD_PREIS;

@@ -49,3 +49,37 @@ def test_haeuser_mit_mehrdeutigem_namen_sind_nicht_dabei():
     assert wine_style("Mumm Napa Brut Prestige", 3) == "schaumwein"
     assert wine_style("Roederer Estate Brut Anderson Valley", 3) == "schaumwein"
     assert wine_style("Louis Roederer Collection 244") == "champagner"
+
+
+# ------------------------------------------------------------------- Herkunftsland
+def test_land_aus_dem_namen():
+    """Manche Händler schreiben das Land an — dann gilt es."""
+    from winecheck.names import land
+
+    assert land("Amarone Classico, Italien") == "Italien"
+    assert land("Rioja Reserva, Spanien") == "Spanien"
+
+
+def test_land_aus_der_vinum_region():
+    """Der Normalfall: kaum ein Händler schreibt „Frankreich" an einen Bordeaux."""
+    from winecheck.names import land
+
+    assert land("Château Lafleur Pomerol", "Bordeaux St-Émilion/Pomerol/Fronsac") == "Frankreich"
+    assert land("Chianti Classico Riserva", "Toskana -Chianti Classico") == "Italien"
+    assert land("Dôle Blanche", "Wallis") == "Schweiz"
+
+
+def test_der_name_hat_vorrang_vor_der_region():
+    """Der Name beschreibt den Wein selbst; die Region kommt aus einer Zuordnung,
+    die schiefgehen kann."""
+    from winecheck.names import land
+
+    assert land("Merlot Ticino, Schweiz", "Toskana -Chianti Classico") == "Schweiz"
+
+
+def test_ohne_hinweis_bleibt_das_land_leer():
+    """Ein geratenes Land wäre schlimmer als eine Lücke: wer nach „Italien" filtert,
+    will keine Portugiesen sehen."""
+    from winecheck.names import land
+
+    assert land("Irgendein Wein ohne Herkunft") == ""

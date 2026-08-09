@@ -624,3 +624,90 @@ def wine_style(name: str, vivino_type_id: int | None = None) -> str:
 @lru_cache(maxsize=512)
 def _style_re(word: str) -> re.Pattern[str]:
     return re.compile(rf"(?<![a-z0-9]){re.escape(word)}(?![a-z0-9])")
+
+
+# ------------------------------------------------------------------ Herkunftsland
+#: Ländernamen, wie Händler sie schreiben, auf einen Anzeigenamen gebracht.
+#:
+#: Die Schreibweisen stehen schon in :data:`COUNTRY_NAMES` — dort dienen sie dazu,
+#: das Land aus dem Vergleich zu *entfernen*. Hier wird dasselbe Vokabular gebraucht,
+#: um es zu *benennen*: für den Filter auf der Seite.
+LAND_SCHREIBWEISEN: dict[str, str] = {
+    "spanien": "Spanien", "espagne": "Spanien", "espana": "Spanien", "spain": "Spanien",
+    "italien": "Italien", "italie": "Italien", "italia": "Italien", "italy": "Italien",
+    "frankreich": "Frankreich", "france": "Frankreich", "francia": "Frankreich",
+    "schweiz": "Schweiz", "suisse": "Schweiz", "svizzera": "Schweiz",
+    "switzerland": "Schweiz",
+    "osterreich": "Österreich", "autriche": "Österreich", "austria": "Österreich",
+    "portugal": "Portugal",
+    "deutschland": "Deutschland", "allemagne": "Deutschland", "germany": "Deutschland",
+    "chile": "Chile", "chili": "Chile",
+    "argentinien": "Argentinien", "argentine": "Argentinien", "argentina": "Argentinien",
+    "australien": "Australien", "australie": "Australien", "australia": "Australien",
+    "sudafrika": "Südafrika", "afrique": "Südafrika",
+    "usa": "USA", "kalifornien": "USA", "californie": "USA", "california": "USA",
+    "neuseeland": "Neuseeland", "zelande": "Neuseeland",
+    "griechenland": "Griechenland", "grece": "Griechenland",
+    "ungarn": "Ungarn", "hongrie": "Ungarn",
+}
+
+#: Welche Vinum-Zeile für welches Land steht.
+#:
+#: Zweite Quelle, wenn im Namen kein Land steht — und das ist der Normalfall: kaum
+#: ein Händler schreibt „Frankreich" an einen Bordeaux. Die Zuordnung ist eindeutig,
+#: weil die Tabelle nach Anbaugebieten gegliedert ist.
+LAND_AUS_REGION: dict[str, str] = {
+    "bordeaux": "Frankreich", "burgund": "Frankreich", "beaujolais": "Frankreich",
+    "chablis": "Frankreich", "cote": "Frankreich", "côte": "Frankreich",
+    "elsass": "Frankreich", "languedoc": "Frankreich", "provence": "Frankreich",
+    "rhone": "Frankreich", "rhône": "Frankreich", "loire": "Frankreich",
+    "champagne": "Frankreich", "roussillon": "Frankreich", "sudwest": "Frankreich",
+    "toskana": "Italien", "piemont": "Italien", "venetien": "Italien",
+    "friaul": "Italien", "sudtirol": "Italien", "südtirol": "Italien",
+    "suditalien": "Italien", "süditalien": "Italien", "sizilien": "Italien",
+    "sardinien": "Italien", "umbrien": "Italien", "marken": "Italien",
+    "abruzzen": "Italien", "lombardei": "Italien", "trentino": "Italien",
+    "rioja": "Spanien", "ribera": "Spanien", "katalonien": "Spanien",
+    "galicien": "Spanien", "priorat": "Spanien", "navarra": "Spanien",
+    "duero": "Spanien", "spanien": "Spanien",
+    "douro": "Portugal", "portugal": "Portugal", "alentejo": "Portugal",
+    "wallis": "Schweiz", "waadt": "Schweiz", "genf": "Schweiz", "tessin": "Schweiz",
+    "deutschschweiz": "Schweiz", "neuenburg": "Schweiz", "buendner": "Schweiz",
+    "bundner": "Schweiz", "graubunden": "Schweiz",
+    "ahr": "Deutschland", "baden": "Deutschland", "pfalz": "Deutschland",
+    "mosel": "Deutschland", "rheingau": "Deutschland", "rheinhessen": "Deutschland",
+    "franken": "Deutschland", "nahe": "Deutschland", "wurttemberg": "Deutschland",
+    "burgenland": "Österreich", "wachau": "Österreich", "kamptal": "Österreich",
+    "steiermark": "Österreich", "niederosterreich": "Österreich",
+    "kremstal": "Österreich", "osterreich": "Österreich",
+    "chile": "Chile", "argentinien": "Argentinien", "australien": "Australien",
+    "neuseeland": "Neuseeland", "sudafrika": "Südafrika", "kalifornien": "USA",
+    "oregon": "USA", "washington": "USA", "griechenland": "Griechenland",
+    "ungarn": "Ungarn",
+}
+
+
+def land(name: str, region: str = "") -> str:
+    """Herkunftsland eines Weins — für den Filter, nicht für den Namensvergleich.
+
+    Zwei Quellen in dieser Reihenfolge: das Land im Händlernamen, sonst die
+    Vinum-Region. Der Name hat Vorrang, weil er den Wein selbst beschreibt; die
+    Region kommt aus einer Zuordnung, die schiefgehen kann.
+
+    Ohne beides bleibt das Feld leer. Ein geratenes Land wäre schlimmer als eine
+    Lücke: wer nach „Italien" filtert, will keine Portugiesen sehen.
+    """
+    low = strip_accents((name or "").lower())
+    for wort, anzeige in LAND_SCHREIBWEISEN.items():
+        if _word_re_names(wort).search(low):
+            return anzeige
+    reg = strip_accents((region or "").lower())
+    for wort, anzeige in LAND_AUS_REGION.items():
+        if strip_accents(wort) in reg:
+            return anzeige
+    return ""
+
+
+@lru_cache(maxsize=256)
+def _word_re_names(word: str) -> re.Pattern[str]:
+    return re.compile(rf"(?<![a-z]){re.escape(word)}(?![a-z])")
