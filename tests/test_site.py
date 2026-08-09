@@ -703,3 +703,39 @@ def test_preisgewicht_ist_gesetzt_nicht_gemessen():
     assert 1.35 < aufpreis < 1.45, (
         f"0.1 Notenpunkte rechtfertigen mit diesem Faktor {aufpreis:.2f}x Preis"
     )
+
+
+def test_seltene_noten_zaehlen_mehr():
+    """218 Weine tragen eine 4.1, nur 26 eine 4.5.
+
+    Linear gerechnet zählt ein Zehntel überall gleich, und dann führt ein 4.1er für
+    CHF 6.50 die Liste an — obwohl 4.1 die häufigste Note überhaupt ist.
+    """
+    from winecheck.report.site import _wirksame_note
+
+    # Eine Verteilung wie im echten Bestand: unten viele, oben wenige.
+    wines = ([{"rating": 4.0}] * 60 + [{"rating": 4.1}] * 80 + [{"rating": 4.2}] * 40
+             + [{"rating": 4.3}] * 15 + [{"rating": 4.4}] * 6 + [{"rating": 4.5}] * 2)
+    note = _wirksame_note(wines)
+    oben = note(4.5) - note(4.4)
+    unten = note(4.1) - note(4.0)
+    assert oben > unten, "der Schritt oben muss schwerer wiegen als der in der Mitte"
+
+
+def test_die_zahl_bleibt_auf_der_notenskala():
+    """Der Umweg über die Notenskala ist Absicht: sonst stünde in der Spalte eine
+    Zahl in Seltenheitseinheiten, die niemand mehr einordnen kann."""
+    from winecheck.report.site import _wirksame_note
+
+    wines = ([{"rating": 4.0}] * 60 + [{"rating": 4.1}] * 80 + [{"rating": 4.2}] * 40
+             + [{"rating": 4.3}] * 15 + [{"rating": 4.4}] * 6 + [{"rating": 4.5}] * 2)
+    note = _wirksame_note(wines)
+    assert all(3.5 < note(r) < 5.0 for r in (4.0, 4.1, 4.2, 4.3, 4.4, 4.5))
+
+
+def test_zu_kleine_laeufe_bleiben_linear():
+    """Aus einer Handvoll Noten lässt sich keine Seltenheit ableiten."""
+    from winecheck.report.site import _wirksame_note
+
+    note = _wirksame_note([{"rating": 4.0}, {"rating": 4.4}])
+    assert note(4.4) == 4.4

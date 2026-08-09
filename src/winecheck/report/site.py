@@ -26,6 +26,7 @@ from __future__ import annotations
 import html
 import json
 import math
+import statistics
 import re
 import time
 from pathlib import Path
@@ -78,6 +79,65 @@ VALUE_MIN_SAMPLE = 12
 #: Tabelle. Eine gesetzte Zahl als gemessene auszugeben wäre das Schlimmste von
 #: beidem.
 PREIS_GEWICHT = 0.70
+
+#: Wie stark die **Seltenheit** einer Note zählt, von 0 (gar nicht) bis 1 (allein).
+#:
+#: Vivino-Noten sind keine gleichmässige Skala. Im Bestand tragen 218 Weine eine 4.1
+#: und nur 26 eine 4.5 — ein Zehntelpunkt am oberen Ende bedeutet also etwas ganz
+#: anderes als in der Mitte. Linear gerechnet zählen beide gleich, und dann führt ein
+#: 4.1er für CHF 6.50 die Liste an, obwohl 4.1 die häufigste Note überhaupt ist.
+#:
+#: Die Gegenrechnung wäre, allein die Seltenheit zu nehmen. Das schiesst über: der
+#: Sprung von 4.4 auf 4.5 wird dabei so gross, dass der Preis daneben nicht mehr ins
+#: Gewicht fällt — bei den Champagnern besetzten dann wieder die Flaschen für CHF 70
+#: bis 90 die Spitze allein, und zwar bei jedem Preisgewicht.
+#:
+#: 0.5 ist die Mitte, und sie trifft, was gemeint ist: ein 4.1er für sechs Franken
+#: bleibt gut platziert, führt die Liste aber nicht mehr an.
+SELTENHEIT_ANTEIL = 0.5
+
+
+def _wirksame_note(wines: list[dict[str, Any]]):
+    """Baut die Umrechnung Note → wirksame Note für diesen Lauf.
+
+    Die Seltenheit einer Note wird als ``-log10(Anteil der Weine, die so gut oder
+    besser sind)`` gemessen — je exklusiver, desto grösser. Sie wird auf die
+    Notenskala zurückgerechnet (gleicher Mittelwert, gleiche Streuung) und dann mit
+    der rohen Note gemischt.
+
+    Der Umweg über die Notenskala ist Absicht: die Zahl behält damit ihre Einheit,
+    und die Aussage „0.1 Punkte rechtfertigen 40 % Aufpreis" gilt weiter. Rechnete
+    man in Seltenheitseinheiten, stünde in der Spalte eine Zahl, die niemand mehr
+    einordnen kann.
+
+    Gemessen wird über den **ganzen** Lauf, nicht je Sorte: eine 4.5 ist selten,
+    unabhängig davon, ob sie an einem Rotwein oder einem Champagner hängt.
+    """
+    noten = sorted(w["rating"] for w in wines if w.get("rating") is not None)
+    n = len(noten)
+    if n < VALUE_MIN_SAMPLE:
+        return lambda r: r
+
+    def seltenheit(r: float) -> float:
+        # bisect wäre schneller, aber n liegt bei rund tausend und die Funktion
+        # läuft einmal je Wein — Klarheit geht hier vor.
+        besser = sum(1 for x in noten if x >= r - 1e-9)
+        return -math.log10(max(besser, 1) / n)
+
+    roh = [seltenheit(r) for r in noten]
+    streuung_note = statistics.pstdev(noten)
+    streuung_roh = statistics.pstdev(roh)
+    if streuung_roh <= 0 or streuung_note <= 0:
+        return lambda r: r
+    faktor = streuung_note / streuung_roh
+    mitte_note = statistics.mean(noten)
+    mitte_roh = statistics.mean(roh)
+
+    def wirksam(r: float) -> float:
+        auf_notenskala = mitte_note + (seltenheit(r) - mitte_roh) * faktor
+        return (1 - SELTENHEIT_ANTEIL) * r + SELTENHEIT_ANTEIL * auf_notenskala
+
+    return wirksam
 
 
 #: Quellen, deren Weine ihre Bewertung mitbringen statt sie über einen
@@ -139,11 +199,15 @@ def _add_value_scores(wines: list[dict[str, Any]]) -> None:
     # Ein Wein, den auch ein Schweizer Händler führt, wird im Schweizer Preisniveau
     # gerechnet — dort ist er zu kaufen. Rein im Marktplatz geführte Weine bilden
     # die zweite Gruppe.
+    # Einmal je Lauf über *alle* Weine: eine 4.5 ist selten, gleich an welcher
+    # Sorte sie hängt.
+    note = _wirksame_note(wines)
+
     marktplatz = [w for w in wines if w.get("marketplace") and not w.get("swiss")]
     handel = [w for w in wines if w.get("swiss") or not w.get("marketplace")]
     for gruppe in (handel, marktplatz):
         if gruppe:
-            _je_sorte(gruppe, "valueScore")
+            _je_sorte(gruppe, "valueScore", note)
 
     # Zusätzlich eine Zahl über beide Welten hinweg. Sie wird gebraucht, sobald die
     # Seite Handel und Marktplatz gemeinsam zeigt — das ist die Standardansicht.
@@ -152,10 +216,10 @@ def _add_value_scores(wines: list[dict[str, Any]]) -> None:
     # Marktplatz-Gruppe hiesse "gut für einen Marktplatzwein", eine 0.3 aus dem
     # Handel "gut für einen Schweizer Ladenwein". Sortiert man danach, vergleicht
     # man Äpfel mit Birnen.
-    _je_sorte(wines, "valueScoreAll")
+    _je_sorte(wines, "valueScoreAll", note)
 
 
-def _je_sorte(wines: list[dict[str, Any]], feld: str) -> None:
+def _je_sorte(wines: list[dict[str, Any]], feld: str, note) -> None:
     """Eine eigene Kurve je Sorte, mit Rückfall auf die ganze Gruppe.
 
     Champagner hat ein anderes Preisniveau als Rotwein — Median CHF 43 gegen 23 im
@@ -185,15 +249,15 @@ def _je_sorte(wines: list[dict[str, Any]], feld: str) -> None:
             1 for w in gruppe if w.get("rating") is not None and (w.get("price") or 0) > 0
         )
         if brauchbar >= VALUE_MIN_SAMPLE:
-            _value_scores_einer_gruppe(gruppe, feld=feld)
+            _value_scores_einer_gruppe(gruppe, feld=feld, note=note)
         else:
             rest.extend(gruppe)
     if rest:
-        _value_scores_einer_gruppe(rest, feld=feld)
+        _value_scores_einer_gruppe(rest, feld=feld, note=note)
 
 
 def _value_scores_einer_gruppe(
-    wines: list[dict[str, Any]], *, feld: str = "valueScore"
+    wines: list[dict[str, Any]], *, feld: str = "valueScore", note=None
 ) -> None:
     """Trägt in jeden Wein ein, wie weit seine Note über dem Preisniveau liegt.
 
@@ -218,7 +282,8 @@ def _value_scores_einer_gruppe(
     if len(sample) < VALUE_MIN_SAMPLE:
         return
     xs = [math.log10(w["price"]) for w in sample]
-    ys = [w["rating"] for w in sample]
+    wirksam = note or (lambda r: r)
+    ys = [wirksam(w["rating"]) for w in sample]
     n = len(xs)
     mean_x, mean_y = sum(xs) / n, sum(ys) / n
     spread = sum((x - mean_x) ** 2 for x in xs)
@@ -232,7 +297,7 @@ def _value_scores_einer_gruppe(
         expected = mean_y + PREIS_GEWICHT * (math.log10(w["price"]) - mean_x)
         count = w.get("ratingCount") or 0
         damping = count / (count + VALUE_RATING_ANCHOR)
-        w[feld] = (w["rating"] - expected) * damping
+        w[feld] = (wirksam(w["rating"]) - expected) * damping
 
 
 #: Farbwörter, wie die Händler sie an den Namen hängen.
@@ -928,7 +993,9 @@ _TEMPLATE = r"""<!doctype html>
        Weinen derselben Sorte zum gleichen Preis. ±0.00 = im Schnitt. Wenig bewertete
        Weine werden gedämpft. Der Preis ist dabei bewusst stärker gewichtet, als die
        Daten hergeben: <b>0.1 Notenpunkte rechtfertigen rund 40 % Aufpreis</b>
-       (gemessen wären es fast 100 %).<span class="colhint"> · Spaltentitel antippen
+       (gemessen wären es fast 100 %). Und eine seltene Note zählt mehr: 218 Weine
+       tragen eine 4.1, nur 26 eine 4.5 — ein Zehntel am oberen Ende wiegt
+       schwerer als eines in der Mitte.<span class="colhint"> · Spaltentitel antippen
        sortiert, nochmal antippen kehrt um</span></p>
     <div id="table"></div>
   </div>
