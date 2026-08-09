@@ -94,6 +94,10 @@ SCHWELLE_AUSGEWOGEN = -0.10
 #: stärker als der Unterschied zwischen zwei Nachbarkategorien.
 MIN_STRUKTUR_URTEILE = 15
 
+#: Sortenbezeichnungen, die bei einer Denomination ohne Herkunft die Absicht
+#: bestätigen: hier wird nicht eine Lage abgefüllt, sondern ein Geschmack gebaut.
+SORTE_OHNE_HERKUNFT = ("cuvee", "red blend", "white blend")
+
 #: Unter so vielen Keyword-Treffern insgesamt sagt Stufe 3 nichts. Zwei Wörter in
 #: einem Werbetext sind keine Beschreibung eines Weins.
 MIN_KEYWORD_TREFFER = 3
@@ -135,6 +139,7 @@ class Tabelle:
 
     suesse_tokens: tuple[str, ...]
     stilmarken: tuple[str, ...]
+    denominationen: tuple[str, ...]
     stil_tabelle: dict[str, str]
     opulent: tuple[str, ...]
     straff: tuple[str, ...]
@@ -151,6 +156,7 @@ class Tabelle:
         return cls(
             suesse_tokens=tuple(tokens),
             stilmarken=tuple(rohdaten.get("stilmarken") or []),
+            denominationen=tuple(rohdaten.get("denominationen") or []),
             stil_tabelle=dict(rohdaten.get("stil_tabelle") or {}),
             opulent=tuple(kw.get("opulent") or []),
             straff=tuple(kw.get("straff") or []),
@@ -312,6 +318,55 @@ def _stufe1(name: str, datenblatt: str, tab: Tabelle) -> Einordnung | None:
     return None
 
 
+def _stufe1d(
+    denomination: str, name: str, jahrgang: int | None, sorte: str, tab: Tabelle
+) -> Einordnung | None:
+    """Denomination ohne Herkunft — die Absicht steht auf dem Etikett.
+
+    Die untersten Herkunftsstufen — „Vino d'Italia", „Vin de France", „Deutscher
+    Wein" — existieren **ausschliesslich** dafür, regionenübergreifend verschneiden zu
+    dürfen. Wer sie wählt, verzichtet freiwillig auf eine Herkunftsangabe, die er
+    haben könnte. Das ist keine Nebenangabe, sondern eine Absichtserklärung über die
+    Machart: der Wein soll jedes Jahr gleich schmecken, unabhängig davon, was welche
+    Lage hergab, und dafür wird verschnitten, angetrocknet und im Holz gerundet.
+
+    Diese Regel steht als **letzte** in Stufe 1. Ein gemessener Restzucker- oder
+    Alkoholwert (1b) ist eine Tatsache über den Wein im Glas und schlägt eine
+    Absichtserklärung, auch wenn beide dieselbe Stufe tragen.
+
+    Aufgefallen an „Gran Sasso Tre Autoctoni N.V." von Farnese: drei Rebsorten aus
+    drei Regionen, 14.5 %, kein Jahrgang, CHF 9.95, Vivino 4.2 aus 970 Bewertungen.
+    Sensorisch eindeutig fruchtsüss, und die Kaskade lieferte ``unbekannt`` — bei so
+    einem Wein läuft **jede** andere Achse leer: kein Süsse-Token im Namen, die Region
+    ist keine Region, die Sorte ist keine Sorte.
+
+    Kommt zur Denomination eines der drei Zeichen dazu, dass hier ein Geschmack gebaut
+    statt eine Lage abgefüllt wird — kein Jahrgang, ``N.V.`` im Namen, oder eine
+    Sortenangabe wie „Cuvée" —, ist der Fall entschieden. Fehlen sie, bleibt die
+    Denomination allein ein schwächeres Indiz: dann ``weich_modern`` auf Stufe 2, weil
+    ein regionenübergreifender Verschnitt rund gebaut wird, aber nicht zwingend süss.
+    """
+    hay = _falten(denomination)
+    treffer = next((d for d in tab.denominationen if _wortgrenze(d).search(hay)), None)
+    if treffer is None:
+        return None
+
+    jahrgangslos = jahrgang is None or _wortgrenze("n v").search(_falten(name))
+    gebaute_sorte = any(w in _falten(sorte) for w in SORTE_OHNE_HERKUNFT)
+    if jahrgangslos or gebaute_sorte:
+        grund = "jahrgangslos" if jahrgangslos else f"Sorte '{sorte}'"
+        return Einordnung(
+            typ="fruchtsuess",
+            stufe=1,
+            signale=[f"Denomination ohne Herkunft ('{denomination}'), {grund}"],
+        )
+    return Einordnung(
+        typ="weich_modern",
+        stufe=2,
+        signale=[f"Denomination ohne Herkunft ('{denomination}')"],
+    )
+
+
 # ------------------------------------------------------------------ Stufe 2
 
 #: Der beobachtete Normalfall eines trockenen Rotweins auf Vivinos Skala 1..5.
@@ -429,6 +484,8 @@ def einordnen(
     struktur: Struktur | None = None,
     baseline: Struktur | None = None,
     stil_name: str = "",
+    denomination: str = "",
+    jahrgang: int | None = None,
     tab: Tabelle | None = None,
 ) -> Einordnung:
     """Ordnet einen Wein auf der Stil-Achse ein.
@@ -442,11 +499,17 @@ def einordnen(
         notiz: Verkostungsnotiz für Stufe 3.
         struktur: Vivinos gemessene Struktur zu genau diesem Wein.
         baseline: Normalwert seines Vivino-Stils.
-        stil_name: ``wine.style.name``, für die Tabelle und als Beleg.
+        stil_name: ``wine.style.name``, für die Tabelle und als Beleg. Dient Stufe 1d
+            zugleich als Sortenangabe.
+        denomination: ``wine.region.name``. Bei den untersten Herkunftsstufen steht
+            dort die Denomination selbst, und die trägt Stufe 1d.
+        jahrgang: Fehlt er, ist das bei einer Denomination ohne Herkunft das Zeichen,
+            dass ein Geschmack gebaut und keine Lage abgefüllt wird.
     """
     t = tab or tabelle()
     for ergebnis in (
         _stufe1(name, datenblatt, t),
+        _stufe1d(denomination, name, jahrgang, stil_name, t),
         _stufe2(struktur, baseline, stil_name, t),
         _stufe3(notiz, t),
     ):

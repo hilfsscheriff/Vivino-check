@@ -94,6 +94,8 @@ class _Cand:
     #: Beides steht in derselben Antwort wie die Note und kostet keine Anfrage extra.
     style_name: str = ""
     country: str = ""
+    #: ``wine.region.name`` — bei den untersten Herkunftsstufen die Denomination.
+    region_name: str = ""
     #: Geschmacksstruktur dieses Weins und der Normalwert seines Stils, beide auf
     #: der Skala 1..5. Tragen den Stil-Typ, siehe :mod:`winecheck.stiltyp`.
     taste: dict[str, float] = field(default_factory=dict)
@@ -286,6 +288,7 @@ def _parse_candidates(payload: dict[str, Any]) -> list[_Cand]:
                 winery_slug=(wine.get("winery") or {}).get("seo_name") or "",
                 style_name=(wine.get("style") or {}).get("name") or "",
                 country=(((wine.get("region") or {}).get("country") or {}).get("name") or ""),
+                region_name=(wine.get("region") or {}).get("name") or "",
                 taste=_struktur((wine.get("taste") or {}).get("structure")),
                 style_baseline=_struktur((wine.get("style") or {}).get("baseline_structure")),
                 prices=_parse_prices(match),
@@ -943,6 +946,7 @@ def _stil_felder(c: _Cand) -> dict[str, Any]:
         "wine_type_id": c.type_id,
         "style_name": c.style_name,
         "country": c.country,
+        "region_name": c.region_name,
         "taste": dict(c.taste),
         "style_baseline": dict(c.style_baseline),
     }
@@ -969,6 +973,7 @@ def _to_payload(r: VivinoResult) -> dict[str, Any]:
         "wine_type_id": r.wine_type_id,
         "style_name": r.style_name,
         "country": r.country,
+        "region_name": r.region_name,
         "taste": r.taste,
         "style_baseline": r.style_baseline,
         "drink_from": r.drink_from,
@@ -1011,6 +1016,7 @@ def _from_payload(d: dict[str, Any]) -> VivinoResult:
         wine_type_id=d.get("wine_type_id"),
         style_name=d.get("style_name") or "",
         country=d.get("country") or "",
+        region_name=d.get("region_name") or "",
         taste=d.get("taste") or {},
         style_baseline=d.get("style_baseline") or {},
         drink_from=d.get("drink_from"),

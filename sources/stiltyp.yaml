@@ -85,6 +85,33 @@ stilmarken:
   - jam shed
   - big red bicycle
 
+# ---------------------------------------------------------------- Stufe 1d
+# Denominationen ohne Herkunft.
+#
+# Diese untersten Herkunftsstufen existieren **ausschliesslich**, um
+# regionenuebergreifendes Verschneiden zu erlauben. Wer sie waehlt, verzichtet
+# freiwillig auf jede Herkunftsangabe, die er haben koennte — das ist eine
+# Absichtserklaerung ueber die Machart, kein Nebensignal. Der Wein soll gleich
+# schmecken, unabhaengig davon, was der Jahrgang in welcher Lage hergab, und genau
+# dafuer wird verschnitten, angetrocknet und im Holz gerundet.
+#
+# Aufgefallen an "Gran Sasso Tre Autoctoni N.V." von Farnese: Nerello Mascalese,
+# Montepulciano und Primitivo aus drei Regionen, 14.5 %, kein Jahrgang, CHF 9.95,
+# Vivino 4.2 aus 970 Bewertungen. Sensorisch eindeutig fruchtsuess — und die Kaskade
+# lieferte "unbekannt", weil bei so einem Wein *jede* andere Achse leerlaeuft: kein
+# Suesse-Token im Namen, die Region ist keine Region, die Sorte ist keine Sorte.
+denominationen:
+  - vino d'italia
+  - vino da tavola
+  - vin de france
+  - vin de table
+  - deutscher wein
+  - vino de espana          # gefaltet; "España" trifft ebenso
+  - wine of chile
+  - wine of argentina
+  - south eastern australia
+  - european union table wine
+
 # ---------------------------------------------------------------- Stufe 2
 # Vivinos ``wine.style.name`` auf die vier Typen. Startmenge, keine vollständige
 # Tabelle — der Wertebereich umfasst einige hundert Einträge. Was beim Lauf nicht
@@ -162,6 +189,24 @@ keywords:
     - geschmeidig
     - restsüsse
     - fruchtsüss
+    # Nachgetragen mit Version 1.1: die Haendlernotiz zum Gran Sasso lautet "reich,
+    # dicht, kraeftig" und traf keines der bisherigen Woerter. Diese Gruppe
+    # beschreibt Konzentration, und Konzentration entsteht bei diesen Weinen auf
+    # demselben Weg wie die Suesse — ueber Reife, Antrocknen und Holz.
+    - reich
+    - reichhaltig
+    - dicht
+    - dichte frucht
+    - konzentriert
+    - bold
+    - powerful
+    - intensiv
+    - gross
+    - kraftvoll
+    - kräftig           # nicht aus der Vorlage, sondern aus dem Anlass: die Notiz zum
+                        # Gran Sasso lautet wörtlich "reich, dicht, kräftig". Ohne
+                        # dieses Wort bleiben zwei Treffer und Stufe 3 schweigt weiter
+                        # — die neuen Wörter hätten am eigenen Fall nichts geändert.
   straff:
     - gerbstoff
     - herb

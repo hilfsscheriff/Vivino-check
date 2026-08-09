@@ -124,6 +124,11 @@ class VivinoResult:
     #: Händlernamen; Vivino nennt es in derselben Antwort mit, in der auch die Note
     #: steht — derselbe Weg wie bei der Farbe über ``wine_type_id``.
     country: str = ""
+    #: ``wine.region.name``. Bei den meisten Weinen die Appellation, bei den untersten
+    #: Herkunftsstufen aber die **Denomination** selbst: „Vino d'Italia", „Vin de
+    #: France". Genau das trägt Stufe 1d des Stil-Typs — siehe
+    #: :func:`winecheck.stiltyp.einordnen`.
+    region_name: str = ""
     #: ``wine.taste.structure`` — Süsse, Tannin, Säure und Intensität auf einer Skala
     #: von 1 bis 5, dazu ``user_structure_count``. Das ist eine Messung **an diesem
     #: Wein**, nicht an seiner Gattung, und trägt darum den Stil-Typ.
@@ -398,6 +403,8 @@ class WineRow:
                 struktur=Struktur.aus_vivino(v.taste) if v else None,
                 baseline=Struktur.aus_vivino(v.style_baseline) if v else None,
                 stil_name=v.style_name if v else "",
+                denomination=v.region_name if v else "",
+                jahrgang=self.vintage,
             )
         return self._stil
 

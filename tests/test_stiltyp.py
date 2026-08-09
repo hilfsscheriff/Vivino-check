@@ -236,3 +236,92 @@ def test_die_gepflegten_listen_sind_lesbar_und_gefuellt():
 
 def test_min_keyword_treffer_ist_dokumentiert():
     assert MIN_KEYWORD_TREFFER == 3
+
+
+# ------------------------------- Stufe 1d: Denomination ohne Herkunft (v1.1)
+
+def test_gran_sasso_tre_autoctoni_ergibt_fruchtsuess():
+    """Der Fall, an dem die Lücke aufgefallen ist. Vor diesem Patch: ``unbekannt``.
+
+    „Gran Sasso Tre Autoctoni N.V." von Farnese — Nerello Mascalese, Montepulciano und
+    Primitivo aus drei Regionen, 14.5 %, kein Jahrgang, CHF 9.95, Vivino 4.2 aus 970
+    Bewertungen. Sensorisch eindeutig fruchtsüss, und jede andere Achse der Kaskade
+    lief leer: kein Süsse-Token im Namen, „Vino d'Italia" ist keine Region, „Cuvée"
+    ist keine Sorte, und die Händlernotiz („reich, dicht, kräftig") traf kein
+    Keyword."""
+    e = einordnen("Gran Sasso Tre Autoctoni N.V.", denomination="Vino d'Italia",
+                  jahrgang=None, stil_name="Italian Red")
+    assert e.typ == "fruchtsuess", e.signale
+    assert e.stufe == 1
+    assert "Denomination ohne Herkunft" in e.signale[0]
+    assert "jahrgangslos" in e.signale[0]
+
+
+@pytest.mark.parametrize("denom", [
+    "Vino d'Italia", "Vino da Tavola", "Vin de France", "Vin de Table",
+    "Deutscher Wein", "Vino de España", "Wine of Chile", "Wine of Argentina",
+    "South Eastern Australia", "European Union Table Wine",
+])
+def test_jede_denomination_ohne_herkunft_greift(denom):
+    """Diese Stufen existieren ausschliesslich, um regionenübergreifend verschneiden zu
+    dürfen. Wer sie wählt, verzichtet freiwillig auf eine Herkunft, die er haben
+    könnte — eine Absichtserklärung über die Machart, kein Nebensignal."""
+    e = einordnen("Irgendein Wein", denomination=denom, jahrgang=None)
+    assert e.typ == "fruchtsuess", (denom, e)
+    assert e.stufe == 1
+
+
+def test_denomination_mit_jahrgang_bleibt_die_schwaechere_aussage():
+    """Ohne das zweite Zeichen — kein Jahrgang, N.V. oder eine gebaute Sorte — ist die
+    Denomination allein nur ein Indiz: rund gebaut, aber nicht zwingend süss."""
+    e = einordnen("Irgendein Wein", denomination="Vin de France", jahrgang=2022)
+    assert e.typ == "weich_modern"
+    assert e.stufe == 2
+
+
+def test_cuvee_als_sorte_genuegt_auch_mit_jahrgang():
+    e = einordnen("Irgendein Verschnitt", denomination="Vino d'Italia", jahrgang=2021,
+                  stil_name="Italian Red Blend")
+    assert e.typ == "fruchtsuess"
+    assert e.stufe == 1
+    assert "Sorte" in e.signale[0]
+
+
+def test_eine_echte_appellation_loest_1d_nicht_aus():
+    """Gegenprobe: „Bolgheri Superiore" ist eine Herkunft und keine Absichtserklärung."""
+    assert einordnen("Wein", denomination="Bolgheri Superiore", jahrgang=None).typ == UNBEKANNT
+    assert einordnen("Wein", denomination="Vino Nobile di Montepulciano").typ == UNBEKANNT
+
+
+def test_gemessener_wert_schlaegt_die_absichtserklaerung():
+    """1d steht als letzte Regel in Stufe 1. Ein Restzuckerwert ist eine Tatsache über
+    den Wein im Glas, die Denomination eine Absicht des Abfüllers."""
+    e = einordnen("Irgendein Wein", denomination="Vin de France", jahrgang=None,
+                  datenblatt="Restzucker 1,0 g/l, Gesamtsäure 6,5 g/l")
+    assert e.typ == "straff_herb", e.signale
+
+
+def test_keine_denomination_ohne_herkunft_bleibt_unbekannt():
+    """Akzeptanzkriterium der Version 1.1: Weine mit einer Denomination ohne Herkunft
+    dürfen nie ``unbekannt`` ergeben."""
+    from winecheck.stiltyp import tabelle as _tab
+
+    for d in _tab().denominationen:
+        for jg in (None, 2022):
+            e = einordnen("Irgendein Wein", denomination=d, jahrgang=jg)
+            assert e.typ != UNBEKANNT, (d, jg)
+            assert e.signale
+
+
+def test_die_neuen_keywords_stehen_in_bucket_a():
+    """„reich, dicht, kräftig" stand in der Händlernotiz zum Gran Sasso und traf
+    keines der bisherigen Wörter."""
+    t = tabelle()
+    for w in ("reich", "dicht", "konzentriert", "kraftvoll", "intensiv", "bold"):
+        assert w in t.opulent, w
+    # Wörtlich die Notiz zum Gran Sasso. Mit der Vorlage allein wären es zwei Treffer
+    # gewesen — "kraftvoll" trifft "kräftig" nicht —, und Stufe 3 hätte am eigenen
+    # Anlassfall weiter geschwiegen.
+    e = einordnen("Wein", notiz="reich, dicht, kräftig")
+    assert e.typ == "fruchtsuess", e.signale
+    assert e.stufe == 3
