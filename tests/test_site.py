@@ -679,3 +679,27 @@ def test_jeder_kurzschluessel_wird_wieder_entpackt(doc):
     entpackt = set(re.findall(r'(\w+)\s*:\s*"', tabelle))
     fehlt = {kurz for kurz in _SHORT_KEYS.values() if kurz not in entpackt}
     assert not fehlt, f"nicht entpackt: {sorted(fehlt)}"
+
+
+def test_die_gesetzte_gewichtung_steht_auf_der_seite(doc):
+    """Das Preisniveau ist gemessen, die Gewichtung ist gesetzt.
+
+    Wer nach der Zahl kauft, soll wissen, welcher Teil Beobachtung ist und welcher
+    Entscheidung. Eine gesetzte Zahl als gemessene auszugeben wäre das Schlimmste
+    von beidem.
+    """
+    text = doc()
+    assert "bewusst stärker gewichtet" in text
+    assert "40 % Aufpreis" in text
+
+
+def test_preisgewicht_ist_gesetzt_nicht_gemessen():
+    """Ändert jemand die Konstante, soll ihm der Test die Bedeutung vorrechnen."""
+    import math
+
+    from winecheck.report.site import PREIS_GEWICHT
+
+    aufpreis = 10 ** (0.1 / PREIS_GEWICHT)
+    assert 1.35 < aufpreis < 1.45, (
+        f"0.1 Notenpunkte rechtfertigen mit diesem Faktor {aufpreis:.2f}x Preis"
+    )

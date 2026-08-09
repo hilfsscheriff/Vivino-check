@@ -57,6 +57,28 @@ VALUE_RATING_ANCHOR = 50
 #: So viele Weine braucht ein Lauf, damit sich ein Preisniveau schätzen lässt.
 VALUE_MIN_SAMPLE = 12
 
+#: Wie stark der Preis gegen die Note zählt. **Gesetzt, nicht gemessen** — das ist
+#: der einzige Wert im ganzen Bericht, der nicht aus Daten stammt.
+#:
+#: Übersetzt heisst er: ein Wein mit 0.1 Vivino-Punkten mehr darf rund 40 % teurer
+#: sein und gilt noch als gleich gut (10^(0.1/0.70) ≈ 1.39).
+#:
+#: Gemessen ergäbe sich 0.34 über alle Weine, 0.48 bei den Champagnern — dort wäre
+#: ein Zehntelpunkt fast den **doppelten** Preis wert. Das beschreibt getreu, wie
+#: der Markt bepreist, taugt aber nicht als Kaufempfehlung: die Ursache liegt bei
+#: Vivino, dessen Noten sich zwischen 3.5 und 4.6 drängen, während die Preise um das
+#: Hundertfache streuen. Ein Zehntelpunkt ist dort viel, und die Regression rechnet
+#: ihn entsprechend teuer.
+#:
+#: 0.70 statt der Kippstelle 0.55, an der zwei konkrete Champagner exakt gleichauf
+#: lägen: ein Wert direkt am Umschlagpunkt ist zufällig gewählt, dieser lässt Luft.
+#: Ein wirklich besserer Wein verteidigt damit weiterhin seine Preisklasse.
+#:
+#: Wer den Bericht liest, muss das wissen — auf der Seite steht es unter der
+#: Tabelle. Eine gesetzte Zahl als gemessene auszugeben wäre das Schlimmste von
+#: beidem.
+PREIS_GEWICHT = 0.70
+
 
 #: Quellen, deren Weine ihre Bewertung mitbringen statt sie über einen
 #: Namensabgleich zu finden. Aktuell nur Vivinos eigener Marktplatz.
@@ -202,10 +224,12 @@ def _value_scores_einer_gruppe(
     spread = sum((x - mean_x) ** 2 for x in xs)
     if spread <= 0:                       # alle zum selben Preis
         return
-    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / spread
-    intercept = mean_y - slope * mean_x
+    # Die Steigung wird **gesetzt**, nicht gemessen — siehe PREIS_GEWICHT. Der
+    # Schwerpunkt der Wolke bleibt gemessen: die Gerade läuft weiterhin durch
+    # (mean_x, mean_y), womit der Durchschnittswein einer Sorte bei null liegt und
+    # die Zahl weiterhin "besser oder schlechter als üblich" heisst.
     for w in sample:
-        expected = intercept + slope * math.log10(w["price"])
+        expected = mean_y + PREIS_GEWICHT * (math.log10(w["price"]) - mean_x)
         count = w.get("ratingCount") or 0
         damping = count / (count + VALUE_RATING_ANCHOR)
         w[feld] = (w["rating"] - expected) * damping
@@ -897,10 +921,15 @@ _TEMPLATE = r"""<!doctype html>
 
   <div class="card">
     <h2 id="tblTitle">Weine</h2>
+    <!-- Die Herkunft der Zahl gehört sichtbar dazu: das Preisniveau ist gemessen,
+         die Gewichtung ist gesetzt. Wer danach kauft, soll wissen, welcher Teil
+         Beobachtung ist und welcher Entscheidung. -->
     <p class="tblnote"><b>Preis-Leistung</b> = wie viel besser die Note ist als bei
-       Weinen zum gleichen Preis. ±0.00 = im Schnitt. Wenig bewertete Weine werden
-       gedämpft.<span class="colhint"> · Spaltentitel antippen sortiert, nochmal
-       antippen kehrt um</span></p>
+       Weinen derselben Sorte zum gleichen Preis. ±0.00 = im Schnitt. Wenig bewertete
+       Weine werden gedämpft. Der Preis ist dabei bewusst stärker gewichtet, als die
+       Daten hergeben: <b>0.1 Notenpunkte rechtfertigen rund 40 % Aufpreis</b>
+       (gemessen wären es fast 100 %).<span class="colhint"> · Spaltentitel antippen
+       sortiert, nochmal antippen kehrt um</span></p>
     <div id="table"></div>
   </div>
   </main>
