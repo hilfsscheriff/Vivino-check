@@ -1,0 +1,197 @@
+# Stil-Typ: die pflegbaren Listen zur Einordnung eines Weins nach Machart.
+#
+# Warum eine Datei statt drei: die Spec nennt data/stilmarken.json,
+# data/typ_keywords.json und data/vivino_style_map.json getrennt. Hier liegt alles
+# beisammen, weil es *eine* Fachentscheidung ist — wer einen Wein neu einordnet, will
+# alle drei Listen vor Augen haben, nicht drei Dateien öffnen. Der Ablageort folgt dem
+# Haus: sources/ trägt schon trinkreife.yaml und retailers.yaml, beide gepflegt, beide
+# YAML mit Kommentaren. Genau die Kommentare sind hier der Punkt — in JSON liesse sich
+# nicht hinschreiben, *warum* ein Eintrag dasteht.
+#
+# Gematcht wird gefaltet: Akzente weg, dazu ae/oe/ue auf a/o/u. Beide Seiten werden
+# gleich behandelt, darum trifft „Spätlese" auch „Spaetlese" und „SPÄTLESE".
+# Nebenwirkung: „Dörrfrucht" und ein hypothetisches „Dorrfrucht" fallen zusammen. Das
+# ist der Preis dafür, dass Händler dieselben Wörter verschieden schreiben.
+
+# ---------------------------------------------------------------- Stufe 1a
+# Süsse-Tokens im Wein- oder Liniennamen. Wenn eines davon dasteht, ist der Fall
+# entschieden: kein Händler schreibt „Appassimento" versehentlich hin.
+#
+# Diese Liste beschreibt *Technik* und ist trotzdem zulässig, weil die Technik hier
+# den sensorischen Endpunkt erzwingt. Die Kategorie selbst heisst bewusst nicht
+# „appassimento" — rund die Hälfte der fruchtsüssen Weine erreicht das Profil ohne
+# getrocknete Trauben, und die fängt erst Stufe 2.
+suesse_tokens:
+  italienisch:
+    - appassimento
+    - appassite          # „uve appassite"
+    - stramature         # „uve stramature"
+    - passito
+    - ripasso
+    - amarone
+    - recioto
+    - sforzato
+    - sfursat
+    - vendemmia tardiva
+    - vinsanto
+    - vin santo          # zweiwortig die häufigere Schreibweise; mehrwortige Tokens
+                         # matchen mit beliebigem Abstand, „Vin-Santo" trifft auch
+  franzoesisch:
+    - late harvest
+    - dried grape
+    - sweet red
+    - vendange tardive
+    - passerille
+    - vin de paille
+    - moelleux
+    - demi-sec
+  deutsch:
+    - strohwein
+    - schilfwein
+    - spätlese
+    - auslese
+    - beerenauslese
+    - trockenbeerenauslese
+    - eiswein
+    - lieblich
+    - halbtrocken
+    - edelsüss
+  spanisch_portugiesisch:
+    - cosecha tardia
+    - vendimia tardia
+    - dulce
+    - semidulce
+    - semiseco
+    - colheita tardia
+    - meio seco
+  griechisch_zypriotisch:
+    - liastos
+    - commandaria
+    - mavrodaphne
+
+# ---------------------------------------------------------------- Stufe 1c
+# Marken und Produktlinien, deren Profil bekannt ist. Bewusst kurz gehalten: jede
+# Zeile hier ist eine Behauptung über einen Wein, die niemand mehr nachprüft.
+stilmarken:
+  - apothic
+  - menage a trois
+  - 19 crimes
+  - josh cellars
+  - cupcake
+  - barista           # „Barista Pinotage"
+  - coffee pinotage
+  - chocolate block
+  - yellow tail
+  - jam shed
+  - big red bicycle
+
+# ---------------------------------------------------------------- Stufe 2
+# Vivinos ``wine.style.name`` auf die vier Typen. Startmenge, keine vollständige
+# Tabelle — der Wertebereich umfasst einige hundert Einträge. Was beim Lauf nicht
+# zugeordnet werden kann, landet in logs/unmapped_styles.txt und wächst von dort in
+# diese Liste hinein.
+#
+# Diese Tabelle ist inzwischen der *zweite* Weg, nicht der erste: Vivino liefert pro
+# Wein eine gemessene Geschmacksstruktur mit, und die schlägt jede Gattungsaussage.
+# Sie bleibt für Weine ohne genügend Nutzerurteile.
+stil_tabelle:
+  Southern Italy Primitivo: fruchtsuess
+  Southern Italy Red: fruchtsuess
+  Puglian Red: fruchtsuess
+  Veneto Amarone: fruchtsuess
+  Californian Red Blend: fruchtsuess
+  South African Pinotage: fruchtsuess
+  Australian Shiraz: weich_modern
+  Abruzzese Montepulciano: weich_modern
+  Central Spain Red: weich_modern
+  Ribera del Duero Red: ausgewogen
+  Tuscan Red: ausgewogen
+  Southern Rhone Red Blend: ausgewogen
+  Languedoc Red: ausgewogen
+  Rioja Red: ausgewogen
+  Brunello di Montalcino: straff_herb
+  Tuscan Sangiovese: straff_herb
+  Piedmont Nebbiolo: straff_herb
+  Barolo: straff_herb
+  Northern Rhone Syrah: straff_herb
+  Loire Cabernet Franc: straff_herb
+
+# ---------------------------------------------------------------- Stufe 3
+# Keyword-Buckets für die Händler-Verkostungsnotiz.
+#
+# ACHTUNG, gemessen am 9.8.2026: dieses Projekt speichert **keine**
+# Verkostungsnotizen. ``Offer.source_note`` trägt Preis- und Gebindehinweise
+# („Aktionis, gültig 06.08.2026 - 12.08.2026"), Median 40 Zeichen. Über den ganzen
+# Bestand von 1694 Angeboten ergeben beide Buckets zusammen **null** Treffer. Die
+# Listen stehen hier, damit die Stufe am Tag funktioniert, an dem die Detailseiten
+# mitgelesen werden — heute feuert sie nie. Siehe die Begründung in stiltyp.py.
+keywords:
+  opulent:
+    - vanille
+    - kakao
+    - schokolade
+    - kaffee
+    - espresso
+    - mokka
+    - lakritze          # steht hier, weil sie in Händlertexten fast nur neben Kakao
+                        # und Vanille auftritt. Bei Fehlklassifikationen nach neutral.
+    - marmelade
+    - konfitüre
+    - eingekocht
+    - dörrfrucht
+    - rosine
+    - dattel
+    - feige
+    - pflaumenkompott
+    - karamell
+    - toffee
+    - honig
+    - kokos
+    - samtig
+    - samten
+    - weich
+    - rund
+    - cremig
+    - schmeichelnd
+    - sanft
+    - üppig
+    - opulent
+    - wuchtig
+    - füllig
+    - morbido
+    - geschmeidig
+    - restsüsse
+    - fruchtsüss
+  straff:
+    - gerbstoff
+    - herb
+    - bitter
+    - salzig
+    - mineralisch
+    - kräuter
+    - kräutrig
+    - wacholder
+    - thymian
+    - rosmarin
+    - leder
+    - tabak
+    - teer
+    - rauch
+    - feuerstein
+    - graphit
+    - bleistift
+    - frische
+    - säure
+    - säurebetont
+    - straff
+    - knackig
+    - kantig
+    - streng
+    - nervig
+    - geradlinig
+    - schlank
+    - zitrusfrisch
+    - sauerkirsche      # „Kirsche" allein ist neutral und darf nicht hier stehen
+    - rhabarber
+    - blutorange
+    - granatapfel
