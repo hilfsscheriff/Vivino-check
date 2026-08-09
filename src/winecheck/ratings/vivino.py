@@ -808,7 +808,7 @@ class VivinoAdapter:
         if best is not None and best.status is VivinoStatus.NO_ENTRY:
             for slug in list(gueter)[:_MAX_GUETER]:
                 res = classify(name, vintage, best.query,
-                               self._weingut_kandidaten(slug),
+                               _nur_derselbe_wein(name, self._weingut_kandidaten(slug)),
                                exclude_hosts=exclude_hosts)
                 if self._RANK[res.status] > self._RANK[best.status]:
                     best = res
@@ -893,6 +893,48 @@ def _price_fields(price: _Price | None, note: str) -> dict[str, Any]:
         "market_price_shop": price.shop,
         "market_price_note": note,
     }
+
+
+def _nur_derselbe_wein(retailer_name: str, kandidaten: list[_Cand]) -> list[_Cand]:
+    """Kandidaten der Weingutseite, die mehr teilen als den Produzenten.
+
+    Die Weingutseite ist ein anderer Pool als eine Trefferliste: sie enthält
+    **jeden** Wein des Guts, und der Produzentenname ist dort per Konstruktion bei
+    allen gleich. Ein gemeinsames Produzentenwort trägt hier also keine Information,
+    während es in einer Suchtrefferliste ein Indiz ist. Genau daran ist ein Fehler
+    entstanden, den ein Nutzer gemeldet hat:
+
+    „Avignonesi IL Marzocco Cortona DOC" ist ein Chardonnay. Über die Gutsseite bekam
+    er die 4.4 aus 12'110 Bewertungen von „Avignonesi 50 & 50", einem
+    Merlot-Sangiovese für ein Vielfaches des Preises — mit Score 87 gegen 85.5 des
+    richtigen „Il Marzocco Chardonnay". Der kürzere Fundname gewinnt beim
+    Ähnlichkeitswert, und die üblichen Vetos greifen nicht: „50 & 50" verliert beim
+    Tokenisieren seine Identität (zweistellige Zahlen gelten nicht als
+    unterscheidend, das „&" fällt weg), übrig bleibt „avignonesi". Für den Matcher
+    sieht der Eintrag damit aus wie derselbe Wein ohne Zusätze. Ausgeschrieben wird
+    er korrekt abgelehnt — „Avignonesi Fifty & Fifty" trägt mit „Fifty" ein eigenes
+    Wort.
+
+    Darum hier eine Vorbedingung, bevor der Matcher überhaupt urteilt: der Kandidat
+    muss mindestens ein unterscheidendes Wort mit dem Händlernamen teilen, das
+    **nicht** der Gutsname ist. Das ist keine Verschärfung des Matchers, sondern die
+    Korrektur einer Auswahlverzerrung — wer den Pool nach dem Produzenten bildet,
+    darf den Produzenten nicht als Beleg zählen.
+
+    Trägt der Händlername ausser dem Gut nichts Eigenes, bleibt die Liste leer und
+    der Rückfall liefert nichts. Das ist richtig so: dann ist nicht zu entscheiden,
+    welcher Wein des Guts gemeint ist.
+    """
+    eigene = {t for t in distinctive_tokens(retailer_name)}
+    if not eigene:
+        return []
+    out: list[_Cand] = []
+    for c in kandidaten:
+        gutswoerter = set(distinctive_tokens(c.winery))
+        geteilt = eigene & set(distinctive_tokens(_display_name(c)))
+        if geteilt - gutswoerter:
+            out.append(c)
+    return out
 
 
 def _stil_felder(c: _Cand) -> dict[str, Any]:

@@ -144,14 +144,26 @@ REGION_HINTS = {
     "marche", "lazio", "campania", "sardegna", "sardinien", "trentino", "alto",
     "adige", "sudtirol", "friuli", "lombardia", "liguria", "emilia", "romagna",
     "molise", "basilicata", "calabria", "bolgheri", "maremma", "chianti",
-    # "cortona" fehlte als einzige der toskanischen DOC und galt darum als
-    # unterscheidendes Wort. Das kostete den Treffer: "Avignonesi IL Marzocco
-    # **Cortona** DOC" gegen Vivinos "Avignonesi Il Marzocco Chardonnay" kam auf
-    # 67 % Abdeckung, und mit einer Lücke im Händlernamen schlägt "Chardonnay" als
-    # Fremdwort an. Mit der Appellation an ihrem Platz ist der Name vollständig
-    # abgedeckt, der Treffer geht als ``fuzzy`` durch — und über Vivinos type_id
-    # wird aus dem vermeintlichen Rotwein der Weisswein, der er ist.
-    "cortona",
+    # "cortona" gehört fachlich hierher — es ist eine toskanische DOC wie Bolgheri
+    # und Montalcino — steht aber bewusst **nicht** hier. Der Versuch ist am
+    # 9.8.2026 zurückgenommen worden, und die Begründung ist lehrreich genug, um sie
+    # zu behalten:
+    #
+    # Als Regionswort gerechnet stieg die Abdeckung von "Avignonesi IL Marzocco
+    # Cortona DOC" auf 100 %, und der Wein fand endlich einen Treffer — aber den
+    # **falschen**. Vivino führt vom selben Gut "Avignonesi 50 & 50", einen
+    # Merlot-Sangiovese für ein Vielfaches des Preises, und der kommt auf Score 87
+    # gegen 85.5 des richtigen "Il Marzocco Chardonnay": der kürzere Fundname
+    # gewinnt. Ein Veto greift nicht, weil "50 & 50" beim Tokenisieren seine
+    # Identität verliert — zweistellige Zahlen gelten nicht als unterscheidend, das
+    # "&" fällt weg, übrig bleibt "avignonesi", also scheinbar nur der Produzent.
+    # Ausgeschrieben wird derselbe Wein korrekt abgelehnt ("Avignonesi Fifty &
+    # Fifty" → beide Seiten führen eigene Namen).
+    #
+    # Zwei Fehler müssen also zuerst weg, bevor die Appellation hier stehen darf:
+    # der kürzere Name darf den richtigen nicht überholen, und ein Name aus Ziffern
+    # muss Identität tragen. Bis dahin bleibt dieser Wein ohne Note — eine ehrliche
+    # Lücke statt der 4.4 aus 12'110 Bewertungen eines anderen Weins.
     "montalcino", "montepulciano", "valpolicella", "soave", "prosecco", "asti",
     "langhe", "roero", "monferrato", "gavi", "bordeaux", "bourgogne", "burgund",
     "burgundy", "rhone", "loire", "alsace", "elsass", "champagne", "provence",

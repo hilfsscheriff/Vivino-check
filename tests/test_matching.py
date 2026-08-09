@@ -686,25 +686,29 @@ def test_der_lange_klammerzusatz_bleibt_ein_namensbestandteil():
     assert d.confidence is MatchConfidence.FUZZY, d.reason
 
 
-def test_cortona_ist_eine_appellation_und_kein_eigenstaendiger_name():
-    """„Toscana Montepulciano – Avignonesi IL Marzocco **Cortona** DOC" blieb ohne Note,
-    obwohl Vivino den Wein mit genau unserer Abfrage findet („avignonesi marzocco
-    cortona" → „Avignonesi Il Marzocco Chardonnay").
+def test_cortona_bleibt_bewusst_kein_regionswort():
+    """„Toscana Montepulciano – Avignonesi IL Marzocco Cortona DOC" ist ein Chardonnay
+    und bleibt ohne Note. Cortona *ist* fachlich eine toskanische DOC wie Bolgheri und
+    Montalcino, steht aber trotzdem nicht in den Regionswörtern.
 
-    Cortona fehlte als einzige der toskanischen DOC in den Regionswörtern — Bolgheri,
-    Montalcino, Chianti und Maremma stehen alle dort. Als unterscheidendes Wort gerechnet
-    drückte es die Abdeckung auf 67 %, und mit einer Lücke im Händlernamen schlägt
-    Vivinos „Chardonnay" als Fremdwort an.
+    Der Versuch wurde am 9.8.2026 gemacht und zurückgenommen. Als Regionswort stieg die
+    Abdeckung auf 100 % und der Wein fand einen Treffer — aber Vivinos „Avignonesi
+    50 & 50" kommt auf Score 87 gegen 85.5 des richtigen „Il Marzocco Chardonnay".
+    Der kürzere Fundname gewinnt, und „50 & 50" verliert beim Tokenisieren seine
+    Identität, sodass kein Veto greift.
 
-    Die Folge war nicht nur die fehlende Note: ohne Vivinos ``type_id`` entscheidet die
-    Namensanalyse über die Farbe, und die las „Montepulciano" im Regionspräfix als
-    Rebsorte. Ein Chardonnay stand als Rotwein im Report."""
+    Zwei Fehler müssen zuerst weg: der kürzere Name darf den richtigen nicht
+    überholen, und ein Name aus Ziffern muss Identität tragen. Bis dahin ist die
+    ehrliche Lücke das bessere Ergebnis."""
+    from winecheck.names import REGION_HINTS, is_distinctive
+
+    assert "cortona" not in REGION_HINTS
+    assert is_distinctive("cortona")
     d = match_wine(
         "Toscana Montepulciano – Avignonesi IL Marzocco Cortona DOC/bc",
         "Avignonesi Il Marzocco Chardonnay",
     )
-    assert d.matched, d.reason
-    assert d.confidence is MatchConfidence.FUZZY, d.reason
+    assert not d.matched, d.reason
 
 
 def test_die_rebsorte_bleibt_ein_unterscheidendes_fremdwort():

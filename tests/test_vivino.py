@@ -396,3 +396,40 @@ def test_der_rueckfall_greift_nur_ohne_treffer(monkeypatch):
     ad._best_of("Irgendein Wein", 2020, "irgendein wein", set())
     # Ohne Weingut in der Trefferliste gibt es nichts nachzuschlagen.
     assert gerufen == []
+
+
+# ------------------- Rueckfall ueber die Weingutseite: Auswahlverzerrung
+
+def test_weingutseite_verlangt_mehr_als_den_produzenten():
+    """Von einem Nutzer gemeldet. „Avignonesi IL Marzocco Cortona DOC" ist ein
+    Chardonnay und bekam über die Gutsseite die 4.4 aus 12'110 Bewertungen von
+    „Avignonesi 50 & 50", einem Merlot-Sangiovese für ein Vielfaches des Preises.
+
+    Die Gutsseite ist ein anderer Pool als eine Trefferliste: sie enthält **jeden**
+    Wein des Guts, der Produzentenname ist dort bei allen gleich und trägt darum
+    keine Information. Wer den Pool nach dem Produzenten bildet, darf den Produzenten
+    nicht als Beleg zählen."""
+    from winecheck.ratings.vivino import _Cand, _nur_derselbe_wein
+
+    def gut(wein):
+        return _Cand(name=wein, wine_name=wein, winery="Avignonesi",
+                     url="u", year=None, vintage_avg=None, vintage_count=0,
+                     wine_avg=4.4, wine_count=12110)
+
+    kandidaten = [gut("50 & 50"), gut("Il Marzocco Chardonnay"), gut("Vino Nobile")]
+    uebrig = _nur_derselbe_wein(
+        "Toscana Montepulciano – Avignonesi IL Marzocco Cortona DOC/bc", kandidaten
+    )
+    namen = [c.wine_name for c in uebrig]
+    assert namen == ["Il Marzocco Chardonnay"], namen
+
+
+def test_weingutseite_ohne_eigenes_wort_liefert_nichts():
+    """Trägt der Händlername ausser dem Gut nichts Eigenes, ist nicht zu entscheiden,
+    welcher Wein des Guts gemeint ist. Dann lieber keiner."""
+    from winecheck.ratings.vivino import _Cand, _nur_derselbe_wein
+
+    kandidaten = [_Cand(name="Vino Nobile", wine_name="Vino Nobile", winery="Avignonesi",
+                        url="u", year=None, vintage_avg=None, vintage_count=0,
+                        wine_avg=4.2, wine_count=900)]
+    assert _nur_derselbe_wein("Avignonesi", kandidaten) == []
