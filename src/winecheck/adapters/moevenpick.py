@@ -18,13 +18,15 @@ import urllib.parse
 
 from selectolax.parser import HTMLParser, Node
 
+from ..fetching import Blocked
 from ..models import Offer
 from ..names import PACKAGING_NOISE, PRODUCER_WORDS, tokenize
 from .base import RetailerAdapter, looks_like_wine, parse_price
 
-#: Mövenpick zeigt 24 Kacheln pro Seite; mehr als das holen wir pro Lauf nicht,
-#: damit das Rate-Limit von 1 Anfrage / 2 s nicht zur Endlosschleife wird.
-MAX_PAGES = 4
+#: Notbremse für die Paginierung, **nicht** die erwartete Seitenzahl — die steht im
+#: Pager und wird von dort gelesen (:meth:`MoevenpickAdapter._letzte_seite`). Greift
+#: nur, wenn sich das Markup ändert oder eine unsinnig grosse Zahl liefert.
+MAX_PAGES = 40
 
 _RE_SPECIAL = re.compile(r"sonderpreis", re.I)
 _RE_REGULAR = re.compile(r"regul[äa]rer\s+preis|statt", re.I)
@@ -34,14 +36,56 @@ _RE_VINTAGE_ATTR = re.compile(r"\b(19[5-9]\d|20[0-3]\d)\b")
 class MoevenpickAdapter(RetailerAdapter):
     key = "moevenpick"
 
+    def __init__(self, cfg, fetcher):
+        super().__init__(cfg, fetcher)
+        self._letzte: dict[str, int] = {}
+
     def urls(self) -> list[str]:
-        """Grundseiten plus Paginierung über den erlaubten ``?p=``-Parameter."""
-        out: list[str] = []
-        for base in self.cfg.urls:
-            out.append(base)
-            for page in range(2, MAX_PAGES + 1):
-                out.append(f"{base}?p={page}")
-        return out
+        """Grundseiten plus Paginierung über den erlaubten ``?p=``-Parameter.
+
+        Wie viele Seiten es gibt, sagt Magento selbst — vorher stand hier ein fester
+        Deckel von vier Seiten. Der war der Grund, dass „Fallet Dart Champagne Brut
+        Cuvée de Réserve" (CHF 28.80 statt 36.00) nie im Report auftauchte: der Wein
+        steht auf Seite 7, und von 511 Angeboten sahen wir 96.
+
+        Zu bemerken war das nicht: ein zu grosses ``p`` beantwortet Magento nicht mit
+        404, sondern klemmt stillschweigend auf die erste Seite zurück. Ein Deckel
+        schneidet also lautlos ab — und ein höherer wäre nur ein späterer Deckel, weil
+        das Sortiment jede Woche anders gross ist.
+        """
+        return [u for base in self.cfg.urls for u in self._seiten(base)]
+
+    def _seiten(self, base: str) -> list[str]:
+        letzte = self._letzte_seite(base)
+        return [base, *(f"{base}?p={p}" for p in range(2, letzte + 1))]
+
+    def _letzte_seite(self, base: str) -> int:
+        """Letzte Seitenzahl aus dem Pager (``<input data-role="pager" max="22">``).
+
+        Das Ergebnis wird gemerkt, weil :meth:`RetailerAdapter.fetch` die URL-Liste
+        zweimal anfordert und die erste Seite sonst dreimal geholt würde.
+
+        Ist der Pager nicht lesbar, gilt :data:`MAX_PAGES` statt einer kleinen Zahl.
+        Der Fehler kostet dann Anfragen für Seiten, die es nicht gibt — die doppelten
+        Angebote fallen in der Dedup-Stufe weg. Andersherum wäre er teurer: fehlende
+        Weine sieht im Report niemand.
+        """
+        if base in self._letzte:
+            return self._letzte[base]
+
+        letzte = MAX_PAGES
+        try:
+            res = self.fetcher.get(base)
+        except Blocked:
+            letzte = 1                      # blockiert ist blockiert, nicht 40 Versuche
+        else:
+            if res.ok:
+                pager = HTMLParser(res.text).css_first('input[data-role="pager"]')
+                roh = (pager.attributes.get("max") or "") if pager else ""
+                if roh.isdigit():
+                    letzte = min(int(roh), MAX_PAGES)
+        self._letzte[base] = letzte
+        return letzte
 
     def parse(self, html: str, url: str) -> list[Offer]:
         tree = HTMLParser(html)

@@ -296,3 +296,69 @@ def test_a_single_bottle_listing_is_not_divided():
 
     r = normalize_price(39.90, "A Mano Primitivo di Puglia IGT Italien, Apulien, 2025, 75 cl")
     assert r.price_per_bottle_incl_vat == pytest.approx(39.90, abs=0.02)
+
+
+# ------------------------- Mövenpick-Paginierung (Regression 9.8.2026)
+
+class _MoevenpickCfg:
+    key = "moevenpick"
+    vat_included = True
+    price_basis = "bottle"
+    private_label_brands: list[str] = []
+    wine_only = True
+    urls = ["https://mp.test/de/aktuelle-angebote.html"]
+    shop_root = "https://mp.test/de/"
+    promo_keywords = ["angebote"]
+
+
+class _PagerFetcher:
+    """Antwortet wie Magento: die letzte Seitenzahl steht im Pager."""
+
+    def __init__(self, letzte: int | None):
+        self.letzte = letzte
+        self.geholt: list[str] = []
+
+    def get(self, url, **kw):
+        self.geholt.append(url)
+        pager = (
+            f'<input type="number" min="1" max="{self.letzte}" data-role="pager">'
+            if self.letzte is not None else "<p>kein Pager</p>"
+        )
+        return type("R", (), {"ok": True, "text": pager, "url": url, "status_code": 200})()
+
+
+def test_moevenpick_blaettert_bis_zur_letzten_seite():
+    """„Fallet Dart Champagne Brut Cuvée de Réserve" (CHF 28.80 statt 36.00) fehlte im
+    Report, weil hier ein fester Deckel von vier Seiten stand — der Wein steht auf
+    Seite 7, und von 511 Angeboten sahen wir 96.
+
+    Bemerken liess sich das nicht: ein zu grosses ``p`` beantwortet Magento nicht mit
+    404, sondern klemmt auf die erste Seite zurück. Wie weit es geht, sagt der Shop
+    selbst im Pager."""
+    from winecheck.adapters.moevenpick import MoevenpickAdapter
+
+    f = _PagerFetcher(letzte=22)
+    urls = MoevenpickAdapter(_MoevenpickCfg(), f).urls()
+    assert len(urls) == 22
+    assert urls[0] == "https://mp.test/de/aktuelle-angebote.html"
+    assert urls[-1] == "https://mp.test/de/aktuelle-angebote.html?p=22"
+    # Die Seitenzahl wird gemerkt: fetch() fragt die URL-Liste zweimal ab.
+    assert len(f.geholt) == 1
+
+
+def test_ohne_lesbaren_pager_wird_grosszuegig_geblaettert():
+    """Der Ausfall darf nicht in Richtung „zu wenig" gehen: ein unlesbarer Pager
+    kostet Anfragen für Seiten, die es nicht gibt, und deren doppelte Angebote fallen
+    in der Dedup-Stufe weg. Fehlende Weine sieht dagegen niemand."""
+    from winecheck.adapters.moevenpick import MAX_PAGES, MoevenpickAdapter
+
+    urls = MoevenpickAdapter(_MoevenpickCfg(), _PagerFetcher(letzte=None)).urls()
+    assert len(urls) == MAX_PAGES
+
+
+def test_die_seitenzahl_des_shops_ist_nach_oben_begrenzt():
+    """Eine unsinnig grosse Zahl im Markup darf keinen Dauerlauf auslösen."""
+    from winecheck.adapters.moevenpick import MAX_PAGES, MoevenpickAdapter
+
+    urls = MoevenpickAdapter(_MoevenpickCfg(), _PagerFetcher(letzte=9999)).urls()
+    assert len(urls) == MAX_PAGES
