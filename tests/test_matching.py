@@ -643,7 +643,6 @@ def test_the_plain_reserva_still_matches_its_own_entry():
     assert match_wine("Rioja Reserva Bodegas Murua", "Murua Murua Reserva 2017").matched
 
 
-@pytest.mark.xfail(reason="bekannte Lücke, siehe Kommentar über _foreign_token_analysis")
 def test_selbst_ergaenzter_produzent_darf_nicht_gegen_den_treffer_zaehlen():
     """Mövenpick nennt den Produzenten nur in der Adresse; der Adapter hängt ihn in
     Klammern an. Für die Suche ist das nötig, für den Vergleich wird er gestrichen —
@@ -660,3 +659,28 @@ def test_selbst_ergaenzter_produzent_darf_nicht_gegen_den_treffer_zaehlen():
         retailer_vintage=2023,
     )
     assert ranked, "der gefundene und richtige Kandidat wird verworfen"
+
+
+def test_der_produzent_in_der_klammer_macht_keinen_anderen_wein_zum_treffer():
+    """Gegenprobe, und die wichtigere Hälfte: derselbe Produzent führt mehrere Weine.
+    „Il Seggio" ist nicht „Livrone", auch wenn Vivino beide unter „Poggio Al Tesoro"
+    listet. Die Klammer darf Vivinos Produzentenwörter erklären — den Anker muss
+    weiterhin der Wein selbst liefern."""
+    d = match_wine("Toscana IGT 2023 Livrone (Poggio Tesoro)", "Poggio Al Tesoro Il Seggio")
+    assert not d.matched, d.reason
+    assert "Livrone" in d.reason
+
+
+def test_der_lange_klammerzusatz_bleibt_ein_namensbestandteil():
+    """Zweiter Mövenpick-Fall, und er läuft bewusst anders: „(Marilisa Allegrini Poggio
+    al Tesoro)" sind vier Wörter, also kein Zweitname — ``strip_alias`` lässt sie stehen
+    und sie zählen als eigene Tokens. Der Treffer kommt darum als ``fuzzy`` durch, weil
+    Vivino das Mutterhaus im Veneto nicht nennt. Das ist die richtige Stufe: geprüft
+    werden soll er, verworfen nicht."""
+    d = match_wine(
+        "Bolgheri Superiore DOC 2021 Sondraia (Marilisa Allegrini Poggio al Tesoro)",
+        "Poggio Al Tesoro Bolgheri Superiore Sondraia",
+        retailer_vintage=2021, source_vintage=2021, source_has_vintage_rating=True,
+    )
+    assert d.matched, d.reason
+    assert d.confidence is MatchConfidence.FUZZY, d.reason

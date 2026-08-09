@@ -77,10 +77,39 @@ class _Prepared:
     token_set: set[str]
     vintage: int | None
     seq: list[str]           # inkl. Betriebsformen, für die Zweitwein-Erkennung
+    alias_tokens: set[str]   # nur aus der Klammer, siehe :attr:`known`
 
     @property
     def joined(self) -> str:
         return " ".join(self.tokens)
+
+    @property
+    def known(self) -> set[str]:
+        """Alle Wörter, die dieser Name **kennt** — die eigenen und die der Klammer.
+
+        Der Unterschied zu :attr:`token_set` ist die ganze Asymmetrie des
+        Klammer-Zusatzes, und beide Richtungen sind nötig:
+
+        * Was Mövenpick nur in der Adresse führt, hängen wir in Klammern an
+          („Toscana IGT 2023 Livrone **(Poggio Tesoro)**"). Von der Quelle *verlangen*
+          dürfen wir es nicht — sonst rechnen wir ihr als fehlend an, was wir selbst
+          ergänzt haben. Dafür ist :attr:`token_set` da, das die Klammer nicht kennt:
+          Abdeckung, Anker und Identitätsvergleich laufen weiter darüber.
+        * Umgekehrt ist der Produzent aber sehr wohl ein Wort, das wir kennen. Steht er
+          in der Quelle, ist er kein *fremdes* Wort. Vor dieser Unterscheidung fiel
+          „Poggio Al Tesoro Livrone" durch: nach dem Streichen blieb uns „livrone",
+          Vivino trug „poggio tesoro livrone" — zwei Wörter, die unser Name scheinbar
+          nicht kannte, und der richtige Treffer galt als anderer Wein.
+
+        Faustregel für jede Stelle unten: fragt sie „kennt der Händler dieses Wort der
+        Quelle?", dann :attr:`known`. Fragt sie „nennt die Quelle dieses Wort des
+        Händlers?", dann :attr:`token_set`.
+        """
+        return self.token_set | self.alias_tokens
+
+    @property
+    def joined_known(self) -> str:
+        return " ".join(self.tokens + sorted(self.alias_tokens))
 
 
 def prepare(name: str, vintage: int | None = None) -> _Prepared:
@@ -91,20 +120,36 @@ def prepare(name: str, vintage: int | None = None) -> _Prepared:
         token_set=set(toks),
         vintage=vintage if vintage is not None else extract_vintage(name),
         seq=tokenize_keep_producer(name),
+        alias_tokens=set(tokenize(name, keep_alias=True)) - set(toks),
+    )
+
+
+def _ratios(a: str, b: str) -> float:
+    """Beste von drei Metriken. ``token_set_ratio`` verzeiht Wortreihenfolge und
+    Teilmengen, ``token_sort_ratio`` bestraft fehlende Wörter stärker, ``WRatio``
+    fängt Tippfehler."""
+    return max(
+        fuzz.token_set_ratio(a, b),
+        fuzz.token_sort_ratio(a, b),
+        fuzz.WRatio(a, b),
     )
 
 
 def _similarity(a: _Prepared, b: _Prepared) -> float:
-    """Beste von drei Metriken. ``token_set_ratio`` verzeiht Wortreihenfolge und
-    Teilmengen, ``token_sort_ratio`` bestraft fehlende Wörter stärker, ``WRatio``
-    fängt Tippfehler."""
+    """Ähnlichkeit der beiden Namen, die Klammer als zweite Lesart.
+
+    Ohne sie verglich sich „livrone" mit „poggio tesoro livrone" — Score 64, unter
+    jeder Schwelle, obwohl wir den Produzenten kennen und nur nicht mitgezählt haben.
+    Bewusst als *Maximum* über beide Lesarten und nicht als Ersatz: die selbst
+    ergänzten Wörter dürfen einen Treffer stützen, aber nie einen kosten, wenn die
+    Quelle den Produzenten gar nicht führt.
+    """
     if not a.tokens or not b.tokens:
         return 0.0
-    return max(
-        fuzz.token_set_ratio(a.joined, b.joined),
-        fuzz.token_sort_ratio(a.joined, b.joined),
-        fuzz.WRatio(a.joined, b.joined),
-    )
+    score = _ratios(a.joined, b.joined)
+    if a.alias_tokens:
+        score = max(score, _ratios(a.joined_known, b.joined))
+    return score
 
 
 #: Die Standard-Dosage. Praktisch jeder Champagner und Schaumwein ist Brut; Vivino
@@ -189,9 +234,15 @@ def _rival_producer_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     Produzent nur in der Quelle, ist das die bekannte Unsicherheit (``fuzzy``); trägt
     nur die Quelle Zusätze, entscheidet die Abdeckung. Erst wenn **beide** Seiten
     etwas Eigenes mitbringen, sind es zwei verschiedene Weine.
+
+    „Eigenes" der Quelle ist der Produzent aus unserer Klammer aber gerade nicht — er
+    steht auf beiden Seiten, nur auf unserer in einem Feld, das nicht der Name ist.
+    Ohne :attr:`_Prepared.known` traf es sonst auch den *richtigen* Kandidaten: bei
+    „Bicento 53 Red Passion (Nativ)" führt der Händlername ein paar Appellationswörter
+    mit, die Vivino nicht nennt, und schon galten beide Seiten als eigenständig.
     """
     r_only = {t for t in retailer.token_set - source.token_set if is_distinctive(t)}
-    s_only = {t for t in source.token_set - retailer.token_set if is_distinctive(t)}
+    s_only = {t for t in source.token_set - retailer.known if is_distinctive(t)}
     if r_only and s_only:
         return (
             f"beide Seiten führen eigene Namen — {_pretty(r_only)} beim Händler, "
@@ -226,7 +277,7 @@ def _prestige_prefix_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     # Diese beiden Bauformen sind lexikalisch nur an der Länge zu unterscheiden.
     if pos != 1:
         return None
-    davor = [t for t in s_seq[:pos] if is_distinctive(t) and t not in retailer.token_set]
+    davor = [t for t in s_seq[:pos] if is_distinctive(t) and t not in retailer.known]
     if davor:
         return (
             f"{_pretty(set(davor))} steht in der Quelle **vor** '{erstes_r.title()}' — "
@@ -235,41 +286,6 @@ def _prestige_prefix_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     return None
 
 
-# BEKANNTE LÜCKE — der von uns selbst ergänzte Produzent zählt gegen den Treffer
-# -----------------------------------------------------------------------------
-# Mövenpick nennt den Produzenten nur in der Adresse. Der Adapter hängt ihn darum in
-# Klammern an: "Toscana IGT 2023 Livrone (Poggio Tesoro)". Für die *Suche* ist das
-# richtig und nötig — ``query_tokens`` behält die Klammer, und nur so findet Vivino
-# den Wein überhaupt.
-#
-# Für den *Vergleich* wird die Klammer wieder gestrichen (``tokenize`` ruft
-# ``strip_alias``). Die Absicht dahinter ist gut: was wir selbst ergänzt haben, soll
-# der Quelle nicht als fehlend angerechnet werden. Die Wirkung ist hier aber die
-# umgekehrte —
-#
-#   Händler nach dem Streichen : livrone
-#   Vivino                     : poggio tesoro livrone
-#
-# — und damit trägt *Vivino* zwei Wörter, die unser Name scheinbar nicht kennt.
-# ``rank_candidates`` verwirft den Kandidaten, obwohl die Suche ihn gefunden hat und
-# er nachweislich stimmt (Note 4.0, "Poggio Al Tesoro Livrone 2023").
-#
-# Nachvollziehbar mit:
-#     rank_candidates("Toscana IGT 2023 Livrone (Poggio Tesoro)",
-#                     [("Poggio Al Tesoro Livrone", 2023, True)], retailer_vintage=2023)
-#     -> [] statt eines Treffers
-#
-# Ebenso betroffen: "Bolgheri Superiore DOC 2021 Sondraia (Marilisa Allegrini Poggio
-# al Tesoro)".
-#
-# Die Behebung gehört hierher und muss **asymmetrisch** sein: die Klammer-Tokens
-# sollen auf unserer Seite als *vorhanden* gelten, damit Vivinos Produzentenwörter
-# nicht als fremd zählen — aber weiterhin nicht von Vivino *verlangt* werden. Dafür
-# braucht ``_Prepared`` ein eigenes Feld für die Alias-Tokens, das hier einfliesst.
-#
-# Bewusst nicht mehr in derselben Sitzung gebaut: das ist die sicherheitskritischste
-# Stelle des Projekts, und eine halb geprüfte Änderung daran wäre schlechter als die
-# beschriebene Lücke.
 def _foreign_token_analysis(
     retailer: _Prepared, source: _Prepared, coverage: float
 ) -> tuple[str | None, list[str]]:
@@ -295,18 +311,24 @@ def _foreign_token_analysis(
     Die Zweitwein-Fälle nach französischem Muster fangen zusätzlich die beiden
     positionsbasierten Regeln ab.
 
+    Gefragt wird hier durchweg „kennt der Händler dieses Wort?", darum
+    :attr:`_Prepared.known` und nicht ``token_set`` — siehe die Begründung dort. Das
+    wirkt in beide Richtungen: der selbst ergänzte Produzent zählt nicht mehr als
+    fremd, aber er verschiebt auch den ersten Treffer nach vorn, und damit fällt der
+    Rest der Quell-Bezeichnung erst recht unter diese Prüfung.
+
     Returns:
         ``(Veto-Grund oder None, tolerierte Zusatzwörter)``
     """
     first_hit = next(
-        (i for i, tok in enumerate(source.tokens) if tok in retailer.token_set), None
+        (i for i, tok in enumerate(source.tokens) if tok in retailer.known), None
     )
     if first_hit is None:
         return None, []
     suspects = [
         tok
         for tok in source.tokens[first_hit:]
-        if tok not in retailer.token_set
+        if tok not in retailer.known
         and tok not in REGION_HINTS
         and tok not in COLOUR_TOKENS
         and len(tok) > 2
@@ -345,7 +367,7 @@ def _leading_cuvee_veto(retailer: _Prepared, source: _Prepared) -> str | None:
         t
         for t in source.seq[:first_producer]
         if t not in PRODUCER_WORDS
-        and t not in retailer.token_set
+        and t not in retailer.known
         and t not in REGION_HINTS
         and t not in COLOUR_TOKENS
         and len(t) > 2
@@ -401,7 +423,7 @@ def _cuvee_before_producer_name_veto(retailer: _Prepared, source: _Prepared) -> 
         t
         for t in source.seq[:pos]
         if t not in PRODUCER_WORDS
-        and t not in retailer.token_set
+        and t not in retailer.known
         and t not in REGION_HINTS
         and t not in COLOUR_TOKENS
         and len(t) > 2
@@ -557,9 +579,16 @@ def match_wine(
     # Damit liess sich der Wein an "Marsannay 'La Montagne' Rouge" hängen — ein
     # Burgunder mit 382 Bewertungen. Ein einzelnes kurzes Wort trägt zu wenig
     # Identität; ein langer Markenname wie "Domherrenwein" dagegen kollidiert kaum.
+    #
+    # Ob die Quelle „reicher" ist, entscheidet sich an ``known``: „Toscana IGT 2023
+    # Livrone (Poggio Tesoro)" bringt für sich genommen nur ein einziges
+    # unterscheidendes Wort mit, und Vivinos „Poggio Al Tesoro Livrone" sah damit aus
+    # wie ein Eintrag mit zwei zusätzlichen Namensbestandteilen. Es sind aber genau
+    # die Wörter, die wir selbst angehängt haben — die Quelle bringt nichts mit, was
+    # wir nicht schon wüssten.
     r_identity = [t for t in r.token_set if is_distinctive(t)]
     s_identity = [t for t in s.token_set if is_distinctive(t)]
-    unexplained_source = [t for t in s_identity if t not in r.token_set]
+    unexplained_source = [t for t in s_identity if t not in r.known]
     if (
         len(r_identity) < MIN_IDENTITY_TOKENS
         and unexplained_source                      # nur wenn die Quelle reicher ist

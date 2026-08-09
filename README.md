@@ -511,6 +511,22 @@ nicht führt. In Klammern trägt der Name den Produzenten für die **Suche**, oh
 Identitätsvergleich zu stören; `tokenize` entfernt Klammern ohnehin, `query_tokens`
 behält sie.
 
+Nur wirkte das Streichen in die andere Richtung genauso — und dort verkehrt herum:
+
+| | |
+|---|---|
+| Händler nach dem Streichen | `livrone` |
+| Vivino | `poggio tesoro livrone` |
+
+Damit trug **Vivino** zwei Wörter, die unser Name scheinbar nicht kannte, und
+„Poggio Al Tesoro Livrone" galt als anderer Wein. Der Klammerzusatz zählt darum jetzt
+asymmetrisch, nach einer einzigen Regel: fragt eine Prüfung *„kennt der Händler dieses
+Wort der Quelle?"*, zählt die Klammer mit; fragt sie *„nennt die Quelle dieses Wort des
+Händlers?"*, zählt sie nicht. Abdeckung, Anker und Identitätsvergleich bleiben damit
+unverändert streng — verlangt wird von Vivino weiterhin nichts, was wir selbst ergänzt
+haben. Der Anker muss weiter der Wein selbst liefern: „Il Seggio" bekommt die Note von
+„Livrone" auch dann nicht, wenn beide unter „Poggio Al Tesoro" stehen.
+
 ### Kritikernoten gehören nicht zum Weinnamen
 
 „Châteauneuf-du-Pape Vieux Télégraphe **Parker 95**" — Vivino kennt keine Note im
