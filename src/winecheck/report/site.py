@@ -1089,6 +1089,17 @@ _TEMPLATE = r"""<!doctype html>
        tragen eine 4.1, nur 26 eine 4.5 — ein Zehntel am oberen Ende wiegt
        schwerer als eines in der Mitte.<span class="colhint"> · Spaltentitel antippen
        sortiert, nochmal antippen kehrt um</span></p>
+    <!-- Der Typ ist die Korrekturvariable zur Kennzahl darueber und braucht darum
+         dieselbe Offenheit: was ist gemessen, was ist abgeleitet, was geschaetzt. -->
+    <p class="tblnote"><b>Typ</b> ist aus Name, Vivino-Stil und Vivinos gemessener
+       Geschmacksstruktur abgeleitet, nicht verkostet. Er beschreibt die
+       <b>Machart, nicht die Qualität</b> — ein straffer Wein ist nicht besser als ein
+       fruchtsüsser, er verträgt nur keinen Vergleich mit ihm.
+       „Fruchtsüss" heisst dabei nicht „süss": diese Weine sind meist gesetzlich
+       trocken. Der süsse Eindruck entsteht aus Restzucker, hohem Alkohol,
+       malolaktischem Ausbau und neuem Holz zusammen — nicht aus zugesetztem Zucker.
+       Ein <b>?</b> heisst, dass der Typ nur geschätzt ist. Der Grund steht bei jedem
+       Wein daneben; ohne Begründung wird kein Typ angezeigt.</p>
     <div id="table"></div>
   </div>
   </main>
