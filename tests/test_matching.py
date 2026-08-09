@@ -684,3 +684,36 @@ def test_der_lange_klammerzusatz_bleibt_ein_namensbestandteil():
     )
     assert d.matched, d.reason
     assert d.confidence is MatchConfidence.FUZZY, d.reason
+
+
+def test_cortona_ist_eine_appellation_und_kein_eigenstaendiger_name():
+    """„Toscana Montepulciano – Avignonesi IL Marzocco **Cortona** DOC" blieb ohne Note,
+    obwohl Vivino den Wein mit genau unserer Abfrage findet („avignonesi marzocco
+    cortona" → „Avignonesi Il Marzocco Chardonnay").
+
+    Cortona fehlte als einzige der toskanischen DOC in den Regionswörtern — Bolgheri,
+    Montalcino, Chianti und Maremma stehen alle dort. Als unterscheidendes Wort gerechnet
+    drückte es die Abdeckung auf 67 %, und mit einer Lücke im Händlernamen schlägt
+    Vivinos „Chardonnay" als Fremdwort an.
+
+    Die Folge war nicht nur die fehlende Note: ohne Vivinos ``type_id`` entscheidet die
+    Namensanalyse über die Farbe, und die las „Montepulciano" im Regionspräfix als
+    Rebsorte. Ein Chardonnay stand als Rotwein im Report."""
+    d = match_wine(
+        "Toscana Montepulciano – Avignonesi IL Marzocco Cortona DOC/bc",
+        "Avignonesi Il Marzocco Chardonnay",
+    )
+    assert d.matched, d.reason
+    assert d.confidence is MatchConfidence.FUZZY, d.reason
+
+
+def test_die_rebsorte_bleibt_ein_unterscheidendes_fremdwort():
+    """Gegenprobe zur Cortona-Ergänzung, und die wichtigere Hälfte.
+
+    Es lag nahe, stattdessen Rebsortennamen generell von den Fremdwörtern
+    auszunehmen — gemessen über 340 × 1013 Namenspaare lässt das 25 Fehltreffer durch,
+    alle nach demselben Muster: ein **Barolo** von Vietti bekäme die Note von „Vietti
+    Arneis Roero", ein Ribera-Rotwein die von „Legaris Rueda Verdejo". Wo nur der
+    Produzent gemeinsam ist, trägt die Rebsorte die Unterscheidung."""
+    d = match_wine("Piemonte – Vietti Barolo Rocche di Castiglione DOCG", "Vietti Arneis Roero")
+    assert not d.matched, d.reason

@@ -144,6 +144,14 @@ REGION_HINTS = {
     "marche", "lazio", "campania", "sardegna", "sardinien", "trentino", "alto",
     "adige", "sudtirol", "friuli", "lombardia", "liguria", "emilia", "romagna",
     "molise", "basilicata", "calabria", "bolgheri", "maremma", "chianti",
+    # "cortona" fehlte als einzige der toskanischen DOC und galt darum als
+    # unterscheidendes Wort. Das kostete den Treffer: "Avignonesi IL Marzocco
+    # **Cortona** DOC" gegen Vivinos "Avignonesi Il Marzocco Chardonnay" kam auf
+    # 67 % Abdeckung, und mit einer Lücke im Händlernamen schlägt "Chardonnay" als
+    # Fremdwort an. Mit der Appellation an ihrem Platz ist der Name vollständig
+    # abgedeckt, der Treffer geht als ``fuzzy`` durch — und über Vivinos type_id
+    # wird aus dem vermeintlichen Rotwein der Weisswein, der er ist.
+    "cortona",
     "montalcino", "montepulciano", "valpolicella", "soave", "prosecco", "asti",
     "langhe", "roero", "monferrato", "gavi", "bordeaux", "bourgogne", "burgund",
     "burgundy", "rhone", "loire", "alsace", "elsass", "champagne", "provence",
