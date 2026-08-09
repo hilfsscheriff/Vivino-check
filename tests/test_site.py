@@ -782,3 +782,59 @@ def test_die_quellenreihe_blendet_nichts_aus(doc):
     block = text.split('const ohneQuelle = visible("src");', 1)[1][:600]
     assert "chipMitZahl" not in block, "die Quellenreihe darf nicht ausblenden"
     assert "nSrc[k]" in block
+
+
+# ----------------------------------------- Preis-Leistung je Stil-Typ (Spec §6)
+
+def _wein(typ, sorte, preis, note):
+    return {"typ": typ, "style": sorte, "price": preis, "rating": note}
+
+
+def test_preis_leistung_rechnet_je_stil_typ():
+    """Der Schnitt lief über die Sorte — Rotwein, Weisswein, Champagner. Innerhalb von
+    „Rotwein" steckt aber die grössere Verzerrung: Vivino-Noten sind
+    Publikumsmittelwerte, und die fruchtsüsse Machart erreicht dort verlässlich 4.2
+    bis 4.4, während straffe Weine polarisieren.
+
+    Hier zwei Gruppen mit demselben Preisniveau, aber verschobener Notenlage. Gegen
+    eine gemeinsame Kurve gerechnet stünde jeder straffe Wein unter null, obwohl er
+    unter seinesgleichen mittelmässig bis gut ist."""
+    from winecheck.report.site import _je_typ
+
+    wines = (
+        [_wein("fruchtsuess", "rot", 10 + i, 4.3) for i in range(20)]
+        + [_wein("straff_herb", "rot", 10 + i, 3.9) for i in range(20)]
+    )
+    _je_typ(wines, "valueScore", None)
+    straffe = [w["valueScore"] for w in wines if w["typ"] == "straff_herb"]
+    fruchtige = [w["valueScore"] for w in wines if w["typ"] == "fruchtsuess"]
+    assert all(v is not None for v in straffe + fruchtige)
+    # Jede Gruppe wird um ihre eigene Mitte gerechnet, also liegen beide um null.
+    assert abs(sum(straffe) / len(straffe)) < 0.05, straffe[:3]
+    assert abs(sum(fruchtige) / len(fruchtige)) < 0.05, fruchtige[:3]
+
+
+def test_zu_duenne_typ_sorte_zelle_faellt_auf_den_typ_zurueck():
+    """Drei Ebenen: (typ, sorte), dann typ allein, dann global. Eine Handvoll Punkte
+    ergibt eine genauer aussehende, aber schlechtere Auskunft."""
+    from winecheck.report.site import _je_typ
+
+    wines = (
+        [_wein("ausgewogen", "rot", 10 + i, 4.0) for i in range(18)]
+        + [_wein("ausgewogen", "weiss", 12 + i, 4.1) for i in range(3)]   # zu dünn
+    )
+    _je_typ(wines, "valueScore", None)
+    assert all(w.get("valueScore") is not None for w in wines), "keiner darf leer bleiben"
+
+
+def test_weine_ohne_typ_kommen_in_die_globale_gruppe():
+    """„Kein Typ" ist keine Machart. Aus dem Fehlen einer Information eine eigene
+    Erwartung abzuleiten wäre eine Behauptung über diese Weine."""
+    from winecheck.report.site import _je_typ
+
+    wines = (
+        [_wein("fruchtsuess", "rot", 10 + i, 4.3) for i in range(15)]
+        + [_wein("", "rot", 10 + i, 4.0) for i in range(15)]
+    )
+    _je_typ(wines, "valueScore", None)
+    assert all(w.get("valueScore") is not None for w in wines)

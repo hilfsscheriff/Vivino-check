@@ -55,12 +55,22 @@ def snapshot(rows: list[WineRow]) -> list[dict[str, Any]]:
             # diese Felder nicht — der Seitenbau muss ohne sie auskommen.
             "style": r.style,
             "style_label": r.style_label,
+            # Stil-Typ: die Machart. Ordinale Achse von fruchtsuess nach straff_herb,
+            # siehe winecheck.stiltyp. Die Signale fahren mit, weil die Seite keinen
+            # Typ ohne Begruendung anzeigen darf.
+            "typ": r.stil.typ,
+            "typ_label": r.stil.label,
+            "typ_stufe": r.stil.stufe,
+            "typ_signale": r.stil.signale,
             "maturity": r.maturity.code if r.maturity else "",
             "maturity_short": r.maturity.short if r.maturity else "",
             "maturity_region": r.maturity.region_label if r.maturity else "",
-            # Herkunftsland fuer den Filter. Aus dem Namen, sonst aus der
-            # Vinum-Region; ohne beides bleibt es leer statt geraten.
-            "country": _land(r.name, r.maturity.region_label if r.maturity else ""),
+            # Herkunftsland fuer den Filter. Zuerst Vivino: es nennt das Land in
+            # derselben Antwort, in der auch die Note steht, und kennt es fuer jeden
+            # Wein, den es ueberhaupt fuehrt. Aus dem Namen liess es sich nur bei 585
+            # von 1564 Weinen lesen. Danach der Name, danach die Vinum-Region; ohne
+            # alle drei bleibt es leer statt geraten.
+            "country": r.herkunft or _land(r.name, r.maturity.region_label if r.maturity else ""),
             # Vivinos Trinkfenster für genau diesen Wein und Jahrgang, und ob es der
             # Vinum-Tabelle widerspricht. Beide Quellen behalten ihre Stimme.
             "maturity_window": r.maturity.fenster if r.maturity else "",

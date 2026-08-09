@@ -182,6 +182,25 @@ class Struktur:
     def brauchbar(self) -> bool:
         return self.suesse is not None and self.urteile >= MIN_STRUKTUR_URTEILE
 
+    @classmethod
+    def aus_vivino(cls, roh: dict[str, float] | None) -> Struktur | None:
+        """Aus dem, was :mod:`winecheck.ratings.vivino` in den Payload gelegt hat.
+
+        Die Baseline eines Stils trägt keine Urteilszahl — sie ist von Vivino
+        gerechnet, nicht von Nutzern gesetzt. Sie bekommt darum ``urteile`` gar nicht
+        erst gesetzt und wird über den eigenen Zweig der Kaskade gelesen, nicht über
+        :attr:`brauchbar`.
+        """
+        if not roh:
+            return None
+        return cls(
+            suesse=roh.get("sweetness"),
+            tannin=roh.get("tannin"),
+            saeure=roh.get("acidity"),
+            intensitaet=roh.get("intensity"),
+            urteile=int(roh.get("count") or 0),
+        )
+
 
 @dataclass
 class Einordnung:

@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from ..names import STYLE_LABELS
+from ..stiltyp import TYP_LABELS, TYPEN
 from ..trinkreife import MATURITY, MATURITY_SHORT, SOURCE_NAME, SOURCE_PAGE
 from .logo import SVG_MARK, schreibe_icons
 from .formatting import chf, datetime_ch
@@ -212,7 +213,7 @@ def _add_value_scores(wines: list[dict[str, Any]]) -> None:
     handel = [w for w in wines if w.get("swiss") or not w.get("marketplace")]
     for gruppe in (handel, marktplatz):
         if gruppe:
-            _je_sorte(gruppe, "valueScore", note)
+            _je_typ(gruppe, "valueScore", note)
 
     # Zusätzlich eine Zahl über beide Welten hinweg. Sie wird gebraucht, sobald die
     # Seite Handel und Marktplatz gemeinsam zeigt — das ist die Standardansicht.
@@ -221,42 +222,65 @@ def _add_value_scores(wines: list[dict[str, Any]]) -> None:
     # Marktplatz-Gruppe hiesse "gut für einen Marktplatzwein", eine 0.3 aus dem
     # Handel "gut für einen Schweizer Ladenwein". Sortiert man danach, vergleicht
     # man Äpfel mit Birnen.
-    _je_sorte(wines, "valueScoreAll", note)
+    _je_typ(wines, "valueScoreAll", note)
 
 
-def _je_sorte(wines: list[dict[str, Any]], feld: str, note) -> None:
-    """Eine eigene Kurve je Sorte, mit Rückfall auf die ganze Gruppe.
+def _je_typ(wines: list[dict[str, Any]], feld: str, note) -> None:
+    """Eine eigene Kurve je Stil-Typ, mit Rückfall über Sorte auf die ganze Gruppe.
 
-    Champagner hat ein anderes Preisniveau als Rotwein — Median CHF 43 gegen 23 im
-    selben Lauf. An der gemeinsamen Kurve gemessen sagt die Zahl bei jedem
-    Champagner mehr über seine Warengruppe aus als über den einzelnen Wein.
+    Vorher lief der Schnitt über die **Sorte** — Rotwein, Weisswein, Champagner. Der
+    Grund dafür gilt weiter: Champagner hat ein anderes Preisniveau als Rotwein,
+    Median CHF 43 gegen 23. Aber innerhalb von „Rotwein" steckt die grössere
+    Verzerrung: Vivino-Noten sind Publikumsmittelwerte, und die fruchtsüsse Machart
+    erreicht dort verlässlich 4.2 bis 4.4, während straffe Weine polarisieren. Wer
+    einen Appassimento-Primitivo gegen einen Brunello normalisiert, weil beide
+    „Rotwein" sind, misst die Machart und nicht den Wein.
 
-    Die Sorte ist dafür der richtige Schnitt, die *Auswahl* wäre es nicht: sie ist
-    eine Eigenschaft des Weins und kein Zustand der Seite. Ein Wein behält damit
-    seinen Rang, gleich was sonst angezeigt wird — anders als bei einer Rechnung
-    über die gerade gefilterte Menge.
+    Der Typ ist der stärkere Schnitt und darum der erste. Die Sorte bleibt als
+    zweite Ebene: sie trennt weiter, was sich preislich nicht vergleichen lässt.
 
-    Sorten mit zu wenigen Weinen bekommen die Kurve der ganzen Gruppe. Süsswein
-    zählt 13 Positionen, Schaumwein 27; aus einer Handvoll Punkten eine eigene
-    Erwartung abzuleiten wäre genauer aussehende, aber schlechtere Auskunft. Sie
-    bleiben damit gerechnet, statt ohne Zahl dazustehen.
+    Drei Ebenen, jede mit derselben Mindestfallzahl:
+
+    1. ``(typ, sorte)`` — der genaueste Schnitt, wo die Fallzahl ihn trägt.
+    2. ``typ`` allein — wenn eine Sorte innerhalb eines Typs zu dünn besetzt ist.
+    3. die ganze Gruppe — für alles Übrige, inklusive der Weine ohne Typ.
+
+    Weine ohne Typ landen bewusst in Ebene 3 statt in einer eigenen Gruppe: „kein
+    Typ" ist keine Machart, und eine Kurve darüber hiesse, aus dem Fehlen einer
+    Information eine Erwartung abzuleiten.
+
+    Gezählt wird, was in die Regression eingeht — Weine ohne Note oder ohne Preis
+    tragen nichts bei und dürfen eine Gruppe nicht gross erscheinen lassen.
     """
-    nach_sorte: dict[str, list[dict[str, Any]]] = {}
-    for w in wines:
-        nach_sorte.setdefault(w.get("style") or "?", []).append(w)
-
-    rest: list[dict[str, Any]] = []
-    for gruppe in nach_sorte.values():
-        # Gezählt wird, was überhaupt in die Regression eingeht — Weine ohne Note
-        # oder ohne Preis tragen nichts bei und dürfen die Gruppe nicht gross
-        # erscheinen lassen.
-        brauchbar = sum(
+    def brauchbar(gruppe: list[dict[str, Any]]) -> int:
+        return sum(
             1 for w in gruppe if w.get("rating") is not None and (w.get("price") or 0) > 0
         )
-        if brauchbar >= VALUE_MIN_SAMPLE:
-            _value_scores_einer_gruppe(gruppe, feld=feld, note=note)
-        else:
-            rest.extend(gruppe)
+
+    def teilen(gruppe: list[dict[str, Any]], schluessel) -> dict[Any, list[dict[str, Any]]]:
+        out: dict[Any, list[dict[str, Any]]] = {}
+        for w in gruppe:
+            out.setdefault(schluessel(w), []).append(w)
+        return out
+
+    rest: list[dict[str, Any]] = []
+    for typ, mit_typ in teilen(wines, lambda w: w.get("typ") or "").items():
+        if not typ:
+            rest.extend(mit_typ)                      # ohne Typ: globale Kurve
+            continue
+        if brauchbar(mit_typ) < VALUE_MIN_SAMPLE:
+            rest.extend(mit_typ)
+            continue
+        # Erst die gröbere Ebene für alle, dann die feinere für die Zellen, die sie
+        # tragen. Die Reihenfolge ist der Trick: jeder Wein bekommt am Ende den
+        # feinsten Wert, den seine Fallzahl hergibt, und keiner bleibt leer. Die
+        # Bezugsmenge einer zu dünnen Zelle ist dabei der **ganze** Typ, nicht die
+        # Sammlung der übrigen dünnen Zellen — drei Weisse gegen vier Rosés gerechnet
+        # wäre keine Erwartung, sondern ein Zufall.
+        _value_scores_einer_gruppe(mit_typ, feld=feld, note=note)
+        for sorte_gruppe in teilen(mit_typ, lambda w: w.get("style") or "?").values():
+            if brauchbar(sorte_gruppe) >= VALUE_MIN_SAMPLE:
+                _value_scores_einer_gruppe(sorte_gruppe, feld=feld, note=note)
     if rest:
         _value_scores_einer_gruppe(rest, feld=feld, note=note)
 
@@ -450,6 +474,14 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
         "bargain": d.get("bargain_percent"),
         "style": style,
         "styleLabel": style_label,
+        # Stil-Typ. Aeltere Laeufe kennen ihn nicht — dann bleibt er leer, und die
+        # Seite behandelt ihn wie "unbekannt", statt einen zu erfinden.
+        "typ": d.get("typ") or "",
+        "typLabel": d.get("typ_label") or "",
+        # 3 heisst geschaetzt (nur aus Verkostungsnotizen). Die Tabelle haengt daran
+        # ein Fragezeichen, damit man die Schaetzung von der Messung unterscheidet.
+        "typStufe": d.get("typ_stufe") or None,
+        "typWarum": " · ".join(d.get("typ_signale") or []),
         "maturity": d.get("maturity") or "",
         "maturityShort": d.get("maturity_short") or "",
         "maturityRegion": d.get("maturity_region") or "",
@@ -471,6 +503,7 @@ _SHORT_KEYS = {
     "name": "n", "vintage": "y", "price": "p", "rating": "r", "ratingCount": "rc",
     "vivinoUrl": "vu", "retailers": "rs", "cheapest": "c", "url": "u",
     "market": "m", "bargain": "b", "style": "s", "styleLabel": "sl",
+    "typ": "ty", "typLabel": "tyl", "typStufe": "tys", "typWarum": "tyw",
     "maturity": "t", "maturityShort": "ts", "maturityRegion": "tr",
     "drinkWindow": "dw", "maturityConflict": "mc", "country": "co",
     "vintageQuality": "q", "falstaff": "f", "key": "k",
@@ -563,6 +596,14 @@ def build(
             for r in retailers
         ],
         "styles": [{"key": s, "label": STYLE_LABELS[s]} for s in styles],
+        # Reihenfolge = Reihenfolge der Achse, nicht Haeufigkeit und nicht
+        # alphabetisch. Die Kacheln bilden einen Verlauf ab; wer sie umsortiert,
+        # macht aus einer geordneten Achse eine Sammlung von Schubladen.
+        "typen": [
+            {"key": t, "label": TYP_LABELS[t]}
+            for t in TYPEN
+            if any(w.get("typ") == t for run in runs for w in run["wines"])
+        ],
         # Nach Häufigkeit sortiert, nicht alphabetisch: Italien und Frankreich
         # stellen den Grossteil, und wer filtert, greift meist dorthin.
         #
@@ -650,6 +691,14 @@ _TEMPLATE = r"""<!doctype html>
        Grossgrade und Flächen. Kleintext in Gold nimmt --goldtx mit 4.74:1. */
     --gold:#9a7b4f; --goldtx:#8a6a3d;
     --good:#2e7d32; --bad:#c62828;
+    /* Der Stil-Typ ist die eine Ausnahme von "Farbe hat drei Aufgaben". Er bekommt
+       keine vier Kategorienfarben, sondern **eine ordinale Rampe** warm -> kuehl:
+       die Achse ist geordnet (fruchtsuess -> straff_herb), und vier gleichrangige
+       Toene wuerden das verschweigen. Zweiter Kanal bleibt die Fuellung — gefuellt
+       heisst "gut und guenstig", hohl nicht. Wer die Rampe nicht unterscheiden kann,
+       verliert nur den Typ, nicht das Urteil.
+       Die vier Toene sind gegen den Grund auf >= 3:1 geprueft (Grossgrad/Flaeche). */
+    --typ1:#b4622a; --typ2:#a4823f; --typ3:#6f7d83; --typ4:#3d6f86;
     /* Didot ist die Etikettenschrift, Optima der humanistische Begleiter, Menlo
        hält die Zahlenspalten. Nichts wird geladen: die Seite bleibt ohne
        Drittanbieter, und jede Stufe hat einen breit vorhandenen Ersatz. */
@@ -673,7 +722,8 @@ _TEMPLATE = r"""<!doctype html>
             --bg:#141114; --panel:#1c181c; --chip:transparent;
             --brand:#e0879f; --accent:#e0879f;
             --gold:#c9a877; --goldtx:#d4b587;
-            --good:#7cc47f; --bad:#ef9a9a; }
+            --good:#7cc47f; --bad:#ef9a9a;
+            --typ1:#e0915c; --typ2:#cfae6d; --typ3:#9fb0b8; --typ4:#7bb4cf; }
   }
   @media (pointer: coarse) { :root { --control-h:44px; } }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -785,6 +835,22 @@ _TEMPLATE = r"""<!doctype html>
   /* Der Trefferkreis liegt unsichtbar vor dem Punkt und nimmt die Ereignisse.
      pointer-events:all trifft auch ohne Füllung. */
   .hit { fill:transparent; stroke:none; pointer-events:all; cursor:pointer; }
+  /* Punktfarbe = Stil-Typ. Ohne Typ bleibt der Punkt grau wie bisher — ein
+     erfundener Ton waere eine Behauptung ueber den Wein. */
+  /* Die Pille traegt den Ton als Rand, nicht als Flaeche: gefuellte Farbflaechen
+     sind auf dieser Seite dem Wert vorbehalten. */
+  .pill.t-fruchtsuess { border-color:var(--typ1); color:var(--typ1); }
+  .pill.t-weich_modern { border-color:var(--typ2); color:var(--typ2); }
+  .pill.t-ausgewogen { border-color:var(--typ3); color:var(--typ3); }
+  .pill.t-straff_herb { border-color:var(--typ4); color:var(--typ4); }
+  .pt.t-fruchtsuess { stroke:var(--typ1); }
+  .pt.t-weich_modern { stroke:var(--typ2); }
+  .pt.t-ausgewogen { stroke:var(--typ3); }
+  .pt.t-straff_herb { stroke:var(--typ4); }
+  .pt.good.t-fruchtsuess { fill:var(--typ1); }
+  .pt.good.t-weich_modern { fill:var(--typ2); }
+  .pt.good.t-ausgewogen { fill:var(--typ3); }
+  .pt.good.t-straff_herb { fill:var(--typ4); }
   .pt { fill:none; stroke:var(--muted); stroke-width:1.1; opacity:.55;
         pointer-events:none; }
   .pt.good { fill:var(--gold); stroke:var(--gold); opacity:.95; }
@@ -933,6 +999,10 @@ _TEMPLATE = r"""<!doctype html>
     <fieldset><legend>Quelle</legend><div class="chips" id="fSrc"></div></fieldset>
     <fieldset><legend>Trinkreife</legend><div class="chips" id="fMat"></div></fieldset>
     <fieldset><legend>Sorte</legend><div class="chips" id="fStyle"></div></fieldset>
+    <!-- Der Typ steht neben der Sorte, nicht darunter: er ist die zweite Achse
+         derselben Frage "was fuer ein Wein ist das". Die Reihenfolge der Kacheln ist
+         die Reihenfolge der Achse und darf nicht alphabetisch sortiert werden. -->
+    <fieldset><legend>Typ</legend><div class="chips" id="fTyp"></div></fieldset>
     <!-- Nur Länder, die im Bestand vorkommen, und nur solche mit erkanntem Land.
          Wo weder Name noch Vinum-Region eines nennen, bleibt der Wein ohne — und
          taucht dann in keinem Länderfilter auf, statt unter einem geratenen. -->
@@ -1050,6 +1120,7 @@ const D = __PAYLOAD__;
 const KEYS = { n:"name", y:"vintage", p:"price", r:"rating", rc:"ratingCount",
   vu:"vivinoUrl", rs:"retailers", c:"cheapest", u:"url", m:"market", b:"bargain",
   s:"style", sl:"styleLabel", t:"maturity", ts:"maturityShort", tr:"maturityRegion",
+  ty:"typ", tyl:"typLabel", tys:"typStufe", tyw:"typWarum",
   dw:"drinkWindow", mc:"maturityConflict", co:"country",
   q:"vintageQuality", f:"falstaff", k:"key", wr:"wineryRating",
   fz:"fuzzy", mn:"matchedName", vs:"valueScore", vsa:"valueScoreAll", g:"grapes",
@@ -1092,7 +1163,9 @@ const STANDARD_QUELLE = "alle";
    der sich das Hinschauen lohnt. */
 const STANDARD_NOTE = 4.2;
 const STANDARD_PREIS = 50;
+const TYP_ORDNUNG = D.typen.map(t => t.key);
 const S = { run: D.runs[0].id, mat: new Set(), style: new Set([STANDARD_SORTE]),
+            typ: new Set(),
             shop: new Set(), land: new Set(), src: STANDARD_QUELLE, q: "",
             /* Standard ist Preis-Leistung: „welche Flasche lohnt sich" ist die Frage,
                für die es die Seite gibt. Nach Note allein eröffnete die Liste mit den
@@ -1144,6 +1217,7 @@ function visible(ausser) {
   return currentRun().wines.filter(w => {
     if (ausser !== "mat" && S.mat.size && !S.mat.has(w.maturity || "?")) return false;
     if (ausser !== "style" && S.style.size && !S.style.has(w.style || "?")) return false;
+    if (ausser !== "typ" && S.typ.size && !S.typ.has(w.typ || "?")) return false;
     /* Die beiden Warenwelten werden nie gemeinsam gezeigt: ihre Preis-Leistungs-
        Zahlen stammen aus getrennten Regressionen und sind untereinander nicht
        vergleichbar. */
@@ -1256,7 +1330,7 @@ function chart(list) {
      gefüllt und golden, alle anderen hohl und leise; die Kennung hängt nicht an der
      Farbe allein, das Feld ist beschriftet. */
   const circles = pts.map((p, i) => {
-    const cls = gut(p) ? " good" : "";
+    const cls = (gut(p) ? " good" : "") + (p.typ ? " t-" + p.typ : "");
     const x = sx(p.price).toFixed(1), y = sy(p.rating).toFixed(1);
     /* Ein unsichtbarer Trefferkreis vor jedem Punkt. Zwei Gründe: hohle Punkte haben
        `fill:none`, und damit ist ihre Fläche in SVG nicht anklickbar — es reagierte
@@ -1303,6 +1377,9 @@ function chart(list) {
     if (p.fuzzy) h += row("Achtung", `<span class="warn">Namensabgleich unbestätigt`
       + (p.matchedName ? ` — gefunden: „${esc(p.matchedName)}"` : "") + `</span>`);
     if (p.styleLabel) h += row("Sorte", esc(p.styleLabel));
+    if (p.typLabel && p.typ) h += row("Typ", esc(p.typLabel)
+      + (p.typStufe === 3 ? " ?" : "")
+      + (p.typWarum ? ` <span class="meta">${esc(p.typWarum)}</span>` : ""));
     if (p.maturityShort) {
       /* Woher die Auskunft stammt, gehört daneben — sonst liest sich die Vinum-Zeile
          wie eine Aussage über genau diesen Wein, obwohl sie für eine ganze Region
@@ -1404,6 +1481,9 @@ function table(list) {
     shop:    w => shopName(w.cheapest).toLowerCase(),
     bargain: w => w.bargain,
     value:   w => valueOf(w),
+    /* Sortiert wird nach der Achsenposition, nicht alphabetisch: "Ausgewogen" gehoert
+       zwischen "Weich & modern" und "Straff & herb", nicht an den Anfang. */
+    typ:     w => (w.typ ? TYP_ORDNUNG.indexOf(w.typ) : 99),
   };
   const key = KEYS[S.sort] || KEYS.value;
   const sorted = list.slice().sort((a, b) => {
@@ -1441,6 +1521,8 @@ function table(list) {
         ${vs ? `<span class="meta">${vs}</span>` : ""}
         ${w.styleLabel || w.maturityShort ? "<br>" : ""}
         ${w.styleLabel ? `<span class="pill">${esc(w.styleLabel)}</span>` : ""}
+        ${w.typ && w.typLabel ? `<span class="pill t-${w.typ}" title="${esc(w.typWarum)}">`
+            + esc(w.typLabel) + (w.typStufe === 3 ? " ?" : "") + `</span>` : ""}
         ${w.maturityShort ? `<span class="pill">${esc(w.maturityShort)}</span>` : ""}
         ${istGut(w) ? `<br><span class="marker">◆ gut und günstig</span>` : ""}</td>
       <td data-l="Preis-Leistung" class="pl${valueOf(w) == null ? " noval" : ""}${
@@ -1558,6 +1640,16 @@ function buildFilters() {
   const st = document.getElementById("fStyle"); st.innerHTML = "";
   D.styles.forEach(s => anh(st, chipMitZahl(
     s.label, s.key, S.style.has(s.key), nStyle.get(s.key) || 0, toggle(S.style, s.key))));
+
+  /* Typ-Kacheln in der Reihenfolge der Achse. "unbekannt" steht bewusst am Ende und
+     nur, wenn es Weine gibt, die es betrifft — es ist kein Punkt auf der Achse,
+     sondern das Eingestaendnis, keinen zu kennen. */
+  const nTyp = zaehlen("typ", w => [w.typ || "?"]);
+  const ty = document.getElementById("fTyp"); ty.innerHTML = "";
+  D.typen.forEach(t => anh(ty, chipMitZahl(
+    t.label, t.key, S.typ.has(t.key), nTyp.get(t.key) || 0, toggle(S.typ, t.key))));
+  if ((nTyp.get("?") || 0) > 0)
+    anh(ty, chipMitZahl("ohne Typ", "?", S.typ.has("?"), nTyp.get("?"), toggle(S.typ, "?")));
 
   /* Die Quellenreihe bekommt Zahlen, aber keine Kachel wird ausgeblendet: sie ist
      eine Entweder-oder-Wahl, und wer versehentlich in einer leeren Welt landet,

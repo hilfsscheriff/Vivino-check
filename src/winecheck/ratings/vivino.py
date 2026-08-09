@@ -90,6 +90,14 @@ class _Cand:
     #: Kennung des Weinguts bei Vivino. Gebraucht für den Rückfall über die
     #: Weingutseite, siehe :func:`_weingut_kandidaten`.
     winery_slug: str = ""
+    #: ``wine.style.name`` und das Herkunftsland aus ``wine.region.country``.
+    #: Beides steht in derselben Antwort wie die Note und kostet keine Anfrage extra.
+    style_name: str = ""
+    country: str = ""
+    #: Geschmacksstruktur dieses Weins und der Normalwert seines Stils, beide auf
+    #: der Skala 1..5. Tragen den Stil-Typ, siehe :mod:`winecheck.stiltyp`.
+    taste: dict[str, float] = field(default_factory=dict)
+    style_baseline: dict[str, float] = field(default_factory=dict)
     prices: list[_Price] = field(default_factory=list)
 
     @property
@@ -276,10 +284,38 @@ def _parse_candidates(payload: dict[str, Any]) -> list[_Cand]:
                 wine_count=_i(stats.get("wine_ratings_count")),
                 type_id=_i(wine.get("type_id")) or None,
                 winery_slug=(wine.get("winery") or {}).get("seo_name") or "",
+                style_name=(wine.get("style") or {}).get("name") or "",
+                country=(((wine.get("region") or {}).get("country") or {}).get("name") or ""),
+                taste=_struktur((wine.get("taste") or {}).get("structure")),
+                style_baseline=_struktur((wine.get("style") or {}).get("baseline_structure")),
                 prices=_parse_prices(match),
             )
         )
     return out
+
+
+#: Achsen der Geschmacksstruktur, die den Stil-Typ tragen. ``fizziness`` bleibt
+#: draussen — sie ist bei Stillwein immer ``null`` und sagt über die Machart nichts.
+_STRUKTUR_ACHSEN = ("sweetness", "tannin", "acidity", "intensity")
+
+
+def _struktur(roh: Any) -> dict[str, float]:
+    """Geschmacksstruktur auf die Achsen reduzieren, die etwas aussagen.
+
+    ``user_structure_count`` kommt mit, weil derselbe Mittelwert aus drei und aus
+    dreihundert Urteilen zwei verschiedene Aussagen sind — ohne die Zahl liesse sich
+    nicht entscheiden, ob man ihm folgen darf.
+    """
+    if not isinstance(roh, dict):
+        return {}
+    out = {a: _f(roh.get(a)) for a in _STRUKTUR_ACHSEN}
+    werte = {a: v for a, v in out.items() if v is not None}
+    if not werte:
+        return {}
+    anzahl = _i(roh.get("user_structure_count"))
+    if anzahl:
+        werte["count"] = float(anzahl)
+    return werte
 
 
 def _parse_prices(match: dict[str, Any]) -> list[_Price]:
@@ -518,7 +554,7 @@ def classify(
             matched_name=c.name,
             match_confidence=decision.confidence.value,
             **_price_fields(price, price_note),
-            wine_type_id=c.type_id,
+            **_stil_felder(c),
         )
 
     # -- Weinseite hat Bewertung, Jahrgang weicht ab -----------------------
@@ -538,7 +574,7 @@ def classify(
             matched_name=_display_name(c),
             match_confidence=decision.confidence.value,
             **_price_fields(price, price_note),
-            wine_type_id=c.type_id,
+            **_stil_felder(c),
         )
 
     # -- Seite existiert, aber zu wenige Bewertungen -----------------------
@@ -859,6 +895,17 @@ def _price_fields(price: _Price | None, note: str) -> dict[str, Any]:
     }
 
 
+def _stil_felder(c: _Cand) -> dict[str, Any]:
+    """Sorte, Machart und Herkunft eines Kandidaten, wie sie ins Ergebnis gehören."""
+    return {
+        "wine_type_id": c.type_id,
+        "style_name": c.style_name,
+        "country": c.country,
+        "taste": dict(c.taste),
+        "style_baseline": dict(c.style_baseline),
+    }
+
+
 def _to_payload(r: VivinoResult) -> dict[str, Any]:
     return {
         "status": r.status.value,
@@ -878,6 +925,10 @@ def _to_payload(r: VivinoResult) -> dict[str, Any]:
         "market_price_shop": r.market_price_shop,
         "market_price_note": r.market_price_note,
         "wine_type_id": r.wine_type_id,
+        "style_name": r.style_name,
+        "country": r.country,
+        "taste": r.taste,
+        "style_baseline": r.style_baseline,
         "drink_from": r.drink_from,
         "drink_until": r.drink_until,
         # Merker, dass nachgeschaut wurde. Ohne ihn liefe der Abruf bei jedem Wein
@@ -916,6 +967,10 @@ def _from_payload(d: dict[str, Any]) -> VivinoResult:
         market_price_shop=d.get("market_price_shop") or "",
         market_price_note=d.get("market_price_note") or "",
         wine_type_id=d.get("wine_type_id"),
+        style_name=d.get("style_name") or "",
+        country=d.get("country") or "",
+        taste=d.get("taste") or {},
+        style_baseline=d.get("style_baseline") or {},
         drink_from=d.get("drink_from"),
         drink_until=d.get("drink_until"),
         candidates=[

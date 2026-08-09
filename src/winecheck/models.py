@@ -117,6 +117,21 @@ class VivinoResult:
     #: Vivinos ``wine.type_id`` — verlässlicher als jede Namensanalyse für die Sorte.
     wine_type_id: int | None = None
 
+    # -- Machart und Herkunft ---------------------------------------------
+    #: ``wine.style.name``, etwa „Bolgheri Italien". Vivinos eigene Stil-Schublade.
+    style_name: str = ""
+    #: ``wine.region.country.name``. Nur 585 von 1564 Weinen tragen ein Land aus dem
+    #: Händlernamen; Vivino nennt es in derselben Antwort mit, in der auch die Note
+    #: steht — derselbe Weg wie bei der Farbe über ``wine_type_id``.
+    country: str = ""
+    #: ``wine.taste.structure`` — Süsse, Tannin, Säure und Intensität auf einer Skala
+    #: von 1 bis 5, dazu ``user_structure_count``. Das ist eine Messung **an diesem
+    #: Wein**, nicht an seiner Gattung, und trägt darum den Stil-Typ.
+    taste: dict[str, float] = field(default_factory=dict)
+    #: ``wine.style.baseline_structure`` — dieselben Achsen als Normalwert des Stils.
+    #: Rückfall, wenn dieser Wein zu wenige Nutzerurteile hat.
+    style_baseline: dict[str, float] = field(default_factory=dict)
+
     # -- Trinkfenster ------------------------------------------------------
     #: Vivino nennt auf der Weinseite ein Trinkfenster, aber **nur mit
     #: Jahrgangsparameter** (``/w/1099307?year=2011`` → 2014–2026). Ohne ihn sind
@@ -361,6 +376,35 @@ class WineRow:
     price_band: str = ""
     rank_source: str = ""            # welche Skala den Sortierschlüssel gestellt hat
     is_private_label: bool = False
+    #: Zwischenspeicher für :attr:`stil`. Die Einordnung liest mehrere Felder und
+    #: wird je Zeile mehrfach abgefragt.
+    _stil: Any | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def stil(self):
+        """Stil-Typ: die Machart, nicht die Qualität. Siehe :mod:`winecheck.stiltyp`.
+
+        Bewusst hier und nicht als Rechenschritt in ``aggregate``: die Einordnung
+        hängt nur an Feldern, die die Zeile ohnehin trägt, und kann darum nicht
+        veralten. ``sorte`` ist aus demselben Grund eine Eigenschaft.
+        """
+        if self._stil is None:
+            from .stiltyp import Struktur, einordnen
+
+            v = self.vivino
+            self._stil = einordnen(
+                self.name,
+                datenblatt=" ".join(o.source_note or "" for o in self.offers),
+                struktur=Struktur.aus_vivino(v.taste) if v else None,
+                baseline=Struktur.aus_vivino(v.style_baseline) if v else None,
+                stil_name=v.style_name if v else "",
+            )
+        return self._stil
+
+    @property
+    def herkunft(self) -> str:
+        """Herkunftsland. Der Händlername nennt es selten, Vivino fast immer."""
+        return (self.vivino.country if self.vivino else "") or ""
 
     @property
     def style(self) -> str:
@@ -606,6 +650,14 @@ class WineRow:
             "vivino_retry_after": (v.retry_after or "") if v else "",
             "sorte": self.style_label,
             "sorte_key": self.style,
+            # Stil-Typ: die Machart. Ohne Begründung kein Typ — die Signale stehen
+            # als Klartext daneben und werden in der Anzeige gezeigt.
+            "typ": self.stil.label,
+            "typ_key": self.stil.typ,
+            "typ_stufe": self.stil.stufe or "",
+            "typ_signale": " · ".join(self.stil.signale),
+            "typ_score": _fmt_num(self.stil.score),
+            "herkunft": self.herkunft,
             "trinkreife": self.maturity.short if self.maturity else "",
             "trinkreife_text": self.maturity.text if self.maturity else "",
             "trinkreife_code": self.maturity.code if self.maturity else "",
