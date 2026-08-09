@@ -316,6 +316,8 @@ Fixtures mit erwarteten Ergebnissen. Aus realen Datensätzen, mit dokumentierter
 - Stufe 2: die Region ist keine Region, die Sorte ist keine Sorte — beide Lookup-Achsen tragen null Information
 - Stufe 3: unter der Mindesttrefferzahl von drei
 
+**Offener Widerspruch zu einem Fixture** *(festgestellt am 10.8.2026)*: «Mottura Rosone Negroamaro del Salento» ist hier mit `straff_herb` und der Begründung «Negroamaro klassisch, herb-mandelig» eingetragen. Vivinos gemessene Geschmacksstruktur über **346 Nutzerurteile** sagt Süsse 3.0/5, Tannin 2.6, Säure 2.3 — also die moderne, süsslich ausgebaute Salento-Machart. Die Umsetzung liefert `fruchtsuess` mit Score 0.91. Bei dieser Urteilszahl ist die Messung schwer zu übergehen; wahrscheinlich beschreibt das Fixture den klassischen Stil, während die hier verkaufte Flasche der moderne ist. **Nicht entschieden** — wer den Wein kennt, soll das Fixture bestätigen oder die Erwartung korrigieren.
+
 **Akzeptanzkriterien**
 
 1. Alle Fixtures der Stufe 1 werden exakt getroffen. Kein Spielraum.
@@ -355,7 +357,7 @@ Schritte 1 bis 4 sind für sich wertvoll und liefern schon die Kernaussage. Fall
 
 ## Changelog
 
-### Version 1.1 — 9. August 2026
+### Version 1.1 — 9. August 2026 (Messungen nachgetragen 10. August)
 
 - **§4 Stufe 1d «Denomination ohne Herkunft» neu.** Die untersten Herkunftsstufen sind eine Absichtserklärung über die Machart, kein Nebensignal. Liste in `data/denominationen.json`. Mit jahrgangslosem Wein, `n.v.` im Namen oder einer Sortenangabe wie «Cuvée» → `fruchtsuess` auf Stufe 1; ohne dieses zweite Zeichen → `weich_modern` auf Stufe 2. Steht als letzte Regel innerhalb Stufe 1, damit ein gemessener Analysewert aus 1b vorgeht. Kaskadenreihenfolge unverändert.
 - **§5 Bucket A erweitert** um `reich, reichhaltig, dicht, dichte frucht, konzentriert, bold, powerful, intensiv, gross, kraftvoll` — dazu `kraeftig`, das in der Vorlage fehlte, ohne das aber der eigene Anlassfall weiter durchgefallen wäre.
@@ -369,4 +371,14 @@ Schritte 1 bis 4 sind für sich wertvoll und liefern schon die Kernaussage. Fall
 - Alle pflegbaren Listen liegen zusammen in `sources/stiltyp.yaml` statt in einzelnen `data/*.json`. Grund: `sources/` trägt schon `trinkreife.yaml` und `retailers.yaml`, und YAML erlaubt Kommentare — bei jeder Zeile steht damit, *warum* sie dasteht. In JSON liesse sich das nicht hinschreiben.
 - Die Denomination wird aus Vivinos `wine.region.name` gelesen. Bei den untersten Herkunftsstufen steht dort die Denomination selbst («Vino d'Italia»), während `wine.style.name` nur «Italian Red» liefert und damit nichts beiträgt.
 - Der «Optional»-Pfad aus §4 Stufe 2 ist verfügbar und umgesetzt: `wine.taste.structure` liefert Süsse, Tannin und Säure **pro Wein** samt `user_structure_count`. Die handgepflegte `stil_tabelle` ist damit der dritte Rang, nicht der erste.
+**Ergebnisse der Umsetzung, gemessen am 10.8.2026** über 1570 Weine:
+
+- **Kriterium 1 erfüllt** — alle Stufe-1-Fixtures treffen, inklusive des neuen Gran Sasso (`fruchtsuess`, Stufe 1, Signal «Denomination ohne Herkunft ('Vino d'Italia'), jahrgangslos»).
+- **Kriterium 2 gerissen: 38.0 % `unbekannt` statt unter 15 %.** Das ist kein Klassifikationsfehler, sondern eine Datengrenze: 448 der 597 Weine haben überhaupt keinen Vivino-Treffer, weitere 85 wurden über die Weingutseite gefunden, die weder `taste` noch `style` liefert. Um unter 15 % zu kommen, müsste der `Sorte × Land × Region`-Rückfall aus §4 gebaut werden — von Hand gepflegt, von §4 selbst als schwächster Weg bezeichnet, und jeder Eintrag eine Behauptung über eine Weinart. Offen.
+- **Kriterium 3 erfüllt** — kein Wein trägt einen Typ ohne Eintrag in `typ_signale`.
+- **Kriterium 4 erfüllt, und deutlich.** Im Quadranten «gut und günstig» (Note ≥ 4.2, ≤ CHF 20, 46 Weine) verteilen sich die eingeordneten auf 59 % `fruchtsuess`, 20 % `weich_modern`, 8 % `ausgewogen`, 13 % `straff_herb`. Über den ganzen bewerteten Bestand sind es 19 / 16 / 21 / 35 %. Die fruchtsüsse Machart ist dort also **dreifach übervertreten**, die straffe fast dreifach unter — genau der Befund aus §1.1.
+- **Kriterium 5 erfüllt** — die Rangfolge verschiebt sich um im Median 51 Plätze, nur 11 von 891 vergleichbaren Weinen bleiben stehen. Beim Gegenlesen der zehn grössten Änderungen zeigt sich die beabsichtigte Richtung: zwei Amarone und beide Moët Ice Impérial (Demi-Sec) fallen um 300 bis 500 Plätze, ein Minuty M Rosé und ein Tua Rita Syrah steigen um 500 bis 550.
+- **Kalibrierung.** Die Schwellen aus §4 setzen eine zentrierte Achse voraus. Ein geschätzter Normalfall lieferte die nicht — 33 von 39 Weinen fielen auf `straff_herb`. Die Normalwerte sind jetzt die Mediane über 839 Weine mit mindestens 15 Urteilen: Süsse 1.77, Tannin 3.33, Säure 3.39. Gegenprobe: alle 20 Barolo und 27 von 28 Brunello ergeben `straff_herb`, alle 17 Amarone, 9 Appassimento, 7 Ripasso und 26 Primitivo `fruchtsuess`.
+- **Nebenertrag.** Das Herkunftsland liegt jetzt für 1061 statt 585 Weine vor, weil es in derselben Antwort steht wie die Note.
+
 - Beim Anlassfall widersprechen sich zwei Signale: Stufe 1d sagt `fruchtsuess`, Vivinos gemessene Struktur nennt eine Süsse von 1.49 von 5. Stufe 1d gewinnt, weil die Kaskade so gebaut ist — die erste greifende Stufe entscheidet. Das ist eine bewusste Entscheidung dieser Spec und kein Versehen der Umsetzung.
