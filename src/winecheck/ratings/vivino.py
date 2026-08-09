@@ -22,6 +22,7 @@ tragendes Element, nicht Feinschliff.
 
 from __future__ import annotations
 
+import html
 import json
 import re
 import time
@@ -53,6 +54,13 @@ WINE_TYPE_IDS = (1, 2, 3, 4, 7, 24)
 
 MAX_CANDIDATES_SHOWN = 3
 
+#: Wie viele Weingutseiten der Rückfall höchstens holt.
+#:
+#: Eine Suche nennt oft mehrere Güter; jede Seite ist eine weitere Anfrage à zwei
+#: Sekunden. Zwei decken den Fall ab, um den es geht — das gesuchte Gut steht in der
+#: Trefferliste ganz oben, weil sein *anderer* Wein gefunden wurde.
+_MAX_GUETER = 2
+
 
 @dataclass
 class _Price:
@@ -79,6 +87,9 @@ class _Cand:
     wine_avg: float | None
     wine_count: int
     type_id: int | None = None
+    #: Kennung des Weinguts bei Vivino. Gebraucht für den Rückfall über die
+    #: Weingutseite, siehe :func:`_weingut_kandidaten`.
+    winery_slug: str = ""
     prices: list[_Price] = field(default_factory=list)
 
     @property
@@ -170,6 +181,50 @@ def _kurze_abfrage(name: str) -> list[str]:
     return tokens if len(tokens) == KURZ_MAX + 1 else tokens[:KURZ_MAX]
 
 
+#: Ein Weinobjekt auf der Weingutseite. Dieselbe Form wie ``vintage`` in der Suche:
+#: ``{"wine": {...}, "statistics": {...}, "year": …}``.
+_WEINGUT_MARKE = '{"wine":{"id":'
+
+
+def _json_objekte(text: str, marke: str = _WEINGUT_MARKE) -> list[dict[str, Any]]:
+    """Liest vollständige JSON-Objekte aus einem Text, der mehr enthält als JSON.
+
+    Die Weingutseite trägt ihre Daten in einem einzigen, sehr grossen HTML-Attribut.
+    Statt dieses Attribut zu suchen — und damit von der Seitenstruktur abzuhängen —
+    wird ab jeder Fundstelle die Klammer gezählt, bis das Objekt zu ist.
+    Zeichenketten und Escapes werden dabei übersprungen, sonst beendet eine
+    geschweifte Klammer in einem Weinnamen das Objekt zu früh.
+    """
+    aus: list[dict[str, Any]] = []
+    i = 0
+    while True:
+        i = text.find(marke, i)
+        if i < 0:
+            return aus
+        tiefe, j, im_string, escaped = 0, i, False, False
+        while j < len(text):
+            c = text[j]
+            if escaped:
+                escaped = False
+            elif c == "\\":
+                escaped = True
+            elif c == '"':
+                im_string = not im_string
+            elif not im_string:
+                if c == "{":
+                    tiefe += 1
+                elif c == "}":
+                    tiefe -= 1
+                    if tiefe == 0:
+                        try:
+                            aus.append(json.loads(text[i : j + 1]))
+                        except json.JSONDecodeError:
+                            pass
+                        break
+            j += 1
+        i = j + 1
+
+
 def _display_name(c: _Cand) -> str:
     """Fundname so, dass ein Mensch ihn wiedererkennt.
 
@@ -220,6 +275,7 @@ def _parse_candidates(payload: dict[str, Any]) -> list[_Cand]:
                 wine_avg=_f(stats.get("wine_ratings_average")),
                 wine_count=_i(stats.get("wine_ratings_count")),
                 type_id=_i(wine.get("type_id")) or None,
+                winery_slug=(wine.get("winery") or {}).get("seo_name") or "",
                 prices=_parse_prices(match),
             )
         )
@@ -573,6 +629,59 @@ class VivinoAdapter:
             return None, None
         return _jahr(m.group(1)), _jahr(m.group(2))
 
+    def _weingut_kandidaten(self, slug: str) -> list[_Cand]:
+        """Alle Weine eines Guts von dessen Vivino-Seite.
+
+        Der Rückfall für Weine, die es bei Vivino **gibt**, die die Suche aber nicht
+        ausgibt. Aufgefallen an „Fallet Dart Champagne Brut Cuvée de Réserve": die
+        Weinseite führt 533 Bewertungen mit 4.1, und selbst Vivinos eigene
+        Website-Suche findet ihn unter keiner Schreibweise. Auf der Seite des Guts
+        steht er dagegen — mit Note und Bewertungszahl.
+
+        Ohne diesen Weg bliebe die Lücke bestehen, obwohl die Auskunft öffentlich
+        einen Klick entfernt liegt.
+
+        Die Kandidaten gehen anschliessend durch **dieselbe** Prüfung wie die aus der
+        Suche. Der Kreis wird also breiter, die Hürde nicht niedriger — der Matcher
+        entscheidet weiterhin, und seine Vetos gelten unverändert.
+        """
+        if not slug:
+            return []
+        try:
+            res = self.fetcher.get(WINERY_URL.format(slug=slug))
+        except Blocked:
+            return []
+        if not res.ok:
+            return []
+        # Die Daten stehen HTML-entitätencodiert in einem Attribut.
+        roh = _json_objekte(html.unescape(res.text))
+
+        # In die Form bringen, die _parse_candidates erwartet — so gilt für beide
+        # Wege genau eine Auswertung.
+        #
+        # Zwei Angleichungen sind dabei nötig, weil die Weingutseite **Weine**
+        # auflistet und nicht Jahrgänge:
+        #
+        # * ``year`` steht dort auf 0. Ungeprüft übernommen wäre das ein Jahrgang
+        #   „null", der zu keinem Händlerjahrgang passt.
+        # * Die Statistik ist die des Weins über alle Jahrgänge. Ohne sie auch in
+        #   die ``wine_ratings_*``-Felder zu legen, sieht der Wein aus wie einer
+        #   ohne Weinbewertung — und landet auf ``too_few_ratings``, obwohl 533
+        #   Bewertungen vorliegen.
+        matches = []
+        for v in roh:
+            stat = v.get("statistics") or {}
+            matches.append({"vintage": {
+                **v,
+                "year": None,
+                "statistics": {
+                    **stat,
+                    "wine_ratings_average": stat.get("ratings_average"),
+                    "wine_ratings_count": stat.get("ratings_count"),
+                },
+            }})
+        return _parse_candidates({"explore_vintage": {"matches": matches}})
+
     # -- Öffentliche API ---------------------------------------------------
 
     #: Rangfolge der Status für die Auswahl zwischen zwei Abfragen. Höher ist besser.
@@ -630,18 +739,45 @@ class VivinoAdapter:
 
         best = None
         gesehen: set[tuple[str, str | None]] = set()
+        # Weingüter, die in den Trefferlisten auftauchten — auch wenn ihr Wein
+        # verworfen wurde. Sie sind der Einstieg für den Rückfall unten.
+        gueter: dict[str, None] = {}
         for q, order in queries:
             if not q or (q, order) in gesehen:
                 continue
             gesehen.add((q, order))
-            res = classify(name, vintage, q, self._search(q, order_by=order),
-                           exclude_hosts=exclude_hosts)
+            kandidaten = self._search(q, order_by=order)
+            for c in kandidaten:
+                if c.winery_slug:
+                    gueter.setdefault(c.winery_slug, None)
+            res = classify(name, vintage, q, kandidaten, exclude_hosts=exclude_hosts)
             if best is None or self._RANK[res.status] > self._RANK[best.status]:
                 best = res
             # Besser als ein Jahrgangstreffer wird es nicht — weitere Anfragen wären
             # nur Last für Vivino.
             if best.status is VivinoStatus.EXACT:
                 break
+
+        # Rückfall: die Suche kennt den Wein nicht, das Gut aber schon.
+        #
+        # Vivinos Suchindex ist lückenhaft. „Fallet Dart Champagne Brut Cuvée de
+        # Réserve" hat 533 Bewertungen mit 4.1, und weder unsere Abfrage noch
+        # Vivinos eigene Website-Suche gibt ihn aus — auf der Seite des Guts steht
+        # er dagegen. Ohne diesen Weg bliebe eine Lücke bestehen, obwohl die
+        # Auskunft öffentlich einen Klick entfernt liegt.
+        #
+        # Nur bei ``no_entry``: wo schon etwas gefunden wurde, ist die zusätzliche
+        # Anfrage unnötige Last. Und nur für Güter, die die Suche selbst genannt
+        # hat — geraten wird keine Adresse.
+        if best is not None and best.status is VivinoStatus.NO_ENTRY:
+            for slug in list(gueter)[:_MAX_GUETER]:
+                res = classify(name, vintage, best.query,
+                               self._weingut_kandidaten(slug),
+                               exclude_hosts=exclude_hosts)
+                if self._RANK[res.status] > self._RANK[best.status]:
+                    best = res
+                if best.status is VivinoStatus.EXACT:
+                    break
         return best
 
     def lookup(

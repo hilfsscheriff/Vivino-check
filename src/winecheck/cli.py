@@ -364,7 +364,10 @@ def site(
     out: Path = typer.Option(Path("docs"), "--out", help="Zielordner, Standard docs/ für GitHub Pages"),
     cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache"),
     registry: Path = typer.Option(None, "--registry"),
-    runs: int = typer.Option(12, "--runs", help="wie viele Läufe die Seite anbieten soll"),
+    runs: int = typer.Option(
+        1, "--runs",
+        help="wie viele Läufe die Seite anbieten soll; Standard 1 (nur der aktuelle)",
+    ),
     title: str = typer.Option("Schweizer Weinaktionen", "--title"),
 ) -> None:
     """Statische Webseite bauen — für GitHub Pages oder zum Mitnehmen aufs Handy.
@@ -380,6 +383,16 @@ def site(
         c.key: {"name": c.name, "channel": c.channel, "domain": c.domain}
         for c in reg.retailers.values()
     }
+    # Standardmässig nur der aktuelle Lauf.
+    #
+    # Ältere Läufe standen vorher als Kachelreihe auf der Seite. Für die Frage, die
+    # sie beantworten soll — was lohnt sich diese Woche —, sind sie ohne Wert, und
+    # sie kosteten das Mehrfache an Seitengrösse: jeder Lauf trägt seine tausend
+    # Weine mit.
+    #
+    # Verloren geht dabei nichts. Der Verlauf liegt weiterhin im Cache, und
+    # ``diff.md`` weist Preisänderungen gegenüber dem Vorlauf aus. Wer die
+    # Entwicklung über Wochen ansehen will, baut die Seite mit ``--runs 12``.
     cache = Cache.open(cache_path)
     history = cache.all_runs(limit=runs)
     cache.close()

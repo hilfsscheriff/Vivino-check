@@ -349,3 +349,50 @@ def test_laengere_namen_werden_weiterhin_gekuerzt():
 
     lang = "Alpha Beta Gamma Delta Epsilon Zeta Chianti Classico Riserva"
     assert len(_kurze_abfrage(lang)) == KURZ_MAX
+
+
+# ------------------------------------------------ Rückfall über die Weingutseite
+def test_json_objekte_liest_ganze_objekte_aus_fremdem_text():
+    """Die Weingutseite trägt ihre Daten in einem einzigen, sehr grossen
+    HTML-Attribut. Gelesen wird über Klammerzählung statt über die Seitenstruktur.
+    """
+    from winecheck.ratings.vivino import _json_objekte
+
+    text = 'Vorspann <div x="{"wine":{"id":1,"name":"A"},"year":0} und '\
+           '{"wine":{"id":2,"name":"B"},"year":0}"> Nachspann'
+    o = _json_objekte(text)
+    assert [x["wine"]["id"] for x in o] == [1, 2]
+
+
+def test_geschweifte_klammer_im_namen_beendet_das_objekt_nicht():
+    """Sonst bräche das Objekt mitten im Weinnamen ab."""
+    from winecheck.ratings.vivino import _json_objekte
+
+    o = _json_objekte('{"wine":{"id":7,"name":"Cuvée {Spezial}"},"year":0}')
+    assert o and o[0]["wine"]["name"] == "Cuvée {Spezial}"
+
+
+def test_kaputtes_json_wird_uebersprungen():
+    """Ein defektes Objekt darf die übrigen nicht mitreissen."""
+    from winecheck.ratings.vivino import _json_objekte
+
+    o = _json_objekte('{"wine":{"id":1,,,}} {"wine":{"id":2,"name":"B"},"year":0}')
+    assert [x["wine"]["id"] for x in o] == [2]
+
+
+def test_der_rueckfall_greift_nur_ohne_treffer(monkeypatch):
+    """Wo die Suche schon etwas fand, wäre die zusätzliche Anfrage unnötige Last.
+
+    Und geraten wird keine Adresse: geholt werden nur Güter, die die Suche selbst
+    genannt hat.
+    """
+    import winecheck.ratings.vivino as v
+
+    ad = v.VivinoAdapter(fetcher=None)
+    gerufen = []
+    monkeypatch.setattr(ad, "_weingut_kandidaten",
+                        lambda slug: gerufen.append(slug) or [])
+    monkeypatch.setattr(ad, "_search", lambda q, order_by=None: [])
+    ad._best_of("Irgendein Wein", 2020, "irgendein wein", set())
+    # Ohne Weingut in der Trefferliste gibt es nichts nachzuschlagen.
+    assert gerufen == []
