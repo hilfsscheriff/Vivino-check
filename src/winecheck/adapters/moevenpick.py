@@ -26,6 +26,14 @@ from .base import RetailerAdapter, looks_like_wine, parse_price
 #: Notbremse für die Paginierung, **nicht** die erwartete Seitenzahl — die steht im
 #: Pager und wird von dort gelesen (:meth:`MoevenpickAdapter._letzte_seite`). Greift
 #: nur, wenn sich das Markup ändert oder eine unsinnig grosse Zahl liefert.
+#:
+#: Vorher stand hier eine feste Zahl, hergeleitet aus dem „von 380" im Seitentext.
+#: Diese Zahl steht dort aber nicht als Artikelzahl: sie stammt aus der
+#: Produktbeschreibung eines Brunello („Weinberge … in Höhenlagen von **380** bis 450
+#: Metern"). Der Pager selbst nennt 22 Seiten und 511 Artikel — eine Schätzung von
+#: sechzehn oder zwanzig lässt also Seite 21 und 22 liegen, und damit 31 Aktionen.
+#: Genau deshalb wird die Zahl gelesen und nicht geschätzt: sie steht maschinenlesbar
+#: da, und jede geratene Grenze schneidet in der Woche darauf wieder ab.
 MAX_PAGES = 40
 
 _RE_SPECIAL = re.compile(r"sonderpreis", re.I)

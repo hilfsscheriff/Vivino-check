@@ -565,9 +565,13 @@ def build(
         "styles": [{"key": s, "label": STYLE_LABELS[s]} for s in styles],
         # Nach Häufigkeit sortiert, nicht alphabetisch: Italien und Frankreich
         # stellen den Grossteil, und wer filtert, greift meist dorthin.
+        #
+        # Ohne Zahl im Namen — die Kachel zählt selbst, und zwar die *aktuelle*
+        # Auswahl. Eine feste Zahl daneben widerspräche ihr, sobald ein anderer
+        # Filter gesetzt ist.
         "countries": [
-            {"key": k, "label": f"{k} ({n})"}
-            for k, n in Counter(
+            {"key": k}
+            for k, _n in Counter(
                 w.get("country") for run in runs for w in run["wines"] if w.get("country")
             ).most_common()
         ],
@@ -1130,18 +1134,23 @@ const valueText = w => {
 
 function currentRun() { return D.runs.find(r => r.id === S.run) || D.runs[0]; }
 
-function visible() {
+/* ``ausser`` blendet **eine** Filtergruppe aus. Gebraucht wird das, um zu zählen,
+   was eine Kachel dieser Gruppe brächte: für die Frage „wie viele Rotweine gäbe es"
+   darf die Sortenauswahl selbst nicht mitzählen, sonst käme bei jeder nicht
+   gewählten Sorte null heraus und die ganze Reihe verschwände nach dem ersten
+   Klick. Alle anderen Filter zählen sehr wohl — genau das macht die Zahl nützlich. */
+function visible(ausser) {
   const q = S.q.trim().toLowerCase();
   return currentRun().wines.filter(w => {
-    if (S.mat.size && !S.mat.has(w.maturity || "?")) return false;
-    if (S.style.size && !S.style.has(w.style || "?")) return false;
+    if (ausser !== "mat" && S.mat.size && !S.mat.has(w.maturity || "?")) return false;
+    if (ausser !== "style" && S.style.size && !S.style.has(w.style || "?")) return false;
     /* Die beiden Warenwelten werden nie gemeinsam gezeigt: ihre Preis-Leistungs-
        Zahlen stammen aus getrennten Regressionen und sind untereinander nicht
        vergleichbar. */
-    if (S.src === "ch" && !w.swiss) return false;
-    if (S.src === "mp" && !w.marketplace) return false;
-    if (S.shop.size && !w.retailers.some(r => S.shop.has(r))) return false;
-    if (S.land.size && !S.land.has(w.country || "")) return false;
+    if (ausser !== "src" && S.src === "ch" && !w.swiss) return false;
+    if (ausser !== "src" && S.src === "mp" && !w.marketplace) return false;
+    if (ausser !== "shop" && S.shop.size && !w.retailers.some(r => S.shop.has(r))) return false;
+    if (ausser !== "land" && S.land.size && !S.land.has(w.country || "")) return false;
     // Der bei Vivino gefundene Name gehört in die Suche. Händler benennen Weine oft
     // ohne den Produzenten: Mövenpick führt „Mendoza 2021 Chardonnay Alta Angelica
     // Zapata", Vivino „Catena Zapata Angélica Zapata Chardonnay Alta". Wer nach
@@ -1481,15 +1490,49 @@ function table(list) {
    stehen nach einem Filterwechsel mehrere Hundert Zeilen einer anderen Menge da. */
 function refilter() { S.limit = PAGE; render(); }
 
-function chip(label, pressed, onClick, extra = "") {
+function chip(label, pressed, onClick, extra = "", anzahl = null) {
   const b = document.createElement("button");
   b.type = "button"; b.className = "chip"; b.setAttribute("aria-pressed", String(pressed));
-  b.innerHTML = extra + esc(label);
+  b.innerHTML = extra + esc(label)
+    + (anzahl != null ? ` <span class="n">${anzahl}</span>` : "");
+  /* Die Kennung überlebt den Neuaufbau der Reihe und trägt den Fokus zurück. */
+  b.dataset.chip = label;
   b.addEventListener("click", () => { onClick(); refilter(); });
   return b;
 }
 
+/* Wie viele Weine brächte jede Kachel einer Gruppe, wenn man sie wählte?
+   Gezählt wird über ``visible(gruppe)`` — also mit allen anderen Filtern, aber ohne
+   die eigene Auswahl. ``schluessel`` sagt, welchen Wert ein Wein für diese Gruppe
+   trägt; ein Wein kann mehrere haben (er steht bei zwei Händlern). */
+function zaehlen(gruppe, schluessel) {
+  const n = new Map();
+  for (const w of visible(gruppe)) {
+    for (const k of schluessel(w)) n.set(k, (n.get(k) || 0) + 1);
+  }
+  return n;
+}
+
+/* Kacheln ohne Treffer werden weggelassen statt ausgegraut.
+   Ausgegraut hiesse: eine Reihe voller toter Knöpfe, durch die man sich lesen muss.
+   Weggelassen zeigt die Reihe genau das, was die aktuelle Auswahl noch hergibt —
+   und ein Blick genügt.
+
+   Eine *gewählte* Kachel bleibt immer stehen, auch bei null: sonst verschwände der
+   Knopf, mit dem man die Auswahl wieder aufhebt, und die Seite liesse sich nicht
+   mehr in den Ausgangszustand bringen. Das ist der Fall, der bei „Champagner +
+   Mövenpick + bis CHF 50" auftrat: null Treffer, und beide Kacheln müssen sichtbar
+   bleiben. */
+function chipMitZahl(label, key, gewaehlt, anzahl, onClick) {
+  if (!anzahl && !gewaehlt) return null;
+  return chip(label, gewaehlt, onClick, "", anzahl);
+}
+
 function buildFilters() {
+  /* Der Fokus überlebt den Neuaufbau. Ohne das springt er nach jedem Klick auf den
+     Seitenanfang, und wer mit der Tastatur filtert, verliert die Stelle. */
+  const vorher = document.activeElement && document.activeElement.dataset
+    ? document.activeElement.dataset.chip : null;
   const run = document.getElementById("fRun"); run.innerHTML = "";
   // Ein einzelner Lauf ist keine Wahl. Die Gruppe kostet sonst Legende plus
   // Chipzeile auf dem knappsten Platz der Seite — dem ersten Handy-Bildschirm.
@@ -1500,30 +1543,58 @@ function buildFilters() {
     `<span class="n">${r.wines.length}</span>&nbsp;`)));
 
   const toggle = (set, key) => () => set.has(key) ? set.delete(key) : set.add(key);
+  const anh = (el, c) => { if (c) el.append(c); };
+
+  const nMat = zaehlen("mat", w => [w.maturity || "?"]);
   const mat = document.getElementById("fMat"); mat.innerHTML = "";
   // Kein Farbpunkt: die Beschriftung sagt dasselbe, und dieselbe Farbe stand vorher
   // im Diagramm für einen Händler.
-  D.maturities.forEach(m => mat.append(chip(
-    m.label, S.mat.has(m.key), toggle(S.mat, m.key))));
-  mat.append(chip("keine Angabe", S.mat.has("?"), toggle(S.mat, "?")));
+  D.maturities.forEach(m => anh(mat, chipMitZahl(
+    m.label, m.key, S.mat.has(m.key), nMat.get(m.key) || 0, toggle(S.mat, m.key))));
+  anh(mat, chipMitZahl("keine Angabe", "?", S.mat.has("?"), nMat.get("?") || 0,
+                       toggle(S.mat, "?")));
 
+  const nStyle = zaehlen("style", w => [w.style || "?"]);
   const st = document.getElementById("fStyle"); st.innerHTML = "";
-  D.styles.forEach(s => st.append(chip(s.label, S.style.has(s.key), toggle(S.style, s.key))));
+  D.styles.forEach(s => anh(st, chipMitZahl(
+    s.label, s.key, S.style.has(s.key), nStyle.get(s.key) || 0, toggle(S.style, s.key))));
 
+  /* Die Quellenreihe bekommt Zahlen, aber keine Kachel wird ausgeblendet: sie ist
+     eine Entweder-oder-Wahl, und wer versehentlich in einer leeren Welt landet,
+     braucht den Weg zurück nach „alle". Ein verschwundener Knopf wäre eine
+     Sackgasse. */
+  const ohneQuelle = visible("src");
+  const nSrc = {
+    alle: ohneQuelle.length,
+    ch: ohneQuelle.filter(w => w.swiss).length,
+    mp: ohneQuelle.filter(w => w.marketplace).length,
+  };
   const sr = document.getElementById("fSrc"); sr.innerHTML = "";
   [["alle", "alle"], ["ch", "Schweizer Handel"], ["mp", "Vivino-Marktplatz"]].forEach(([k, label]) => {
-    sr.append(chip(label, S.src === k, () => { S.src = k; S.shop.clear(); render(); }));
+    sr.append(chip(label, S.src === k, () => { S.src = k; S.shop.clear(); render(); },
+                   "", nSrc[k]));
   });
 
+  /* Die Zahl steht neu in der Kachel und zählt die *aktuelle* Auswahl, nicht den
+     ganzen Bestand — darum trägt der Schlüssel den Ländernamen ohne Klammer. */
+  const nLand = zaehlen("land", w => [w.country || ""]);
   const la = document.getElementById("fLand"); la.innerHTML = "";
-  D.countries.forEach(c => la.append(chip(c.label, S.land.has(c.key), toggle(S.land, c.key))));
+  D.countries.forEach(c => anh(la, chipMitZahl(
+    c.key, c.key, S.land.has(c.key), nLand.get(c.key) || 0, toggle(S.land, c.key))));
 
+  const nShop = zaehlen("shop", w => w.retailers || []);
   const sh = document.getElementById("fShop"); sh.innerHTML = "";
   // Ohne Farbpunkt: der Händler trägt hier keine Farbe, nur seinen Namen.
   /* Nur die Händler der gewählten Welt: "Vivino Aktionen" in der Liste der
      Schweizer Händler wäre ein Filter, der nie einen Treffer ergibt. */
   D.retailers.filter(r => S.src === "alle" || (r.key === "vivinoshop") === (S.src === "mp"))
-    .forEach(r => sh.append(chip(r.name, S.shop.has(r.key), toggle(S.shop, r.key))));
+    .forEach(r => anh(sh, chipMitZahl(
+      r.name, r.key, S.shop.has(r.key), nShop.get(r.key) || 0, toggle(S.shop, r.key))));
+
+  if (vorher) {
+    const zurueck = document.querySelector(`.chip[data-chip="${CSS.escape(vorher)}"]`);
+    if (zurueck) zurueck.focus();
+  }
 }
 
 /* Am Desktop ist der Aufklapper ausgeblendet — dort muss <details> offen sein, sonst
