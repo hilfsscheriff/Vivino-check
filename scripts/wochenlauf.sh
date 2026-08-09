@@ -40,8 +40,25 @@ fi
 # -- 2. Bewertungen ---------------------------------------------------------
 # Dauert je nach Anzahl neuer Weine zwischen zwei und vierzig Minuten. Bereits
 # bewertete Weine kommen aus dem Cache (90 Tage gültig).
-sage "Bewertungen abgleichen …"
-uv run wine-check rate >>"$PROTOKOLL" 2>&1
+# Einmal im Monat auch die alten Fehlschläge erneut prüfen.
+#
+# Ein "kein Eintrag" bleibt im Cache liegen, damit nicht jede Woche dieselbe
+# erfolglose Suche über die Leitung geht. Das hat aber eine Kehrseite: verbessert
+# sich der Namensabgleich, kommt die Verbesserung nie bei den Weinen an, die sie am
+# nötigsten hätten — ihr alter Fehlschlag steht ja schon da.
+#
+# Monatlich, nicht wöchentlich: eine Stichprobe von zwanzig Fehlschlägen ergab zwei
+# Treffer. Die restlichen achtzehn waren Walliser und Waadtländer Gewächse,
+# Genossenschaftsabfüllungen, ein Zürcher Kleinwinzer — die stehen bei Vivino
+# wirklich nicht. Der Durchgang kostet rund 400 zusätzliche Abfragen; für zehn
+# Prozent Ausbeute lohnt er einmal im Monat, nicht jede Woche.
+if [ "$(date '+%d')" -le 7 ]; then
+  sage "Bewertungen abgleichen (mit Wiederholung der Fehlschläge) …"
+  uv run wine-check rate --retry-failed >>"$PROTOKOLL" 2>&1
+else
+  sage "Bewertungen abgleichen …"
+  uv run wine-check rate >>"$PROTOKOLL" 2>&1
+fi
 
 # -- 3. Report und Seite ----------------------------------------------------
 sage "Report und Seite bauen …"

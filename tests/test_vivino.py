@@ -327,3 +327,25 @@ def test_a_grape_after_an_article_is_a_proper_name():
     seine korrekte Note weg; solche Namen taugen nicht als Farbquelle."""
     from winecheck.ratings.vivino import _farbkonflikt
     assert _farbkonflikt("Chianti Classico Riserva Il Grigio da San Felice", 1) is False
+
+
+def test_ein_einzelnes_restwort_wird_mitgenommen():
+    """"Sondraia (Marilisa Allegrini Poggio al Tesoro)" verlor beim Schnitt nach vier
+    Wörtern ausgerechnet "tesoro" — den Teil, der den Wein findet.
+
+    Mövenpick leitet den Produzenten aus der Adresse ab, und die nennt hier zwei
+    Güter: das Mutterhaus im Veneto und das Bolgheri-Gut.
+    """
+    from winecheck.ratings.vivino import _kurze_abfrage
+
+    lang = "Bolgheri Superiore DOC 2021 Sondraia (Marilisa Allegrini Poggio al Tesoro)"
+    assert _kurze_abfrage(lang) == ["sondraia", "marilisa", "allegrini", "poggio", "tesoro"]
+
+
+def test_laengere_namen_werden_weiterhin_gekuerzt():
+    """Mehr Wörter schaden bei Vivino häufiger, als sie helfen — die Regel gilt nur
+    für das eine abgetrennte Restwort."""
+    from winecheck.ratings.vivino import KURZ_MAX, _kurze_abfrage
+
+    lang = "Alpha Beta Gamma Delta Epsilon Zeta Chianti Classico Riserva"
+    assert len(_kurze_abfrage(lang)) == KURZ_MAX

@@ -144,6 +144,32 @@ def build_query(name: str, vintage: int | None = None) -> str:
     return " ".join(tokens[:10]) or (name or "").strip()
 
 
+#: So viele Wörter trägt die kurze Abfrage normalerweise. Kurz ist Absicht: Vivino
+#: sortiert nach Note statt nach Namensrelevanz, und jedes zusätzliche Wort
+#: verschiebt die Treffer.
+KURZ_MAX = 4
+
+
+def _kurze_abfrage(name: str) -> list[str]:
+    """Die kurze Suchabfrage — mit einer Ausnahme von der Wortgrenze.
+
+    Bleibt beim Abschneiden **genau ein** Wort übrig, kommt es mit. Der Grund steht
+    in „Bolgheri Superiore DOC 2021 Sondraia (Marilisa Allegrini Poggio al Tesoro)":
+    Mövenpick leitet den Produzenten aus der Adresse ab, und die nennt hier zwei
+    Güter — das Mutterhaus im Veneto und das Bolgheri-Gut. Der Schnitt nach vier
+    Wörtern ergab „sondraia marilisa allegrini poggio" und verlor ausgerechnet
+    „tesoro", also den Teil, der den Wein findet. Mit fünf Wörtern liefert dieselbe
+    Suche den Treffer.
+
+    Warum nicht einfach fünf Wörter für alle: mehr Wörter schaden bei Vivino
+    häufiger, als sie helfen. Ein einzelnes abgetrenntes Wort ist dagegen fast immer
+    das Ende eines Namens, der zusammengehört — dort ist der Schnitt der Fehler,
+    nicht die Länge.
+    """
+    tokens = query_tokens(name)
+    return tokens if len(tokens) == KURZ_MAX + 1 else tokens[:KURZ_MAX]
+
+
 def _display_name(c: _Cand) -> str:
     """Fundname so, dass ein Mensch ihn wiedererkennt.
 
@@ -591,7 +617,7 @@ class VivinoAdapter:
         greift die lange Abfrage. Deshalb *beide* versuchen und das bessere nehmen,
         statt sich auf eine Strategie festzulegen.
         """
-        short = " ".join(query_tokens(name)[:4])
+        short = " ".join(_kurze_abfrage(name))
         # Dritter Versuch, nach Bewertungs*anzahl* sortiert. Grund: die Standard-
         # sortierung nach Note begräbt bei grossen Häusern genau die Weine, die man
         # im Regal findet. „Faiveley" liefert 207 Treffer, angeführt von
