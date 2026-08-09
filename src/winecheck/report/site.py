@@ -121,7 +121,7 @@ def _add_value_scores(wines: list[dict[str, Any]]) -> None:
     handel = [w for w in wines if w.get("swiss") or not w.get("marketplace")]
     for gruppe in (handel, marktplatz):
         if gruppe:
-            _value_scores_einer_gruppe(gruppe)
+            _je_sorte(gruppe, "valueScore")
 
     # Zusätzlich eine Zahl über beide Welten hinweg. Sie wird gebraucht, sobald die
     # Seite Handel und Marktplatz gemeinsam zeigt — das ist die Standardansicht.
@@ -130,7 +130,44 @@ def _add_value_scores(wines: list[dict[str, Any]]) -> None:
     # Marktplatz-Gruppe hiesse "gut für einen Marktplatzwein", eine 0.3 aus dem
     # Handel "gut für einen Schweizer Ladenwein". Sortiert man danach, vergleicht
     # man Äpfel mit Birnen.
-    _value_scores_einer_gruppe(wines, feld="valueScoreAll")
+    _je_sorte(wines, "valueScoreAll")
+
+
+def _je_sorte(wines: list[dict[str, Any]], feld: str) -> None:
+    """Eine eigene Kurve je Sorte, mit Rückfall auf die ganze Gruppe.
+
+    Champagner hat ein anderes Preisniveau als Rotwein — Median CHF 43 gegen 23 im
+    selben Lauf. An der gemeinsamen Kurve gemessen sagt die Zahl bei jedem
+    Champagner mehr über seine Warengruppe aus als über den einzelnen Wein.
+
+    Die Sorte ist dafür der richtige Schnitt, die *Auswahl* wäre es nicht: sie ist
+    eine Eigenschaft des Weins und kein Zustand der Seite. Ein Wein behält damit
+    seinen Rang, gleich was sonst angezeigt wird — anders als bei einer Rechnung
+    über die gerade gefilterte Menge.
+
+    Sorten mit zu wenigen Weinen bekommen die Kurve der ganzen Gruppe. Süsswein
+    zählt 13 Positionen, Schaumwein 27; aus einer Handvoll Punkten eine eigene
+    Erwartung abzuleiten wäre genauer aussehende, aber schlechtere Auskunft. Sie
+    bleiben damit gerechnet, statt ohne Zahl dazustehen.
+    """
+    nach_sorte: dict[str, list[dict[str, Any]]] = {}
+    for w in wines:
+        nach_sorte.setdefault(w.get("style") or "?", []).append(w)
+
+    rest: list[dict[str, Any]] = []
+    for gruppe in nach_sorte.values():
+        # Gezählt wird, was überhaupt in die Regression eingeht — Weine ohne Note
+        # oder ohne Preis tragen nichts bei und dürfen die Gruppe nicht gross
+        # erscheinen lassen.
+        brauchbar = sum(
+            1 for w in gruppe if w.get("rating") is not None and (w.get("price") or 0) > 0
+        )
+        if brauchbar >= VALUE_MIN_SAMPLE:
+            _value_scores_einer_gruppe(gruppe, feld=feld)
+        else:
+            rest.extend(gruppe)
+    if rest:
+        _value_scores_einer_gruppe(rest, feld=feld)
 
 
 def _value_scores_einer_gruppe(
