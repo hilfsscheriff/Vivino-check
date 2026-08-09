@@ -743,3 +743,42 @@ def test_zu_kleine_laeufe_bleiben_linear():
 
     note = _wirksame_note([{"rating": 4.0}, {"rating": 4.4}])
     assert note(4.4) == 4.4
+
+
+def test_filterkacheln_zaehlen_die_aktuelle_auswahl(doc):
+    """Jede Kachel sagt, was sie brächte — gerechnet mit allen *anderen* Filtern.
+
+    Die eigene Gruppe muss dabei ausgeklammert bleiben: sonst käme bei jeder nicht
+    gewählten Sorte null heraus und die ganze Reihe verschwände nach dem ersten
+    Klick.
+    """
+    text = doc()
+    assert "function visible(ausser)" in text
+    assert 'ausser !== "style"' in text and 'ausser !== "land"' in text
+    assert "function zaehlen(gruppe, schluessel)" in text
+
+
+def test_kacheln_ohne_treffer_verschwinden(doc):
+    """Ausgegraut hiesse: eine Reihe voller toter Knöpfe, durch die man sich liest."""
+    text = doc()
+    assert "function chipMitZahl(" in text
+    assert "if (!anzahl && !gewaehlt) return null;" in text
+
+
+def test_die_gewaehlte_kachel_bleibt_auch_bei_null(doc):
+    """Sonst verschwände der Knopf, mit dem man die Auswahl wieder aufhebt.
+
+    Genau der Fall trat bei „Champagner + Mövenpick + bis CHF 50" auf: null
+    Treffer, und beide Kacheln müssen sichtbar bleiben.
+    """
+    text = doc()
+    # Die Bedingung lässt eine gewählte Kachel durch, auch wenn anzahl 0 ist.
+    assert "!anzahl && !gewaehlt" in text
+
+
+def test_die_quellenreihe_blendet_nichts_aus(doc):
+    """Entweder-oder-Wahl: ein verschwundener Knopf wäre eine Sackgasse."""
+    text = doc()
+    block = text.split('const ohneQuelle = visible("src");', 1)[1][:600]
+    assert "chipMitZahl" not in block, "die Quellenreihe darf nicht ausblenden"
+    assert "nSrc[k]" in block

@@ -22,9 +22,24 @@ from ..models import Offer
 from ..names import PACKAGING_NOISE, PRODUCER_WORDS, tokenize
 from .base import RetailerAdapter, looks_like_wine, parse_price
 
-#: Mövenpick zeigt 24 Kacheln pro Seite; mehr als das holen wir pro Lauf nicht,
-#: damit das Rate-Limit von 1 Anfrage / 2 s nicht zur Endlosschleife wird.
-MAX_PAGES = 4
+#: Mövenpick zeigt 24 Kacheln pro Seite. Die Aktionsseite meldet „von 380" —
+#: das sind rund sechzehn Seiten, und tatsächlich tragen Seite 16 und 17 noch
+#: Inhalt.
+#:
+#: Vorher standen hier vier. Damit endete der Bestand bei 96 Kacheln, und alles
+#: dahinter fehlte: „Fallet Dart Champagne Brut Cuvée de Réserve" für CHF 28.80
+#: statt 36.00 steht auf **Seite 7** und tauchte im Bericht nie auf. Aufgefallen ist
+#: es, weil der Wein bei Mövenpick sichtbar im Angebot stand, bei uns aber nicht.
+#:
+#: Zwanzig statt sechzehn als Reserve: die Zahl der Aktionen schwankt wöchentlich.
+#: Jenseits des echten Endes liefert Magento wiederholt dieselbe Ersatzseite (Seite
+#: 30 und 60 sind Zeichen für Zeichen gleich) — das kostet ein paar Anfragen, aber
+#: ``_dedupe_offers`` in der Basisklasse wirft die Wiederholungen weg. Lieber ein
+#: paar Anfragen zu viel als ein fehlender Wein.
+#:
+#: Kosten: zwei Grundseiten mal zwanzig Seiten, bei einer Anfrage pro zwei Sekunden
+#: gut anderthalb Minuten.
+MAX_PAGES = 20
 
 _RE_SPECIAL = re.compile(r"sonderpreis", re.I)
 _RE_REGULAR = re.compile(r"regul[äa]rer\s+preis|statt", re.I)
