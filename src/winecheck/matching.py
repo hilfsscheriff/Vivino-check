@@ -235,6 +235,41 @@ def _prestige_prefix_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     return None
 
 
+# BEKANNTE LÜCKE — der von uns selbst ergänzte Produzent zählt gegen den Treffer
+# -----------------------------------------------------------------------------
+# Mövenpick nennt den Produzenten nur in der Adresse. Der Adapter hängt ihn darum in
+# Klammern an: "Toscana IGT 2023 Livrone (Poggio Tesoro)". Für die *Suche* ist das
+# richtig und nötig — ``query_tokens`` behält die Klammer, und nur so findet Vivino
+# den Wein überhaupt.
+#
+# Für den *Vergleich* wird die Klammer wieder gestrichen (``tokenize`` ruft
+# ``strip_alias``). Die Absicht dahinter ist gut: was wir selbst ergänzt haben, soll
+# der Quelle nicht als fehlend angerechnet werden. Die Wirkung ist hier aber die
+# umgekehrte —
+#
+#   Händler nach dem Streichen : livrone
+#   Vivino                     : poggio tesoro livrone
+#
+# — und damit trägt *Vivino* zwei Wörter, die unser Name scheinbar nicht kennt.
+# ``rank_candidates`` verwirft den Kandidaten, obwohl die Suche ihn gefunden hat und
+# er nachweislich stimmt (Note 4.0, "Poggio Al Tesoro Livrone 2023").
+#
+# Nachvollziehbar mit:
+#     rank_candidates("Toscana IGT 2023 Livrone (Poggio Tesoro)",
+#                     [("Poggio Al Tesoro Livrone", 2023, True)], retailer_vintage=2023)
+#     -> [] statt eines Treffers
+#
+# Ebenso betroffen: "Bolgheri Superiore DOC 2021 Sondraia (Marilisa Allegrini Poggio
+# al Tesoro)".
+#
+# Die Behebung gehört hierher und muss **asymmetrisch** sein: die Klammer-Tokens
+# sollen auf unserer Seite als *vorhanden* gelten, damit Vivinos Produzentenwörter
+# nicht als fremd zählen — aber weiterhin nicht von Vivino *verlangt* werden. Dafür
+# braucht ``_Prepared`` ein eigenes Feld für die Alias-Tokens, das hier einfliesst.
+#
+# Bewusst nicht mehr in derselben Sitzung gebaut: das ist die sicherheitskritischste
+# Stelle des Projekts, und eine halb geprüfte Änderung daran wäre schlechter als die
+# beschriebene Lücke.
 def _foreign_token_analysis(
     retailer: _Prepared, source: _Prepared, coverage: float
 ) -> tuple[str | None, list[str]]:

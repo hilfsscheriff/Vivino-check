@@ -641,3 +641,22 @@ def test_a_higher_tier_is_a_different_wine():
 
 def test_the_plain_reserva_still_matches_its_own_entry():
     assert match_wine("Rioja Reserva Bodegas Murua", "Murua Murua Reserva 2017").matched
+
+
+@pytest.mark.xfail(reason="bekannte Lücke, siehe Kommentar über _foreign_token_analysis")
+def test_selbst_ergaenzter_produzent_darf_nicht_gegen_den_treffer_zaehlen():
+    """Mövenpick nennt den Produzenten nur in der Adresse; der Adapter hängt ihn in
+    Klammern an. Für die Suche ist das nötig, für den Vergleich wird er gestrichen —
+    und dann trägt Vivino zwei Wörter, die unser Name scheinbar nicht kennt.
+
+    Der Treffer stimmt nachweislich: Vivino führt "Poggio Al Tesoro Livrone 2023"
+    mit Note 4.0.
+    """
+    from winecheck.matching import rank_candidates
+
+    ranked, _ = rank_candidates(
+        "Toscana IGT 2023 Livrone (Poggio Tesoro)",
+        [("Poggio Al Tesoro Livrone", 2023, True)],
+        retailer_vintage=2023,
+    )
+    assert ranked, "der gefundene und richtige Kandidat wird verworfen"
