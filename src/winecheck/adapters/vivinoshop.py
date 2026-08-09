@@ -157,14 +157,27 @@ class VivinoShopAdapter(RetailerAdapter):
         jahrgang = int(jahr) if isinstance(jahr, int) or (isinstance(jahr, str) and jahr.isdigit()) else None
 
         wein_id = wein.get("id")
-        url = f"https://www.vivino.com/w/{wein_id}" if wein_id else (p.get("url") or "")
+        # Der Jahrgang gehört in die Adresse. Ohne ihn zeigt Vivino den Jahrgang, den
+        # es gerade für den passendsten hält, und das ist selten der, für den unser
+        # Angebot gilt. Gemeldet an „The Standish The Relic Shiraz-Viognier": unser
+        # Angebot ist der 2019er zu CHF 53.78 statt 95.92, die Seite eröffnete mit
+        # dem 2021er zu CHF 99.50 ohne Abschlag. Wer draufklickt, hält den Rabatt für
+        # erfunden — dabei stimmt er, nur für eine andere Flasche.
+        #
+        # Derselbe Parameter, den auch das Trinkfenster braucht (siehe
+        # ``VivinoAdapter._trinkfenster``): ohne ``?year=`` antwortet Vivino
+        # jahrgangslos.
+        wein_url = f"https://www.vivino.com/w/{wein_id}" if wein_id else (p.get("url") or "")
+        # Die Angebotsadresse trägt den Jahrgang, die Weinadresse nicht: der Saat-Eintrag
+        # unten identifiziert den *Wein* und seine Note gilt oft über alle Jahrgänge.
+        url = f"{wein_url}?year={jahrgang}" if wein_id and jahrgang else wein_url
 
         note = stat.get("ratings_average")
         anzahl = stat.get("ratings_count")
         if isinstance(note, (int, float)) and wein_id:
             self.bewertungen.append({
                 "name": name, "vintage": jahrgang, "wine_id": wein_id,
-                "rating": float(note), "rating_count": anzahl, "url": url,
+                "rating": float(note), "rating_count": anzahl, "url": wein_url,
                 # Die Farbe. Sie kommt aus Vivinos Weindatenbank und ist damit
                 # verlässlicher als jede Namensanalyse — ohne sie fielen 400 Weine
                 # auf "unbekannt" zurück, weil Namen wie "Astrale Special Edition"

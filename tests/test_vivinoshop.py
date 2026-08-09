@@ -98,3 +98,26 @@ def test_die_beiden_gruppen_werden_nicht_vermischt():
     # Innerhalb jeder Gruppe sind alle Noten gleich, also liegt niemand über der
     # Erwartung. Gemeinsam gerechnet stünden die teuren Marktplatzweine weit oben.
     assert all(abs(w.get("valueScore", 0)) < 0.2 for w in handel + markt)
+
+
+def test_die_angebotsadresse_traegt_den_jahrgang(adapter):
+    """Von einem Nutzer gemeldet. Unser Angebot zu „The Standish The Relic
+    Shiraz-Viognier" ist der 2019er zu CHF 53.78 statt 95.92; die Weinseite eröffnete
+    mit dem 2021er zu CHF 99.50 ohne Abschlag. Der Rabatt stimmte — er galt für eine
+    andere Flasche. Ohne ``?year=`` zeigt Vivino den Jahrgang, den es gerade für den
+    passendsten hält, und der Klick widerlegt scheinbar die eigene Zeile."""
+    o = adapter._offer(_treffer(jahr=2019))
+    assert o.url == "https://www.vivino.com/w/222?year=2019", o.url
+
+
+def test_die_weinadresse_der_saat_bleibt_ohne_jahrgang(adapter):
+    """Gegenprobe: der Saat-Eintrag identifiziert den *Wein*, und seine Note gilt oft
+    über alle Jahrgänge. Ein Jahrgang in dieser Adresse wäre eine Behauptung, die die
+    Note nicht deckt."""
+    adapter._offer(_treffer(jahr=2019))
+    assert adapter.bewertungen[0]["url"] == "https://www.vivino.com/w/222"
+
+
+def test_ohne_jahrgang_bleibt_die_adresse_wie_sie_war(adapter):
+    o = adapter._offer(_treffer(jahr=None))
+    assert o.url == "https://www.vivino.com/w/222", o.url

@@ -325,3 +325,36 @@ def test_die_neuen_keywords_stehen_in_bucket_a():
     e = einordnen("Wein", notiz="reich, dicht, kräftig")
     assert e.typ == "fruchtsuess", e.signale
     assert e.stufe == 3
+
+
+# --------------------------------------------- Kalibrierung an echten Daten
+
+def test_die_normalwerte_sind_gemessen_und_zentrieren_die_achse():
+    """Die Schwellen der Spec (+0.4 / +0.1 / −0.1) setzen eine zentrierte Achse voraus.
+    Ein geschätzter Normalfall lieferte die nicht: 33 von 39 Weinen landeten auf
+    ``straff_herb``, weil Süsse zu hoch und Säure zu tief angesetzt waren und alle
+    Fehler in dieselbe Richtung drückten.
+
+    Die Werte sind jetzt die Mediane über 839 Weine des Bestands. Ein Wein, der genau
+    dort liegt, muss ``ausgewogen`` ergeben — sonst ist die Achse wieder verschoben."""
+    from winecheck.stiltyp import NORMAL_SAEURE, NORMAL_SUESSE, NORMAL_TANNIN
+
+    e = einordnen("Durchschnittswein", struktur=Struktur(
+        suesse=NORMAL_SUESSE, tannin=NORMAL_TANNIN, saeure=NORMAL_SAEURE, urteile=500))
+    assert e.typ == "ausgewogen", (e.score, e.signale)
+    assert abs(e.score) < 1e-9
+
+
+@pytest.mark.parametrize("suesse,tannin,saeure,erwartet", [
+    # Barolo-Profil: wenig Süsse, viel Tannin und Säure.
+    (1.4, 4.3, 4.1, "straff_herb"),
+    # Amarone-Profil: deutlich süsser, weiches Tannin.
+    (3.2, 2.9, 2.8, "fruchtsuess"),
+])
+def test_bekannte_machart_wird_richtig_eingeordnet(suesse, tannin, saeure, erwartet):
+    """Gegenprobe der Kalibrierung an echten Profilen. Im Bestand ergeben alle 20
+    Barolo und 27 von 28 Brunello ``straff_herb``, alle 17 Amarone, 9 Appassimento,
+    7 Ripasso und 26 Primitivo ``fruchtsuess``."""
+    e = einordnen("Wein", struktur=Struktur(suesse=suesse, tannin=tannin,
+                                            saeure=saeure, urteile=500))
+    assert e.typ == erwartet, (e.score, e.signale)

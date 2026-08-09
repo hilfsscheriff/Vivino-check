@@ -369,16 +369,39 @@ def _stufe1d(
 
 # ------------------------------------------------------------------ Stufe 2
 
-#: Der beobachtete Normalfall eines trockenen Rotweins auf Vivinos Skala 1..5.
-#: Gegen diesen Punkt wird gerechnet, nicht gegen die Skalenmitte 3.0 — die
-#: Begründung steht in :func:`typ_aus_score`.
-NORMAL_SUESSE = 1.9
-NORMAL_TANNIN = 3.4
-NORMAL_SAEURE = 3.1
+#: Der beobachtete Normalfall auf Vivinos Skala 1..5. Gegen diesen Punkt wird
+#: gerechnet, nicht gegen die Skalenmitte 3.0 — die Begründung steht in
+#: :func:`typ_aus_score`.
+#:
+#: **Gemessen, nicht geschätzt.** Die Zahlen sind die Mediane über 839 Weine des
+#: Bestands mit mindestens 15 Nutzerurteilen (Lauf vom 9.8.2026). Ein erster,
+#: geschätzter Ansatz (1.9 / 3.4 / 3.1) verfehlte vor allem die Säure um knapp drei
+#: Zehntel, und weil Tannin und Säure mit negativem Vorzeichen eingehen, drückten alle
+#: drei Fehler in dieselbe Richtung: 33 von 39 Weinen der Stichprobe landeten auf
+#: ``straff_herb``. Mit den Medianen liegt der Durchschnittswein bei null, und die
+#: Schwellen bedeuten, was sie sagen.
+#:
+#: Bewusst feste Zahlen und keine Berechnung je Lauf: sonst hinge der Typ eines Weins
+#: am gerade vorliegenden Sortiment und änderte sich von Woche zu Woche, ohne dass
+#: sich am Wein etwas ändert. Es ist eine Eigenschaft des Weins, kein Zustand der
+#: Seite — dieselbe Begründung, mit der die Kennzahl nach der Sorte gruppiert und
+#: nicht nach der Auswahl.
+#:
+#: Gegenprobe an Weinen bekannter Machart: alle 20 Barolo und 27 von 28 Brunello
+#: ergeben ``straff_herb``, alle 17 Amarone, 9 Appassimento, 7 Ripasso und 26
+#: Primitivo ``fruchtsuess``, Riesling teilt sich zwischen straff und weich.
+NORMAL_SUESSE = 1.77
+NORMAL_TANNIN = 3.33
+NORMAL_SAEURE = 3.39
 
 #: Wie weit ein Wert vom Normalfall abweichen muss, damit die Abweichung als
-#: „ganz anders" gilt. Eine halbe Stufe auf einer Fünferskala ist bei
-#: dreistelligen Urteilszahlen deutlich mehr als Rauschen.
+#: „ganz anders" gilt.
+#:
+#: Die Streuung der drei Achsen liegt bei 0.51, 0.54 und 0.63 — eine Spanne von 1.0
+#: entspricht also rund zwei Streuungen. Das ist die vorsichtige Wahl: eine
+#: Randkategorie verlangt einen Wein, der wirklich aus der Reihe fällt. Engere Werte
+#: wurden gegengerechnet (0.5 / 0.6 / 0.75) und verschieben die Verteilung zu den
+#: Rändern, ohne dass die Einordnung dadurch treffender würde.
 SPANNE = 1.0
 
 
