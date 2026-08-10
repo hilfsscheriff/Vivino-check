@@ -66,7 +66,54 @@ def test_note_wird_zum_saeen_gesammelt(adapter):
         # Die Farbe muss mit. Ohne sie fielen 400 Weine auf "unbekannt" zurück,
         # weil Namen wie "Astrale Special Edition" kein Farbwort enthalten.
         "wine_type_id": 1,
+        # Machart und Herkunft ebenso — ohne sie blieben ausgerechnet diese Weine
+        # ohne Stil-Typ, siehe den Test darunter.
+        "style_name": "", "country": "", "region_name": "",
+        "taste": {}, "style_baseline": {},
     }]
+
+
+def test_die_saat_traegt_machart_und_herkunft(adapter):
+    """Für diese Weine fragt ``rate`` bei Vivino gar nicht mehr nach — die Antwort kam
+    mit dem Angebot. Genau deshalb muss die Saat alles mitbringen, was der Stil-Typ
+    braucht: sonst bleiben ausgerechnet die Weine mit der verlässlichsten Note ohne
+    Typ. Gemessen waren es 703 von 1452."""
+    t = _treffer()
+    t["vintage"]["wine"]["style"] = {
+        "name": "Rioja Red", "baseline_structure": {"sweetness": 1.5, "tannin": 3.5},
+    }
+    t["vintage"]["wine"]["region"] = {"name": "Rioja", "country": {"name": "Spanien"}}
+    t["vintage"]["wine"]["taste"] = {"structure": {
+        "sweetness": 2.1, "tannin": 3.4, "acidity": 3.2, "user_structure_count": 640,
+    }}
+    adapter._offer(t)
+    b = adapter.bewertungen[0]
+    assert b["style_name"] == "Rioja Red"
+    assert b["country"] == "Spanien"
+    assert b["region_name"] == "Rioja"
+    assert b["taste"] == {"sweetness": 2.1, "tannin": 3.4, "acidity": 3.2, "count": 640.0}
+    assert b["style_baseline"] == {"sweetness": 1.5, "tannin": 3.5}
+
+
+def test_der_gesaete_eintrag_traegt_die_felder_in_den_cache(adapter):
+    """Gegenprobe eine Schicht tiefer: was gesammelt wurde, muss auch im Cache landen,
+    sonst hilft es dem Typ nichts."""
+    t = _treffer()
+    t["vintage"]["wine"]["region"] = {"name": "Vino d'Italia", "country": {"name": "Italien"}}
+    adapter._offer(t)
+
+    class _Cache:
+        def __init__(self):
+            self.eintraege = []
+
+        def put_rating(self, quelle, name, jahrgang, payload, status=""):
+            self.eintraege.append(payload)
+
+    cache = _Cache()
+    assert adapter.saee_bewertungen(cache) == 1
+    d = cache.eintraege[0]
+    assert d["region_name"] == "Vino d'Italia"
+    assert d["country"] == "Italien"
 
 
 # -- Trennung der beiden Warenwelten ---------------------------------------

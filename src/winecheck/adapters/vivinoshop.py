@@ -41,7 +41,7 @@ from typing import Any, Iterator
 
 from ..fetching import Blocked
 from ..models import Offer
-from ..ratings.vivino import API_URL, PER_PAGE
+from ..ratings.vivino import API_URL, PER_PAGE, _struktur
 from .base import FetchReport, RetailerAdapter
 
 #: Die Farben, die dieses Projekt führt — dieselben wie bei der Bewertungsabfrage.
@@ -183,6 +183,17 @@ class VivinoShopAdapter(RetailerAdapter):
                 # auf "unbekannt" zurück, weil Namen wie "Astrale Special Edition"
                 # oder "The Guv'nor" kein Farbwort enthalten.
                 "wine_type_id": wein.get("type_id"),
+                # Machart und Herkunft. Sie stehen in derselben Antwort wie die Note
+                # und kosten keine Anfrage. Ohne sie bekämen ausgerechnet die Weine
+                # keinen Stil-Typ, deren Note am verlässlichsten ist: für sie fragt
+                # ``rate`` bei Vivino gar nicht mehr nach, weil die Antwort schon
+                # feststeht — und griff damit auch die Struktur nie ab. Über 700 von
+                # 1450 Weinen blieben so ohne Typ.
+                "style_name": (wein.get("style") or {}).get("name") or "",
+                "country": (((wein.get("region") or {}).get("country") or {}).get("name") or ""),
+                "region_name": (wein.get("region") or {}).get("name") or "",
+                "taste": _struktur((wein.get("taste") or {}).get("structure")),
+                "style_baseline": _struktur((wein.get("style") or {}).get("baseline_structure")),
             })
 
         return self.make_offer(
@@ -265,6 +276,11 @@ class VivinoShopAdapter(RetailerAdapter):
                     "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
                     "match_confidence": "exact",
                     "wine_type_id": b.get("wine_type_id"),
+                    "style_name": b.get("style_name") or "",
+                    "country": b.get("country") or "",
+                    "region_name": b.get("region_name") or "",
+                    "taste": b.get("taste") or {},
+                    "style_baseline": b.get("style_baseline") or {},
                     # Kein Marktpreis: er käme von Vivino und würde mit einem
                     # Vivino-Preis verglichen. Der Vergleich wäre zirkulär, und
                     # die Schnäppchen-Spalte bliebe eine Aussage über sich selbst.
