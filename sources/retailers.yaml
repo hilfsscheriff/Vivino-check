@@ -189,15 +189,32 @@ retailers:
     channel: Onlineshop, Lieferung
     tier: 2
     domain: schuler.ch
-    adapter: generic_html
-    enabled: false
-    status: url_unverified
-    urls: []
-    shop_root: https://www.schuler.ch/
-    promo_keywords: [aktion, angebote, sale, wein]
-    verified_at: "2026-08-05"
+    adapter: shopware
+    enabled: true
+    status: ok
+    urls:
+      # Restposten sind bei Schuler die Aktionsrubrik: 24 Weine mit Streichpreis.
+      # Die uebrigen Kategorien (Sommerweine, Gipfelweine, praemierte Weine) tragen
+      # Produkte, aber kaum Abschlaege - das ist Normalsortiment und gehoert nicht in
+      # einen Aktionsvergleich.
+      - https://www.schuler.ch/restpostenweine/
+    vat_included: true
+    price_basis: bottle
+    wine_only: true
+    private_label_brands: []
+    verified_at: "2026-08-10"
     notes: >
-      /de/aktionen antwortete 404. Alternativen laut Auftrag sind Schubi, Gerstl
+      Laeuft auf Shopware - die Sitemap heisst salesChannel-018b..., und die
+      Selektoren des Shopware-Adapters greifen unveraendert (product-box,
+      product-name, product-price, list-price). Damit war kein eigener Adapter
+      noetig; Caratello, Schubi, Wineoutlet und Vinovintana laufen ueber denselben.
+      Stand vorher auf url_unverified, weil /de/aktionen mit 404 antwortete. Das ist
+      ein Soft-404: schuler.ch gibt fuer unbekannte Pfade die ganze Seite mit 946 kB
+      aus, weshalb ein Statuscode-Test dort nichts aussagt. Die Aktionsrubrik heisst
+      restpostenweine.
+      Keine Blaetterung: robots.txt der Domain verbietet Query-Strings, und ?p=2
+      faellt darunter. Wir nehmen die erste Seite und weisen das aus, statt die
+      Regel zu biegen.
       und Denz.
 
   - key: gerstl
