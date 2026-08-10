@@ -16,7 +16,6 @@ import logging
 import os
 import time
 import urllib.parse
-import urllib.robotparser
 from dataclasses import dataclass, field
 
 import httpx
@@ -111,10 +110,118 @@ def detect_block(text: str, status_code: int, server: str = "") -> str | None:
     return "bot-protection"
 
 
+class Robots:
+    """robots.txt mit Wildcards — ``*`` und ``$``, wie Google es spezifiziert.
+
+    Warum nicht ``urllib.robotparser``: die Standardbibliothek kennt **keine
+    Wildcards**. Sie vergleicht mit ``startswith``, und damit ist ``Disallow:
+    /*brands=*`` eine Regel über Pfade, die wörtlich mit ``/*brands=*`` beginnen —
+    also über keinen. Jede Regel mit einem Stern in der Mitte fiel stillschweigend
+    weg, und genau so schreiben Shops ihre Query-Verbote.
+
+    Gemessen am 10.8.2026 an zwei Fällen, die dieses Projekt betreffen:
+
+    * ``web.transgourmet.ch`` verbietet ``/*?searchTerm=*``. Der Prodega-Adapter
+      fragte mit ``searchTerm=wein`` ab, und der Prüfer nannte es erlaubt.
+    * ``moevenpick-wein.com`` verbietet ``/*?*`` und erlaubt nur ``*?p=*``. Dass wir
+      dort keine anderen Query-Parameter verwenden, war eine Entscheidung von Hand —
+      der Prüfer hätte sie nicht erzwungen.
+
+    Das ist die eine Stelle, an der eine Lücke nicht nur Daten kostet, sondern eine
+    Zusage bricht. Darum hier ausgeschrieben statt geliehen.
+
+    Regelvorrang nach Google: die **längste** passende Regel gewinnt; bei gleicher
+    Länge gewinnt ``Allow``. Kein Treffer heisst erlaubt.
+    """
+
+    __slots__ = ("regeln",)
+
+    def __init__(self, regeln: list[tuple[str, bool]]):
+        #: ``(Muster, erlaubt)``, ungeordnet — der Vorrang entscheidet sich beim Prüfen.
+        self.regeln = regeln
+
+    @classmethod
+    def parse(cls, text: str, user_agent: str) -> Robots:
+        """Nur die Gruppen, die uns betreffen: unser Name, sonst ``*``.
+
+        Ein benannter Block gewinnt über ``*`` — steht unser Name in der Datei, gilt
+        ausschliesslich sein Block. So halten es die Shops auch: die Sperren für
+        AhrefsBot sollen andere nicht treffen.
+        """
+        ua = (user_agent or "").lower()
+        gruppen: dict[str, list[tuple[str, bool]]] = {}
+        aktuell: list[str] = []
+        letzte_zeile_agent = False
+        for rohzeile in text.splitlines():
+            zeile = rohzeile.split("#", 1)[0].strip()
+            if not zeile or ":" not in zeile:
+                continue
+            feld, _, wert = zeile.partition(":")
+            feld, wert = feld.strip().lower(), wert.strip()
+            if feld == "user-agent":
+                if not letzte_zeile_agent:
+                    aktuell = []
+                aktuell.append(wert.lower())
+                letzte_zeile_agent = True
+                for a in aktuell:
+                    gruppen.setdefault(a, [])
+                continue
+            letzte_zeile_agent = False
+            if feld not in ("allow", "disallow") or not aktuell:
+                continue
+            # "Disallow:" ohne Wert heisst ausdrücklich: alles erlaubt.
+            if feld == "disallow" and not wert:
+                continue
+            for a in aktuell:
+                gruppen[a].append((wert, feld == "allow"))
+
+        passend = [a for a in gruppen if a and a != "*" and a in ua]
+        name = passend[0] if passend else "*"
+        return cls(gruppen.get(name, []))
+
+    @staticmethod
+    def _trifft(muster: str, pfad: str) -> bool:
+        anker = muster.endswith("$")
+        if anker:
+            muster = muster[:-1]
+        teile = muster.split("*")
+        # Der erste Abschnitt muss am Anfang stehen, die weiteren in Reihenfolge
+        # irgendwo danach. Das ist die Wildcard-Semantik von Google, ohne Regex —
+        # ein aus fremdem Text gebautes Regex wäre eine unnötige Angriffsfläche.
+        if not pfad.startswith(teile[0]):
+            return False
+        pos = len(teile[0])
+        for teil in teile[1:]:
+            if not teil:
+                continue
+            treffer = pfad.find(teil, pos)
+            if treffer < 0:
+                return False
+            pos = treffer + len(teil)
+        if anker:
+            return pos == len(pfad) if teile[-1] else True
+        return True
+
+    def allows(self, url: str) -> bool:
+        parts = urllib.parse.urlsplit(url)
+        pfad = parts.path or "/"
+        if parts.query:
+            pfad += "?" + parts.query
+        beste: tuple[int, bool] | None = None
+        for muster, erlaubt in self.regeln:
+            if not self._trifft(muster, pfad):
+                continue
+            laenge = len(muster)
+            # Längste Regel gewinnt; bei gleicher Länge das Allow.
+            if beste is None or laenge > beste[0] or (laenge == beste[0] and erlaubt):
+                beste = (laenge, erlaubt)
+        return True if beste is None else beste[1]
+
+
 @dataclass
 class _DomainState:
     last_request: float = 0.0
-    robots: urllib.robotparser.RobotFileParser | None = None
+    robots: Robots | None = None
     robots_loaded: bool = False
     robots_unavailable: bool = False
 
@@ -178,9 +285,7 @@ class Fetcher:
                 r = self._client.get(robots_url, headers=HTML_HEADERS)  # type: ignore[union-attr]
                 if r.status_code == 200 and not detect_block(r.text, r.status_code,
                                                              r.headers.get("server", "")):
-                    rp = urllib.robotparser.RobotFileParser()
-                    rp.parse(r.text.splitlines())
-                    st.robots = rp
+                    st.robots = Robots.parse(r.text, user_agent())
                 else:
                     st.robots_unavailable = True
             except Exception as exc:  # noqa: BLE001
@@ -188,7 +293,7 @@ class Fetcher:
                 st.robots_unavailable = True
         if st.robots is None:
             return True  # keine robots.txt lesbar -> keine Einschränkung ableitbar
-        return st.robots.can_fetch(user_agent(), url)
+        return st.robots.allows(url)
 
     # -- Öffentliche API ---------------------------------------------------
     def get(

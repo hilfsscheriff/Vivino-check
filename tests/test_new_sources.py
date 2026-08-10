@@ -362,3 +362,42 @@ def test_die_seitenzahl_des_shops_ist_nach_oben_begrenzt():
 
     urls = MoevenpickAdapter(_MoevenpickCfg(), _PagerFetcher(letzte=9999)).urls()
     assert len(urls) == MAX_PAGES
+
+
+# ------------------- Prodega Easy: erlaubt statt gesucht (10.8.2026)
+
+def test_prodega_fragt_nicht_mehr_mit_searchterm():
+    """Die robots.txt von web.transgourmet.ch verbietet ``/*?searchTerm=*``. Der
+    Adapter fragte mit ``searchTerm=wein`` ab — nicht aus Absicht, sondern weil der
+    alte Prüfer Wildcards überging. Statt zu suchen holen wir jetzt alle Aktionsseiten
+    und entscheiden selbst, was Wein ist; das ist erlaubt und vollständiger."""
+    from winecheck.adapters.prodega import EASY_PARAMS
+
+    assert "searchTerm" not in EASY_PARAMS
+    assert EASY_PARAMS == {"a": "true"}
+
+
+def test_prodega_haelt_die_robots_regel_der_domain_ein():
+    """Gegenprobe mit der echten Regel: die Abfrage, die der Adapter baut, muss
+    erlaubt sein, die alte verboten."""
+    import urllib.parse
+
+    from winecheck.adapters.prodega import EASY_CATALOG, EASY_PARAMS
+    from winecheck.fetching import Robots
+
+    r = Robots.parse("User-agent: *\nAllow: /*/prodega-easy/catalog/\n"
+                     "Disallow: /*?searchTerm=*\nDisallow: /*brands=*", "WeinCheck/1.0")
+    neu = EASY_CATALOG + "?" + urllib.parse.urlencode({**EASY_PARAMS, "page": "0"})
+    alt = EASY_CATALOG + "?" + urllib.parse.urlencode(
+        {"searchTerm": "wein", "hwg": "3", "a": "true", "page": "0"})
+    assert r.allows(neu), neu
+    assert not r.allows(alt), alt
+
+
+def test_prodega_blaettert_weit_genug():
+    """1'310 Aktionen bei serverseitig festen 100 pro Seite sind vierzehn Seiten. Die
+    Grenze muss darüber liegen, sonst schneidet sie wieder ab — derselbe Fehler wie
+    bei Mövenpicks Deckel von vier."""
+    from winecheck.adapters.prodega import EASY_MAX_PAGES
+
+    assert EASY_MAX_PAGES >= 14

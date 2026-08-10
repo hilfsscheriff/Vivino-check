@@ -50,15 +50,32 @@ PROMO_PAGE = "https://www.transgourmet.ch/de/aktionen"
 LOGIN_PAGE = "https://www.transgourmet.ch/de/user/login"
 WINE_CATEGORY = "https://www.transgourmet.ch/de/sortiment/wein"
 
-#: Prodega Easy, JSON-Katalog. ``hwg=3`` ist die Warengruppe Getränke, ``a=true``
-#: filtert auf Aktionen. Ohne ``a=true`` käme das ganze Sortiment.
+#: Prodega Easy, JSON-Katalog. ``a=true`` filtert auf Aktionen — ohne ihn käme das
+#: ganze Sortiment mit 23'175 Artikeln.
 EASY_CATALOG = "https://web.transgourmet.ch/de/prodega-easy/catalog.data"
 EASY_PAGE = "https://web.transgourmet.ch/de/prodega-easy/catalog"
-EASY_PARAMS = {"searchTerm": "wein", "hwg": "3", "a": "true"}
 
-#: Seiten durchblättern, bis eine leer ist. pageSize ist 100, in der Praxis passt
-#: alles auf Seite 0 — die Schleife ist die Absicherung, falls das Sortiment wächst.
-EASY_MAX_PAGES = 6
+#: Hier stand ``{"searchTerm": "wein", "hwg": "3", "a": "true"}``, und daran waren
+#: zwei Dinge falsch. Beides am 10.8.2026 gemessen:
+#:
+#: * ``searchTerm`` **verbietet die robots.txt** der Domain (``Disallow:
+#:   /*?searchTerm=*``). Dass der Adapter trotzdem damit abfragte, lag an einer Lücke
+#:   im Prüfer — Pythons ``robotparser`` kennt keine Wildcards und liess die Regel
+#:   fallen. Siehe :class:`winecheck.fetching.Robots`.
+#: * ``hwg=3`` filterte nichts. Die Facette heisst ``hwgs``, und der Katalog nimmt sie
+#:   nur über einen POST an; als Query-Parameter wird sie ignoriert. Die Antwort war
+#:   jedes Mal der volle Aktionsbestand, nur eben über ``searchTerm`` eingeengt.
+#:
+#: Statt zu suchen und zu filtern holen wir jetzt **alle** Aktionsseiten und
+#: entscheiden selbst, was Wein ist. Das ist erlaubt, vollständig und nutzt die
+#: Weinerkennung, die dieses Projekt für jeden anderen Händler ohnehin hat: über die
+#: Suche kamen 35 Weine, über die Warengruppe zählt Prodega selbst 47.
+EASY_PARAMS = {"a": "true"}
+
+#: pageSize ist serverseitig auf 100 festgelegt und lässt sich nicht erhöhen. Bei
+#: rund 1'300 Aktionen sind das vierzehn Seiten; die Grenze ist die Absicherung,
+#: falls der Bestand wächst, und kostet bei zwei Sekunden Abstand eine halbe Minute.
+EASY_MAX_PAGES = 20
 
 #: Die Wochenbroschüre heisst "kwNN-...-aktionen-d.pdf". Andere PDFs auf der Seite
 #: sind Kataloge und Marktberichte ohne Aktionspreise.
@@ -123,6 +140,7 @@ class ProdegaAdapter(ProspektPdfMixin, RetailerAdapter):
         """Aktionen aus dem öffentlichen Prodega-Easy-Katalog."""
         offers: list[Offer] = []
         pages = 0
+        geprueft = 0
         for page in range(EASY_MAX_PAGES):
             params = {**EASY_PARAMS, "page": str(page)}
             try:
@@ -136,12 +154,14 @@ class ProdegaAdapter(ProspektPdfMixin, RetailerAdapter):
             if not articles:
                 break
             pages += 1
+            geprueft += len(articles)
             for art in articles:
                 offer = self._offer_from_easy(art)
                 if offer is not None:
                     offers.append(offer)
 
-        note = f"Easy-Katalog: {len(offers)} Weinaktionen von {pages} Seite(n)"
+        note = (f"Easy-Katalog: {len(offers)} Weinaktionen aus {geprueft} Aktionen "
+                f"auf {pages} Seite(n)")
         return offers, note
 
     def _offer_from_easy(self, art: dict) -> Offer | None:
