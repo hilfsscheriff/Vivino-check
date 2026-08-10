@@ -1078,6 +1078,14 @@ _TEMPLATE = r"""<!doctype html>
 
   <div class="card">
     <h2 id="tblTitle">Weine</h2>
+    <!-- Ein Hinweis zur Bedienung darf hier stehen, die Methodik nicht.
+         Auf dem Handy standen vor dem ersten Wein zwei Absätze Erklärung, gut einen
+         Bildschirm hoch — man scrollte durch die Begründung einer Zahl, die man noch
+         nicht gesehen hatte. Wer wissen will, wie gerechnet wird, sucht danach; wer
+         eine Flasche sucht, will die Liste. Die Erläuterungen stehen darum unter der
+         Tabelle, direkt an dem, was sie erklären. -->
+    <p class="tblnote colhint">Spaltentitel antippen sortiert, nochmal antippen kehrt um</p>
+    <div id="table"></div>
     <!-- Die Herkunft der Zahl gehört sichtbar dazu: das Preisniveau ist gemessen,
          die Gewichtung ist gesetzt. Wer danach kauft, soll wissen, welcher Teil
          Beobachtung ist und welcher Entscheidung. -->
@@ -1100,7 +1108,6 @@ _TEMPLATE = r"""<!doctype html>
        malolaktischem Ausbau und neuem Holz zusammen — nicht aus zugesetztem Zucker.
        Ein <b>?</b> heisst, dass der Typ nur geschätzt ist. Der Grund steht bei jedem
        Wein daneben; ohne Begründung wird kein Typ angezeigt.</p>
-    <div id="table"></div>
   </div>
   </main>
 
@@ -1109,8 +1116,19 @@ _TEMPLATE = r"""<!doctype html>
        Die Achse zeigt ausschliesslich die Vivino-Note in ihrer eigenen Skala 1–5 —
        Falstaff- und andere Kritikerpunkte stehen in der Tabelle, aber nicht auf der
        Achse: zwei Bewertungsgrundlagen auf einer Achse sind nicht vergleichbar.</p>
-    <p><b>Trinkreife</b> aus der <a href="__SOURCE_PAGE__" target="_blank" rel="noopener">__SOURCE_NAME__</a>.
-       Sie gilt für Region und Weinart, nicht für die einzelne Flasche.</p>
+    <!-- Zwei Quellen, und sie widersprechen sich gelegentlich. Genau das soll man
+         sehen: die eine ist redaktionell und grob, die andere fein und ungeprüft.
+         Eine davon stillschweigend zu bevorzugen wäre eine Entscheidung, die der
+         Seite nicht zusteht. -->
+    <p><b>Trinkreife</b> aus zwei Quellen, die nebeneinander stehen und sich nicht
+       ersetzen. Die <a href="__SOURCE_PAGE__" target="_blank" rel="noopener">__SOURCE_NAME__</a>
+       ist redaktionell geprüft, gilt aber für <b>Region und Weinart</b> und nicht für
+       die einzelne Flasche — ein schwacher Wein aus einem starken Jahrgang bekommt
+       dort dieselbe Auskunft wie ein grosser. Vivino nennt daneben ein
+       <b>Trinkfenster je Wein und Jahrgang</b>, aus Nutzerangaben und damit feiner,
+       aber ungeprüft. Wo beide sich widersprechen, steht das an der Zeile, statt dass
+       eine Quelle die andere überschreibt. Die <b>Sorte</b> stammt von Vivinos
+       Weindatenbank, sonst aus dem Namen; das <b>Herkunftsland</b> ebenso.</p>
     <p><b>Preise</b> von den genannten Händlern, teils über den Aggregator
        <a href="https://www.aktionis.ch" target="_blank" rel="noopener">Aktionis</a> und damit aus zweiter
        Hand. <b>Marktpreise</b> von Vivino-Partnerhändlern, nie vom eigenen Händler.
