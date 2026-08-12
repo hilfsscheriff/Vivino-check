@@ -878,3 +878,26 @@ def test_die_schwelle_steht_nur_an_einer_stelle(doc):
     # Und die alte, falsche Zahl darf im Satz zur festen Regel nicht mehr vorkommen.
     satz = text.split("gut und günstig</b>:", 1)[1][:60]
     assert "4.2" not in satz, satz
+
+
+def test_die_gebindeangabe_steht_auf_der_seite(doc):
+    """Gemeldet mit den Worten „preis finde ich nicht": CHF 45.47 stand da, kaufen kann
+    man den Wein nur als Sechserkiste zu CHF 272.82. Der Flaschenpreis bleibt — er ist
+    richtig gerechnet —, die Bedingung muss aber sichtbar sein, und zwar vor dem Klick."""
+    text = doc([_snapshot(units=6, best_price=45.47)])
+    assert "gebindeText" in text, "die Anzeige der Abnahmemenge fehlt"
+    # Im Payload steht die Zahl, nicht der Satz — der entsteht im Browser.
+    wein = _payload(text)["runs"][0]["wines"][0]
+    assert wein["uq"] == 6
+    assert wein["p"] == 45.47, "der Flaschenpreis bleibt unverändert"
+
+
+def test_die_einzelflasche_traegt_kein_gebindefeld(doc):
+    """Eine 1 wäre nur Rauschen — und Platz in einer Datei, die über Mobilfunk lädt.
+
+    Geprüft am Wein-Objekt, nicht am Dokument: der Schlüssel steht ohnehin in der
+    erzeugten Abbildung, die alle Kurznamen auflistet.
+    """
+    for menge in (1, None):
+        wein = _payload(doc([_snapshot(units=menge)]))["runs"][0]["wines"][0]
+        assert "uq" not in wein, f"units={menge} soll kein Feld erzeugen"

@@ -276,6 +276,8 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
         "vivinoUrl": d.get("vivino_url") or "",
         "retailers": d.get("retailers") or ([cheapest] if cheapest else []),
         "cheapest": cheapest,
+        # Wie viele Flaschen man nehmen muss. Nur gesetzt, wenn es mehr als eine ist.
+        "units": d.get("units") if (d.get("units") or 1) > 1 else None,
         "url": urls.get(cheapest) or next(iter(urls.values()), ""),
         "market": d.get("market_price"),
         "bargain": d.get("bargain_percent"),
@@ -285,9 +287,6 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
         # Seite behandelt ihn wie "unbekannt", statt einen zu erfinden.
         "typ": d.get("typ") or "",
         "typLabel": d.get("typ_label") or "",
-        # 3 heisst geschaetzt (nur aus Verkostungsnotizen). Die Tabelle haengt daran
-        # ein Fragezeichen, damit man die Schaetzung von der Messung unterscheidet.
-        "typStufe": d.get("typ_stufe") or None,
         "typWarum": " · ".join(d.get("typ_signale") or []),
         "maturity": d.get("maturity") or "",
         "maturityShort": d.get("maturity_short") or "",
@@ -310,7 +309,7 @@ _SHORT_KEYS = {
     "name": "n", "vintage": "y", "price": "p", "rating": "r", "ratingCount": "rc",
     "vivinoUrl": "vu", "retailers": "rs", "cheapest": "c", "url": "u",
     "market": "m", "bargain": "b", "style": "s", "styleLabel": "sl",
-    "typ": "ty", "typLabel": "tyl", "typStufe": "tys", "typWarum": "tyw",
+    "typ": "ty", "typLabel": "tyl", "typWarum": "tyw",
     "maturity": "t", "maturityShort": "ts", "maturityRegion": "tr",
     "drinkWindow": "dw", "maturityConflict": "mc", "country": "co",
     "vintageQuality": "q", "falstaff": "f", "key": "k",
@@ -324,6 +323,8 @@ _SHORT_KEYS = {
     "swiss": "ch",
     # Ausblendbare Rebsorten, siehe AUSBLENDBARE_SORTEN.
     "grapes": "g",
+    # Abnahmemenge: 6 heisst „nur als Sechserkiste zu haben".
+    "units": "uq",
     # 1 = stand im Vorlauf noch nicht da. Nur gesetzt, wenn es einen Vorlauf zum
     # Vergleichen gibt — beim ersten Lauf ist kein Wein "neu", sondern alle sind es,
     # und dann sagt die Kennzeichnung nichts.

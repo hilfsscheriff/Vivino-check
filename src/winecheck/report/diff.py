@@ -77,6 +77,11 @@ def snapshot(rows: list[WineRow]) -> list[dict[str, Any]]:
             "maturity_conflict": r.maturity.widerspruch if r.maturity else "",
             "vintage_quality": (r.maturity.quality or "") if r.maturity else "",
             "cheapest_retailer": r.cheapest_retailer,
+            # Abnahmemenge des gezeigten Angebots. Der Preis je Flasche ist bei einer
+            # Kiste richtig, die Verpflichtung fehlte — gemeldet am Pio Cesare Barolo:
+            # CHF 45.47 stand da, kaufen kann man nur sechs zu CHF 272.82.
+            "units": next((pr.units for pr in r.prices
+                           if pr.price_per_bottle_incl_vat == r.best_price), None),
             "urls": {p.retailer: p.url for p in r.prices if p.url},
             "value_score": r.value_score,
             "wert_score": r.wert_score,

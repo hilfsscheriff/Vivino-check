@@ -77,6 +77,13 @@ const vintageSuffix = w => (w.vintage && !String(w.name).includes(String(w.vinta
    derselben Liste, muss die gemeinsame gelten, sonst würden zwei Zahlen sortiert,
    die nicht dasselbe messen. */
 const valueOf = w => (S.src === "alle" ? w.valueScoreAll : w.valueScore);
+/* Die Abnahmemenge gehört zum Preis. Der Betrag je Flasche ist bei einer Kiste richtig
+   gerechnet und vergleichbar — kaufen kann man die Flasche einzeln aber nicht.
+   Gemeldet mit den Worten „preis finde ich nicht": Pio Cesare Barolo 2016 stand mit
+   CHF 45.47 da, zu haben ist er nur als Sechserkiste zu CHF 272.82. 7 Prozent der
+   Marktplatzangebote sind Kisten. */
+const gebindeText = w => (w.units > 1)
+  ? `nur ${w.units}er-Gebinde, zusammen ${chf(w.price * w.units)}` : "";
 const valueText = w => {
   if (valueOf(w) == null) return '<span class="meta">—</span>';
   const v = valueOf(w);
@@ -259,7 +266,6 @@ function chart(list) {
       + (p.matchedName ? ` — gefunden: „${esc(p.matchedName)}"` : "") + `</span>`);
     if (p.styleLabel) h += row("Sorte", esc(p.styleLabel));
     if (p.typLabel && p.typ) h += row("Typ", esc(p.typLabel)
-      + (p.typStufe === 3 ? " ?" : "")
       + (p.typWarum ? ` <span class="meta">${esc(p.typWarum)}</span>` : ""));
     if (p.maturityShort) {
       /* Woher die Auskunft stammt, gehört daneben — sonst liest sich die Vinum-Zeile
@@ -276,6 +282,7 @@ function chart(list) {
     }
     if (valueOf(p) != null) h += row("Preis-Leistung", valueText(p));
     h += row("Preis/75cl", chf(p.price));
+    if (gebindeText(p)) h += row("Abnahme", `<span class="warn">${esc(gebindeText(p))}</span>`);
     h += row("Händler", esc((D.retailers.find(r => r.key === p.cheapest) || {}).name || p.cheapest));
     if (p.bargain != null) {
       const c = p.bargain > 0 ? "good" : "bad";
@@ -436,13 +443,14 @@ function table(list) {
         ${w.neu ? `<span class="pill neu">neu</span>` : ""}
         ${w.styleLabel ? `<span class="pill">${esc(w.styleLabel)}</span>` : ""}
         ${w.typ && w.typLabel ? `<span class="pill t-${w.typ}" title="${esc(w.typWarum)}">`
-            + esc(w.typLabel) + (w.typStufe === 3 ? " ?" : "") + `</span>` : ""}
+            + esc(w.typLabel) + `</span>` : ""}
         ${w.maturityShort ? `<span class="pill">${esc(w.maturityShort)}</span>` : ""}
         ${istGut(w) ? `<br><span class="marker">◆ gut und günstig</span>` : ""}</td>
       <td data-l="Preis-Leistung" class="pl${valueOf(w) == null ? " noval" : ""}${
         (valueOf(w) ?? 0) < 0 ? " neg" : ""}">${valueText(w)}</td>
       <td data-l="Vivino">${vivino}</td>
-      <td data-l="Preis/75cl" class="num">${chf(w.price)}</td>
+      <td data-l="Preis/75cl" class="num">${chf(w.price)}${
+        gebindeText(w) ? `<br><span class="gebinde">${esc(gebindeText(w))}</span>` : ""}</td>
       <td data-l="Wo kaufen">${shop}</td>
       <td data-l="gegen Markt" class="num${w.bargain == null ? " noval" : ""}">${bargain}</td>
     </tr>`;

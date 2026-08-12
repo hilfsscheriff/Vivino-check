@@ -7,7 +7,6 @@ kein Spielraum — „Alle Fixtures der Stufe 1 werden exakt getroffen."
 import pytest
 
 from winecheck.stiltyp import (
-    MIN_KEYWORD_TREFFER,
     MIN_STRUKTUR_URTEILE,
     TYPEN,
     UNBEKANNT,
@@ -152,26 +151,7 @@ def test_unbekannter_stil_liefert_keinen_typ():
     assert einordnen("Wein", stil_name="Irgendein Stil, den niemand kennt").typ == UNBEKANNT
 
 
-# ------------------------------------------------- Stufe 3: Notiz
-
-def test_notiz_unter_drei_treffern_sagt_nichts():
-    """Zwei Wörter in einem Werbetext sind keine Beschreibung eines Weins."""
-    e = einordnen("Wein", notiz="Samtig und rund im Abgang.")
-    assert e.typ == UNBEKANNT
-
-
-def test_notiz_mit_genug_treffern_schaetzt_und_markiert_sich_als_schaetzung():
-    e = einordnen("Wein", notiz="Vanille, Kakao und Karamell, samtig und opulent.")
-    assert e.typ == "fruchtsuess"
-    assert e.stufe == 3
-    assert e.unsicher, "Stufe 3 muss sich als Schätzung ausweisen"
-
-
-def test_straffe_notiz():
-    e = einordnen("Wein", notiz="Herb, mineralisch, mit Gerbstoff und straffer Säure.")
-    assert e.typ == "straff_herb"
-    assert e.stufe == 3
-
+# ------------------------------------------------- Reihenfolge der Kaskade
 
 def test_die_erste_stufe_entscheidet_und_spaetere_ueberschreiben_nicht():
     """Sonst hinge das Ergebnis daran, in welcher Reihenfolge Daten nachgeliefert
@@ -179,7 +159,6 @@ def test_die_erste_stufe_entscheidet_und_spaetere_ueberschreiben_nicht():
     e = einordnen(
         "Primitivo Appassimento",                       # Stufe 1 -> fruchtsuess
         struktur=Struktur(suesse=1.2, tannin=4.8, saeure=4.0, urteile=500),  # Stufe 2 -> straff
-        notiz="Herb, mineralisch, Gerbstoff, straff.",  # Stufe 3 -> straff
     )
     assert e.typ == "fruchtsuess"
     assert e.stufe == 1
@@ -196,7 +175,6 @@ def test_kein_typ_ohne_begruendung():
         einordnen("Wein", struktur=Struktur(suesse=2.0, tannin=3.0, saeure=3.0, urteile=99)),
         einordnen("Wein", baseline=Struktur(suesse=1.0), stil_name="Tuscan Red"),
         einordnen("Wein", stil_name="Barolo"),
-        einordnen("Wein", notiz="Vanille, Kakao, Karamell, samtig."),
     ]
     for e in faelle:
         assert e.typ in TYPEN, e
@@ -224,18 +202,18 @@ def test_die_gepflegten_listen_sind_lesbar_und_gefuellt():
     assert len(t.suesse_tokens) >= 30
     assert len(t.stilmarken) >= 10
     assert len(t.stil_tabelle) >= 15
-    assert len(t.opulent) >= 30 and len(t.straff) >= 30
     assert all(v in TYPEN for v in t.stil_tabelle.values()), "Tabelle nennt einen unbekannten Typ"
-    # „Kirsche" allein ist neutral (Spec §5) — nur die Sauerkirsche gehört nach B.
-    assert "kirsche" not in t.opulent and "kirsche" not in t.straff
-    assert "sauerkirsche" in t.straff
-    # Marketingfloskeln nie einlesen.
-    for floskel in ("genuss", "charakter", "eleganz"):
-        assert floskel not in t.opulent and floskel not in t.straff
 
 
-def test_min_keyword_treffer_ist_dokumentiert():
-    assert MIN_KEYWORD_TREFFER == 3
+def test_die_keyword_listen_sind_weg():
+    """Stufe 3 ist am 12.8.2026 gestrichen. Mit ihr fallen die beiden Keyword-Listen —
+    88 Zeilen gepflegte Wörter, die nie gelesen wurden: ``einordnen`` bekam von keinem
+    Produktionsaufrufer eine Notiz, nur von Tests.
+
+    Der Test hält das fest, damit die Listen nicht aus Gewohnheit zurückkehren, ohne
+    dass etwas sie füttert."""
+    t = tabelle()
+    assert not hasattr(t, "opulent") and not hasattr(t, "straff")
 
 
 # ------------------------------- Stufe 1d: Denomination ohne Herkunft (v1.1)
@@ -312,19 +290,6 @@ def test_keine_denomination_ohne_herkunft_bleibt_unbekannt():
             assert e.typ != UNBEKANNT, (d, jg)
             assert e.signale
 
-
-def test_die_neuen_keywords_stehen_in_bucket_a():
-    """„reich, dicht, kräftig" stand in der Händlernotiz zum Gran Sasso und traf
-    keines der bisherigen Wörter."""
-    t = tabelle()
-    for w in ("reich", "dicht", "konzentriert", "kraftvoll", "intensiv", "bold"):
-        assert w in t.opulent, w
-    # Wörtlich die Notiz zum Gran Sasso. Mit der Vorlage allein wären es zwei Treffer
-    # gewesen — "kraftvoll" trifft "kräftig" nicht —, und Stufe 3 hätte am eigenen
-    # Anlassfall weiter geschwiegen.
-    e = einordnen("Wein", notiz="reich, dicht, kräftig")
-    assert e.typ == "fruchtsuess", e.signale
-    assert e.stufe == 3
 
 
 # --------------------------------------------- Kalibrierung an echten Daten

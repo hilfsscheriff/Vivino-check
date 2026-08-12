@@ -147,6 +147,25 @@ class VivinoShopAdapter(RetailerAdapter):
         if flasche != FLASCHE_075:
             return None
 
+        # Wie viele Flaschen man abnehmen muss. Der Betrag gilt **je Flasche** und ist
+        # damit richtig und vergleichbar — die Verpflichtung fehlte aber.
+        #
+        # Gemeldet mit den Worten „preis finde ich nicht": Pio Cesare Barolo 2016 stand mit
+        # CHF 45.47 im Bericht, zu kaufen ist er bei vinpark.ch nur als Sechserkiste zu
+        # CHF 272.82 — die Adresse sagt es selbst („6x75cl"). Wer den Einzelpreis sucht,
+        # findet ihn nicht und hält die Zeile für erfunden.
+        #
+        # Am Bestand gemessen: 43 der 638 Angebote sind Kisten (7 %) — 29 Sechser, 8
+        # Zwölfer, 6 Dreier —, und die grösste Verpflichtung liegt bei CHF 2728 für sechs
+        # Flaschen Château La Mission Haut-Brion. Fast alle stecken in ``type: ppc``
+        # (38 von 124), kaum eine in ``xdo`` (5 von 457).
+        #
+        # Ausschliessen wäre falsch: der Preis je Flasche ist korrekt und der Vergleich
+        # gültig — nur eben unter der Bedingung, sechs zu nehmen. Also mitnehmen und die
+        # Bedingung mitschreiben, wie es der Aligro-Adapter für seine Gebinde tut.
+        flaschen = p.get("bottle_quantity")
+        flaschen = int(flaschen) if isinstance(flaschen, int) and flaschen > 1 else None
+
         name = _name(m)
         if not name:
             return None
@@ -158,20 +177,35 @@ class VivinoShopAdapter(RetailerAdapter):
         jahrgang = int(jahr) if isinstance(jahr, int) or (isinstance(jahr, str) and jahr.isdigit()) else None
 
         wein_id = wein.get("id")
-        # Der Jahrgang gehört in die Adresse. Ohne ihn zeigt Vivino den Jahrgang, den
-        # es gerade für den passendsten hält, und das ist selten der, für den unser
-        # Angebot gilt. Gemeldet an „The Standish The Relic Shiraz-Viognier": unser
-        # Angebot ist der 2019er zu CHF 53.78 statt 95.92, die Seite eröffnete mit
-        # dem 2021er zu CHF 99.50 ohne Abschlag. Wer draufklickt, hält den Rabatt für
-        # erfunden — dabei stimmt er, nur für eine andere Flasche.
+        # Zwei verschiedene Adressen, und sie dürfen nicht verwechselt werden.
         #
-        # Derselbe Parameter, den auch das Trinkfenster braucht (siehe
-        # ``VivinoAdapter._trinkfenster``): ohne ``?year=`` antwortet Vivino
-        # jahrgangslos.
-        wein_url = f"https://www.vivino.com/w/{wein_id}" if wein_id else (p.get("url") or "")
-        # Die Angebotsadresse trägt den Jahrgang, die Weinadresse nicht: der Saat-Eintrag
-        # unten identifiziert den *Wein* und seine Note gilt oft über alle Jahrgänge.
-        url = f"{wein_url}?year={jahrgang}" if wein_id and jahrgang else wein_url
+        # ``wein_url`` identifiziert den **Wein** und trägt keinen Jahrgang. Sie geht in
+        # den Saat-Eintrag: die Note gilt dort oft über alle Jahrgänge.
+        wein_url = f"https://www.vivino.com/w/{wein_id}" if wein_id else ""
+        # ``url`` ist die Adresse des **Angebots** — die Seite, auf der der genannte Preis
+        # tatsächlich steht. Sie kommt aus der Antwort und wird nicht nachgebaut.
+        #
+        # Nachgebaut wurde sie vorher, als ``/w/<wein_id>?year=<jahr>``, mit der Absicht,
+        # den richtigen Jahrgang zu treffen. Der Parameter genügt dafür nicht: geprüft am
+        # Pio Cesare Barolo 2016 (Angebot CHF 45.47) lieferte ``/w/22550?year=2016`` die
+        # Daten des **2018er** zu CHF 84.03 von einem anderen Händler. Wer klickt, findet
+        # den genannten Preis nicht und hält ihn für erfunden.
+        #
+        # Die Antwort weiss es besser: bei ``type: vc`` steht dort die Produktseite des
+        # Händlers (gerstl.ch, moevenpick-wein.com), bei ``type: xdo`` eine
+        # jahrgangsgenaue ``/wines/<jahrgang_id>``-Adresse. Beides führt an den Preis,
+        # die nachgebaute Weinseite nicht.
+        #
+        # ``http`` kommt in der Antwort vor und wird angehoben — die Seite verlinkt sonst
+        # unverschlüsselt.
+        angebot = str(p.get("url") or "")
+        if angebot.startswith("http://"):
+            angebot = "https://" + angebot[len("http://"):]
+        # Rückfall nur, wenn die Antwort keine Adresse mitgibt: dann ist die Weinseite mit
+        # Jahrgang immer noch besser als kein Verweis.
+        url = angebot or (
+            f"{wein_url}?year={jahrgang}" if wein_id and jahrgang else wein_url
+        )
 
         note = stat.get("ratings_average")
         anzahl = stat.get("ratings_count")
@@ -197,7 +231,7 @@ class VivinoShopAdapter(RetailerAdapter):
                 "style_baseline": _struktur((wein.get("style") or {}).get("baseline_structure")),
             })
 
-        return self.make_offer(
+        offer = self.make_offer(
             name=name,
             url=url,
             price_text=float(betrag),
@@ -213,6 +247,13 @@ class VivinoShopAdapter(RetailerAdapter):
             vat_included=True,
             price_basis="bottle",
         )
+        if offer is not None and flaschen:
+            offer.units = flaschen
+            offer.source_note = (
+                f"nur im {flaschen}er-Gebinde: CHF {betrag * flaschen:.2f} für "
+                f"{flaschen} Flaschen, CHF {betrag:.2f} je Flasche"
+            )
+        return offer
 
     def parse(self, html: str, url: str) -> list[Offer]:
         """Nur der Vollständigkeit halber — diese Quelle liefert kein HTML."""

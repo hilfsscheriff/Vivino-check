@@ -18,7 +18,15 @@ def adapter():
     return VivinoShopAdapter(cfg, fetcher=None)
 
 
-def _treffer(*, betrag=10.0, vorher=20.0, flasche=1, note=4.2, jahr=2020):
+def _treffer(*, betrag=10.0, vorher=20.0, flasche=1, note=4.2, jahr=2020, url=None,
+             bottle_quantity=None):
+    preis = {"id": 333, "amount": betrag, "discounted_from": vorher,
+             "bottle_type": {"id": flasche, "name": "Flasche (0,75 l)"},
+             "sku": "VI-1-CS"}
+    if url is not None:
+        preis["url"] = url
+    if bottle_quantity is not None:
+        preis["bottle_quantity"] = bottle_quantity
     return {
         "vintage": {
             "id": 111, "year": jahr,
@@ -26,9 +34,7 @@ def _treffer(*, betrag=10.0, vorher=20.0, flasche=1, note=4.2, jahr=2020):
                      "winery": {"name": "Imperial"}},
             "statistics": {"ratings_average": note, "ratings_count": 900},
         },
-        "price": {"id": 333, "amount": betrag, "discounted_from": vorher,
-                  "bottle_type": {"id": flasche, "name": "Flasche (0,75 l)"},
-                  "sku": "VI-1-CS"},
+        "price": preis,
     }
 
 
@@ -147,12 +153,35 @@ def test_die_beiden_gruppen_werden_nicht_vermischt():
     assert all(abs(w.get("valueScore", 0)) < 0.2 for w in handel + markt)
 
 
-def test_die_angebotsadresse_traegt_den_jahrgang(adapter):
-    """Von einem Nutzer gemeldet. Unser Angebot zu „The Standish The Relic
-    Shiraz-Viognier" ist der 2019er zu CHF 53.78 statt 95.92; die Weinseite eröffnete
-    mit dem 2021er zu CHF 99.50 ohne Abschlag. Der Rabatt stimmte — er galt für eine
-    andere Flasche. Ohne ``?year=`` zeigt Vivino den Jahrgang, den es gerade für den
-    passendsten hält, und der Klick widerlegt scheinbar die eigene Zeile."""
+def test_der_verweis_fuehrt_an_das_angebot(adapter):
+    """Von einem Nutzer gemeldet: „preis finde ich nicht".
+
+    Der Verweis führte auf die *Weinseite*, nachgebaut als ``/w/<id>?year=<jahr>``. Am
+    Pio Cesare Barolo 2016 geprüft, Angebot CHF 45.47: die Seite lieferte die Daten des
+    **2018er** zu CHF 84.03 von einem anderen Händler. Der genannte Preis stand nirgends,
+    und ein Preis, den man nicht nachsehen kann, ist keiner.
+
+    Die Antwort gibt die Adresse mit — bei ``type: vc`` die Produktseite des Händlers, bei
+    ``type: xdo`` eine jahrgangsgenaue ``/wines/<id>``-Adresse. Sie wird genommen, nicht
+    nachgebaut.
+    """
+    o = adapter._offer(_treffer(url="https://www.gerstl.ch/2019-irgendwas-esp-1"))
+    assert o.url == "https://www.gerstl.ch/2019-irgendwas-esp-1", o.url
+
+
+def test_unverschluesselte_adressen_werden_angehoben(adapter):
+    """``http`` kommt in der Antwort vor. Unverändert übernommen verlinkt die Seite
+    unverschlüsselt."""
+    o = adapter._offer(_treffer(url="http://www.vivino.com/wines/91068564"))
+    assert o.url == "https://www.vivino.com/wines/91068564", o.url
+
+
+def test_ohne_adresse_faellt_es_auf_die_weinseite_mit_jahrgang_zurueck(adapter):
+    """Der Rückfall, und warum er den Jahrgang trägt: von einem Nutzer gemeldet zu „The
+    Standish The Relic Shiraz-Viognier" — unser Angebot ist der 2019er zu CHF 53.78 statt
+    95.92, die Weinseite eröffnete mit dem 2021er zu CHF 99.50 ohne Abschlag. Der Rabatt
+    stimmte, er galt für eine andere Flasche. Besser als kein Verweis, schlechter als die
+    Adresse aus der Antwort."""
     o = adapter._offer(_treffer(jahr=2019))
     assert o.url == "https://www.vivino.com/w/222?year=2019", o.url
 
@@ -160,8 +189,8 @@ def test_die_angebotsadresse_traegt_den_jahrgang(adapter):
 def test_die_weinadresse_der_saat_bleibt_ohne_jahrgang(adapter):
     """Gegenprobe: der Saat-Eintrag identifiziert den *Wein*, und seine Note gilt oft
     über alle Jahrgänge. Ein Jahrgang in dieser Adresse wäre eine Behauptung, die die
-    Note nicht deckt."""
-    adapter._offer(_treffer(jahr=2019))
+    Note nicht deckt — und die Händleradresse des Angebots erst recht nicht."""
+    adapter._offer(_treffer(jahr=2019, url="https://www.gerstl.ch/irgendwas"))
     assert adapter.bewertungen[0]["url"] == "https://www.vivino.com/w/222"
 
 
@@ -226,3 +255,62 @@ def test_die_saat_schreibt_machart_und_herkunft(adapter):
     assert p["region_name"] == "Rioja"
     assert p["taste"]["sweetness"] == 2.0
     assert p["style_baseline"]["tannin"] == 3.0
+
+
+# ------------------------------------------- Gebinde, aus einer Nutzermeldung
+
+def test_die_kiste_wird_als_kiste_ausgewiesen(adapter):
+    """Gemeldet mit den Worten „preis finde ich nicht".
+
+    Der Pio Cesare Barolo 2016 stand mit CHF 45.47 im Bericht. Zu kaufen ist er bei
+    vinpark.ch nur als Sechserkiste zu CHF 272.82 — die Adresse sagt es selbst
+    („6x75cl"). Vivino nennt die Zahl in ``bottle_quantity``; geprüft wurde nur, dass es
+    eine 0,75-l-Flasche ist, und das ist sie ja: sechsmal.
+
+    Der Preis je Flasche bleibt, er ist richtig gerechnet und vergleichbar. Die
+    Bedingung kommt dazu.
+    """
+    o = adapter._offer(_treffer(betrag=45.47, vorher=50.52, bottle_quantity=6))
+    assert o.price_per_bottle_incl_vat == 45.47, "der Flaschenpreis bleibt unverändert"
+    assert o.units == 6
+    assert "6er-Gebinde" in o.source_note
+    assert "272.82" in o.source_note, o.source_note
+
+
+def test_die_einzelflasche_traegt_keine_gebindeangabe(adapter):
+    """Eine 1 wäre nur Rauschen: bei der Einzelflasche sagt der Flaschenpreis alles."""
+    o = adapter._offer(_treffer(bottle_quantity=1))
+    assert o.units is None
+    assert o.source_note == ""
+
+
+def test_der_gesamtpreis_wird_ausgerechnet():
+    """Die Zahl, die der Nutzer sucht: was tatsächlich abzubuchen ist."""
+    from winecheck.models import PriceConfidence, RetailerPrice
+
+    def preis(units):
+        return RetailerPrice(retailer="vivinoshop", price_per_bottle_incl_vat=45.47,
+                             price_raw=45.47, price_raw_basis="inkl. MwSt", url="",
+                             price_confidence=PriceConfidence.HIGH, units=units)
+
+    assert preis(6).gesamtpreis == pytest.approx(272.82)
+    assert preis(None).gesamtpreis == pytest.approx(45.47), "Einzelflasche: derselbe Betrag"
+
+
+def test_die_gebindeangabe_kommt_bis_in_die_zeile():
+    """Die Kette von der Antwort bis zur Anzeige. Sie ist mir einmal in der Mitte
+    gerissen: der Cache trug die Adresse schon und das Gebinde noch nicht."""
+    from winecheck.aggregate import merge_offers
+    from winecheck.models import Offer, PriceConfidence
+
+    o = Offer(retailer="vivinoshop", name="Pio Cesare Barolo", vintage=2016,
+              price_per_bottle_incl_vat=45.47, price_raw=45.47,
+              price_raw_basis="inkl. MwSt", price_confidence=PriceConfidence.HIGH,
+              units=6, bottle_ml=750)
+    row = merge_offers([o])[0]
+    assert row.prices[0].units == 6
+    assert row.prices[0].gesamtpreis == pytest.approx(272.82)
+    # Und in der CSV, je Händler.
+    flach = row.to_flat()
+    assert flach["units_vivinoshop"] == "6"
+    assert flach["total_vivinoshop"] == "272.82"

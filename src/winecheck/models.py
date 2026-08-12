@@ -333,6 +333,20 @@ class RetailerPrice:
     price_confidence: PriceConfidence
     discount_percent: float | None = None
     discount_plausibility: DiscountPlausibility = DiscountPlausibility.UNKNOWN
+    #: Wie viele Flaschen man abnehmen muss. ``None`` oder 1 heisst Einzelflasche.
+    #:
+    #: Der Preis je Flasche ist bei einer Kiste richtig gerechnet und vergleichbar — was
+    #: fehlte, war die Verpflichtung. Gemeldet am Pio Cesare Barolo 2016: CHF 45.47 stand
+    #: da, kaufen kann man ihn nur als Sechserkiste zu CHF 272.82. Wer den Einzelpreis
+    #: sucht, findet ihn nicht und hält die Zeile für falsch.
+    units: int | None = None
+
+    @property
+    def gesamtpreis(self) -> float | None:
+        """Was tatsächlich zu zahlen ist. Bei der Einzelflasche derselbe Betrag."""
+        if self.price_per_bottle_incl_vat is None:
+            return None
+        return self.price_per_bottle_incl_vat * (self.units or 1)
 
 
 @dataclass
@@ -752,6 +766,12 @@ class WineRow:
             row[f"discount_{p.retailer}"] = _fmt_num(p.discount_percent)
             row[f"discount_plausibility_{p.retailer}"] = p.discount_plausibility.value
             row[f"url_{p.retailer}"] = p.url
+            # Abnahmemenge und Gesamtbetrag. Leer bei der Einzelflasche — dort sagt der
+            # Preis je Flasche alles, und eine 1 wäre nur Rauschen in der Tabelle.
+            row[f"units_{p.retailer}"] = str(p.units) if (p.units or 1) > 1 else ""
+            row[f"total_{p.retailer}"] = (
+                _fmt_num(p.gesamtpreis) if (p.units or 1) > 1 else ""
+            )
         return row
 
 

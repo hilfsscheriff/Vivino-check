@@ -20,9 +20,12 @@ Drei Wege, in dieser Reihenfolge:
    gelesen, wenn der Easy-Katalog nichts liefert: der Rasterparser ist heuristisch,
    das JSON ist es nicht.
 
-3. **Webkatalog hinter Login.** Nur für marktspezifische Preise nötig. Zugangsdaten
-   kommen aus ``PRODEGA_USER``/``PRODEGA_PASS`` oder als Session-Cookie aus
-   ``PRODEGA_COOKIE`` — nie aus dem Code, nie aus dem Repo. Ungetestet.
+3. **Webkatalog hinter Login — wird nicht genutzt.** Am 12.8.2026 entschieden: keine
+   Zugangsdaten, es bleibt beim öffentlichen Sortiment. Der Login-Pfad steht weiterhin
+   im Code, weil er ohne Zugangsdaten sauber verweigert und kein Rückbau nötig ist;
+   ``PRODEGA_USER``/``PRODEGA_PASS`` beziehungsweise ``PRODEGA_COOKIE`` wären der Weg,
+   falls die Entscheidung einmal anders ausfällt — nie aus dem Code, nie aus dem Repo.
+   Ungetestet und bewusst so.
 
 Zur robots.txt: ``transgourmet.ch`` verbietet Crawlern ``/login``, ``/user/login`` und
 ``/search/``. Die Regeln greifen als Pfad-Präfix und damit nicht auf die
@@ -107,9 +110,12 @@ class ProdegaAdapter(ProspektPdfMixin, RetailerAdapter):
             return True, "Session-Cookie aus PRODEGA_COOKIE übernommen"
 
         if not (user and password):
+            # Kein Mangel, sondern die Entscheidung vom 12.8.2026. Der Satz sagt es so,
+            # damit die Quellenliste im Bericht nicht jede Woche wie eine offene
+            # Aufgabe aussieht.
             return False, (
-                "keine Zugangsdaten gesetzt (PRODEGA_USER/PRODEGA_PASS oder "
-                "PRODEGA_COOKIE in .env) — nur öffentlicher Wochenprospekt gelesen"
+                "ohne Login gelesen — bewusst, kein Konto hinterlegt. Es fehlen nur "
+                "die marktspezifischen Preise, nicht das Sortiment"
             )
 
         try:

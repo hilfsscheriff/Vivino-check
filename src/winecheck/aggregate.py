@@ -68,6 +68,7 @@ def merge_offers(offers: list[Offer]) -> list[WineRow]:
                     price_confidence=o.price_confidence,
                     discount_percent=o.discount_percent,
                     discount_plausibility=o.discount_plausibility,
+                    units=o.units,
                 )
             )
         _attach_critic_scores(row, group)

@@ -257,6 +257,11 @@
   .bad { color:var(--bad); }
   .warn { color:var(--accent); }
   .matched { color:var(--faint); font-size:.78em; }
+  /* Die Abnahmemenge steht unter dem Preis, nicht daneben: sie ist eine Bedingung des
+     Preises und keine zweite Zahl. Im Akzent, weil sie eine Einschränkung ist, die man
+     vor dem Klick sehen muss — nicht in Gold, das trägt den Wert. */
+  .gebinde { display:block; color:var(--accent); font-size:var(--fs-label);
+             letter-spacing:.04em; white-space:normal; margin-top:3px; }
   /* Sorte und Trinkreife als gesperrte Versalien, nicht als gefüllte Pillen —
      Flächen gehören in dieser Richtung nicht ins Bild. */
   .pill { display:inline-block; font-size:var(--fs-label); letter-spacing:.14em;

@@ -143,6 +143,12 @@ def _price_cell(row: WineRow, style) -> Paragraph:
     )
     if cheapest and cheapest.price_raw is not None and cheapest.price_raw != best:
         text += f"<br/><font size=6.5>({chf(cheapest.price_raw)} {ch(cheapest.price_raw_basis)})</font>"
+    # Die Verpflichtung gehört zum Preis. Ohne sie stand CHF 45.47 da und gemeint war
+    # eine Sechserkiste zu CHF 272.82 — der Preis je Flasche stimmt, kaufen kann man ihn
+    # so nicht. 7 Prozent der Marktplatzangebote sind Kisten.
+    if cheapest and (cheapest.units or 1) > 1:
+        text += (f"<br/><font size=6.5><b>nur {cheapest.units}er-Gebinde</b>, "
+                 f"zusammen {chf(cheapest.gesamtpreis)}</font>")
     return Paragraph(text, style)
 
 

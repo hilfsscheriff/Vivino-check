@@ -1,8 +1,8 @@
 # Spec: Stil-Typ («Typ») für Weincheck
 
 **Zielprojekt:** `hilfsscheriff/Vivino-check`
-**Version:** 1.2
-**Status:** umgesetzt
+**Version:** 1.3
+**Status:** umgesetzt, Restumfang gestrichen
 
 ---
 
@@ -60,7 +60,8 @@ Neue Felder pro Wein-Datensatz:
 
 ```
 typ            : enum   // fruchtsuess | weich_modern | ausgewogen | straff_herb | unbekannt
-typ_stufe      : int    // 1 = gesichert, 2 = abgeleitet, 3 = vermutet, 0 = unbekannt
+typ_stufe      : int    // 1 = gesichert, 2 = abgeleitet, 0 = unbekannt
+                        // 3 (vermutet) gestrichen, siehe §5
 typ_signale    : string[] // menschenlesbare Belege, z.B. ["Name: appassimento", "Alkohol 15.0 %"]
 typ_score      : float  // interner Rohwert, -1.0 (straff) bis +1.0 (fruchtsüss); nur für Debug
 ```
@@ -71,7 +72,9 @@ typ_score      : float  // interner Rohwert, -1.0 (straff) bis +1.0 (fruchtsüss
 
 ## 4. Klassifikations-Kaskade
 
-Drei Stufen mit absteigender Sicherheit. **Die erste greifende Stufe entscheidet**; spätere Stufen können den Wert nicht überschreiben. Die entscheidende Stufe wird in `typ_stufe` festgehalten und in der UI ausgewiesen.
+Stufen mit absteigender Sicherheit. **Die erste greifende Stufe entscheidet**; spätere Stufen können den Wert nicht überschreiben. Die entscheidende Stufe wird in `typ_stufe` festgehalten.
+
+Ursprünglich drei Stufen. Stufe 3 (Verkostungsnotiz) ist am 12.8.2026 gestrichen — siehe §5. Es bleiben Stufe 1 (gesichert, mit 1a–1d) und Stufe 2 (abgeleitet).
 
 ### Stufe 1 — Gesichert (`typ_stufe = 1`)
 
@@ -201,40 +204,26 @@ Bei weniger als drei Gesamttreffern: `unbekannt`. Zu dünne Basis für eine Auss
 
 ## 5. Keyword-Buckets
 
-Ablage: `data/typ_keywords.json`. Diakritikaunempfindlich matchen, Wortstämme genügen.
+**Gestrichen am 12. August 2026. Wird nicht umgesetzt.**
 
-**Bucket A — opulent / fruchtsüss**
+Die beiden Wortlisten (Bucket A opulent/fruchtsüss, Bucket B straff/herb) und die
+Stufe, die sie las, sind aus dem Code entfernt. Grund ist nicht die Qualität der Listen,
+sondern dass sie nie gelesen wurden: `einordnen` bekam von **keinem**
+Produktionsaufrufer ein `notiz`-Argument, nur von vier Tests. Über den ganzen Bestand
+feuerte Stufe 3 bei **null von 1472** Weinen.
 
-```
-vanille, kakao, schokolade, kaffee, espresso, mokka, lakritze,
-marmelade, konfiture, konfituere, eingekocht, doerrfrucht, rosine,
-dattel, feige, pflaumenkompott, karamell, toffee, honig, kokos,
-samtig, samten, weich, rund, cremig, schmeichelnd, sanft, ueppig,
-opulent, wuchtig, fuellig, morbido, geschmeidig, milder,
-kraftvoll-suess, restsuesse, fruchtsuess,
-reich, reichhaltig, dicht, dichte frucht, konzentriert,
-bold, powerful, intensiv, gross, kraftvoll, kraeftig
-```
+Die Datengrundlage fehlt ebenfalls und ist nicht in Sicht: dieses Projekt liest keine
+Verkostungsnotizen. `Offer.source_note` trägt Preis- und Gebindehinweise, Median 40
+Zeichen. Dafür müssten die Detailseiten der Händler mitgelesen werden — ein eigener
+Abruf je Wein bei 17 Quellen.
 
-*Neu in 1.1:* die Gruppe ab `reich`. Sie beschreibt Konzentration, und Konzentration entsteht bei diesen Weinen auf demselben Weg wie die Süsse — über Reife, Antrocknen und Holz. `kraeftig` steht dabei nicht in der ursprünglichen Vorlage, ist aber nötig: die Händlernotiz des Anlassfalls lautet wörtlich «reich, dicht, kräftig», und `kraftvoll` trifft `kräftig` nicht. Ohne das Wort blieben zwei Treffer, und Stufe 3 hätte am eigenen Anlassfall weiter geschwiegen.
+Mit der Stufe fallen 88 Zeilen gepflegte Wörter, `MIN_KEYWORD_TREFFER`,
+`Einordnung.unsicher` und das Fragezeichen der Anzeige: es markierte die Schätzung, und
+es gibt keine mehr. Die verbleibenden Stufen sind Messung (Stufe 2) oder gesichertes
+Signal (Stufe 1, 1d).
 
-**Bucket B — straff / herb**
-
-```
-gerbstoff, tannin-praesent, herb, bitter, salzig, salzig-mineralisch,
-mineralisch, kraeuter, kraeutrig, wacholder, thymian, rosmarin,
-leder, tabak, teer, rauch, feuerstein, graphit, bleistift,
-frisch, frische, saftig-frisch, saeure, saeurebetont, straff,
-knackig, kantig, streng, austere, nervig, geradlinig, schlank,
-zitrusfrisch, sauerkirsche, rhabarber, blutorange, granatapfel
-```
-
-**Fallen, die zu vermeiden sind:**
-
-- «Kirsche» allein ist neutral. Nur `sauerkirsche` in Bucket B, nur `kirschkonfitüre` in Bucket A.
-- «Beere» allein ist neutral.
-- «Lakritze» steht in Bucket A, weil sie in Händlertexten fast ausschliesslich zusammen mit Kakao und Vanille auftritt. Falls Fehlklassifikationen auffallen, in eine neutrale Liste verschieben.
-- Marketingfloskeln («Genuss», «Charakter», «Eleganz») nie einlesen.
+Ein Test hält fest, dass die Listen nicht aus Gewohnheit zurückkehren, ohne dass etwas
+sie füttert.
 
 ---
 
@@ -357,7 +346,17 @@ Schritte 1 bis 4 sind für sich wertvoll und liefern schon die Kernaussage. Fall
 
 ## 10. Offene Punkte
 
-- **Verfügbarkeit von `wine_style`:** Vor Schritt 3 prüfen, ob das Feld über den bestehenden Vivino-Zugriff verlässlich mitkommt. Wenn nicht, entscheidet der Fallback aus §4 Stufe 2 über den Nutzwert der ganzen Änderung.
+### Entschieden und gestrichen (12. August 2026)
+
+Nicht mehr offen, damit es nicht wieder aufgemacht wird:
+
+- **Stufe 3 / Keyword-Buckets** — gestrichen, siehe §5. Nie erreichbar, keine Datengrundlage.
+- **`Sorte × Land × Region`-Rückfall für Kriterium 2** — wird nicht gebaut, siehe §8. Kuratieren statt Messen; ein falscher Typ verschiebt die Kennzahl still.
+- **Prodega-Login** — kein Konto. Es bleibt beim öffentlichen Sortiment; es fehlen nur die marktspezifischen Preise, nicht das Sortiment.
+
+### Weiter offen
+
+- **Verfügbarkeit von `wine_style`:** ~~Vor Schritt 3 prüfen~~ — **erledigt.** Das Feld kommt verlässlich mit, und die Explore-Antwort liefert zusätzlich `taste.structure` pro Wein. Stufe 2 trägt damit 892 der 1472 Weine.
 - **Weisswein und Schaumwein:** Diese Spec ist an Rotwein entwickelt. Für Weissweine trägt die Achse anders (Restzucker ist bei Riesling ein Qualitätsmerkmal, kein Stilmarker). Entweder eine eigene Achse oder Weissweine zunächst auf `unbekannt` setzen und explizit ausweisen.
 - **Produzenten-Ebene:** Mehrere Fälle (Leonardo da Vinci, Tenuta Ulisse) sind nur über die Produktlinie klassifizierbar, nicht über den Weinnamen. Eine Tabelle `produzent × linie → typ` wäre die saubere Lösung, aber pflegeintensiv. Zunächst über die Stilmarken-Liste abdecken und beobachten, wie viele Fälle auflaufen.
 - **Jahrgangsabhängigkeit:** Ein warmer Jahrgang verschiebt einen Wein um eine Kategorie (Argiano 2020 gegen 2016). Bewusst ignoriert. Falls es störend auffällt, liesse sich die bestehende Trinkreifetabelle als Jahrgangs-Korrektiv nutzen, was aber Aufwand und Fehlerquellen deutlich erhöht.
@@ -367,6 +366,27 @@ Schritte 1 bis 4 sind für sich wertvoll und liefern schon die Kernaussage. Fall
 ---
 
 ## Changelog
+
+### Version 1.3 — 12. August 2026
+
+Restumfang gestrichen. Was nicht umgesetzt wird, steht jetzt als Entscheid da und nicht
+als offener Punkt — ein offener Punkt wird wieder aufgemacht, ein Entscheid nicht.
+
+- **§5 Keyword-Buckets gestrichen.** Nicht wegen der Listen, sondern weil sie nie
+  gelesen wurden: `einordnen` bekam von keinem Produktionsaufrufer eine Notiz, nur von
+  vier Tests, und Stufe 3 feuerte bei null von 1472 Weinen. Code, Konstante, 88 Zeilen
+  Wörter, `Einordnung.unsicher` und das Fragezeichen der Anzeige sind entfernt.
+- **§3 Datenmodell:** `typ_stufe` kennt nur noch 0, 1 und 2.
+- **§4 Kaskadenkopf** nennt die verbleibenden Stufen.
+- **§8 Kriterium 2** bleibt gerissen, und das ist entschieden: der
+  `Sorte × Land × Region`-Rückfall wird nicht gebaut. Er wäre Kuratieren statt Messen,
+  und ein falsch geratener Typ verschiebt die Bezugsgruppe der Preis-Leistungs-Zahl,
+  ohne dass es auffällt.
+- **§10** um die drei erledigten Entscheide bereinigt.
+
+Ausserhalb der Spec am selben Tag entschieden: Prodega bleibt ohne Login, also beim
+öffentlichen Sortiment.
+
 
 ### Version 1.2 — 12. August 2026
 
@@ -392,7 +412,9 @@ Schritte 1 bis 4 sind für sich wertvoll und liefern schon die Kernaussage. Fall
 **Ergebnisse der Umsetzung, gemessen am 10.8.2026** über 1570 Weine:
 
 - **Kriterium 1 erfüllt** — alle Stufe-1-Fixtures treffen, inklusive des neuen Gran Sasso (`fruchtsuess`, Stufe 1, Signal «Denomination ohne Herkunft ('Vino d'Italia'), jahrgangslos»).
-- **Kriterium 2 gerissen: 38.0 % `unbekannt` statt unter 15 %.** Das ist kein Klassifikationsfehler, sondern eine Datengrenze: 448 der 597 Weine haben überhaupt keinen Vivino-Treffer, weitere 85 wurden über die Weingutseite gefunden, die weder `taste` noch `style` liefert. Um unter 15 % zu kommen, müsste der `Sorte × Land × Region`-Rückfall aus §4 gebaut werden — von Hand gepflegt, von §4 selbst als schwächster Weg bezeichnet, und jeder Eintrag eine Behauptung über eine Weinart. Offen.
+- **Kriterium 2 gerissen: 38.0 % `unbekannt` statt unter 15 %.** Das ist kein Klassifikationsfehler, sondern eine Datengrenze: 448 der 597 Weine haben überhaupt keinen Vivino-Treffer, weitere 85 wurden über die Weingutseite gefunden, die weder `taste` noch `style` liefert. Um unter 15 % zu kommen, müsste der `Sorte × Land × Region`-Rückfall aus §4 gebaut werden — von Hand gepflegt, von §4 selbst als schwächster Weg bezeichnet, und jeder Eintrag eine Behauptung über eine Weinart.
+
+**Am 12. August 2026 entschieden: wird nicht gebaut, das Kriterium bleibt gerissen.** Der Rückfall wäre Kuratieren und nicht Messen, und ein falsch geratener Typ verschiebt die Preis-Leistungs-Zahl still — er ändert die Bezugsgruppe, gegen die ein Wein normalisiert wird, ohne dass es irgendwo auffällt. Eine ehrliche Lücke von 35 % ist billiger als eine Kennzahl, der man nicht mehr trauen kann. Die Weine ohne Typ werden gegen die globale Verteilung gerechnet (§6) und in der UI als `unbekannt` ausgewiesen.
 - **Kriterium 3 erfüllt** — kein Wein trägt einen Typ ohne Eintrag in `typ_signale`.
 - **Kriterium 4 erfüllt, und deutlich.** Im Quadranten «gut und günstig» (Note ≥ 4.2, ≤ CHF 20, 46 Weine) verteilen sich die eingeordneten auf 59 % `fruchtsuess`, 20 % `weich_modern`, 8 % `ausgewogen`, 13 % `straff_herb`. Über den ganzen bewerteten Bestand sind es 19 / 16 / 21 / 35 %. Die fruchtsüsse Machart ist dort also **dreifach übervertreten**, die straffe fast dreifach unter — genau der Befund aus §1.1.
 - **Kriterium 5 erfüllt** — die Rangfolge verschiebt sich um im Median 51 Plätze, nur 11 von 891 vergleichbaren Weinen bleiben stehen. Beim Gegenlesen der zehn grössten Änderungen zeigt sich die beabsichtigte Richtung: zwei Amarone und beide Moët Ice Impérial (Demi-Sec) fallen um 300 bis 500 Plätze, ein Minuty M Rosé und ein Tua Rita Syrah steigen um 500 bis 550.

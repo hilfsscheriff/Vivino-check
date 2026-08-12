@@ -40,13 +40,18 @@ drei Stufen dieses Projekt überhaupt tragen kann:
   *Messung am einzelnen Wein* und schlägt jede Tabelle über Gattungen. Fällt sie aus,
   folgt ``style.baseline_structure`` (der Normalwert seines Stils), danach die
   Stiltabelle.
-* **Stufe 3 — Verkostungsnotiz: trägt nicht.** Dieses Projekt liest keine
-  Verkostungsnotizen. ``Offer.source_note`` trägt Preis- und Gebindehinweise, Median
-  40 Zeichen; die Keyword-Buckets aus der Spec ergeben über den ganzen Bestand
-  **null** Treffer. Die Stufe ist implementiert und wird aufgerufen, liefert aber
-  ``unbekannt``, solange die Detailseiten der Händler nicht mitgelesen werden. Sie
-  vorzutäuschen wäre schlimmer als die Lücke: ein geratener Typ verschiebt eine
-  Kennzahl, ohne dass es jemand merkt.
+* **Stufe 3 — Verkostungsnotiz: gestrichen.** Sie stand in der Spec und war
+  implementiert, aber sie war nie erreichbar: ``einordnen`` bekam von keinem
+  Produktionsaufrufer ein ``notiz``-Argument, nur von vier Tests. Über den ganzen
+  Bestand feuerte sie darum bei **null von 1472** Weinen — nicht wegen zu wenig
+  Treffern, sondern weil nichts sie fütterte.
+
+  Die Grundlage fehlt auch: dieses Projekt liest keine Verkostungsnotizen.
+  ``Offer.source_note`` trägt Preis- und Gebindehinweise, Median 40 Zeichen. Am
+  12.8.2026 entschieden, sie nicht nachzuziehen — also weg, statt Code zu behalten,
+  der aussieht, als arbeite er. Mit ihr fällt das Fragezeichen der Anzeige und
+  ``Einordnung.unsicher``: die verbleibenden Stufen sind Messung oder gesichertes
+  Signal, keine Schätzung.
 
 Ohne Begründung kein Typ: jede Einordnung führt ihre Signale im Klartext mit, und die
 Anzeige zeigt sie. Ein Wert, den niemand nachprüfen kann, hat in diesem Projekt noch
@@ -98,11 +103,6 @@ MIN_STRUKTUR_URTEILE = 15
 #: bestätigen: hier wird nicht eine Lage abgefüllt, sondern ein Geschmack gebaut.
 SORTE_OHNE_HERKUNFT = ("cuvee", "red blend", "white blend")
 
-#: Unter so vielen Keyword-Treffern insgesamt sagt Stufe 3 nichts. Zwei Wörter in
-#: einem Werbetext sind keine Beschreibung eines Weins.
-MIN_KEYWORD_TREFFER = 3
-
-
 def _falten(text: str) -> str:
     """Vergleichsform für das Matchen von Tokens.
 
@@ -141,8 +141,6 @@ class Tabelle:
     stilmarken: tuple[str, ...]
     denominationen: tuple[str, ...]
     stil_tabelle: dict[str, str]
-    opulent: tuple[str, ...]
-    straff: tuple[str, ...]
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> Tabelle:
@@ -152,14 +150,11 @@ class Tabelle:
         tokens: list[str] = []
         for gruppe in (rohdaten.get("suesse_tokens") or {}).values():
             tokens.extend(gruppe or [])
-        kw = rohdaten.get("keywords") or {}
         return cls(
             suesse_tokens=tuple(tokens),
             stilmarken=tuple(rohdaten.get("stilmarken") or []),
             denominationen=tuple(rohdaten.get("denominationen") or []),
             stil_tabelle=dict(rohdaten.get("stil_tabelle") or {}),
-            opulent=tuple(kw.get("opulent") or []),
-            straff=tuple(kw.get("straff") or []),
         )
 
 
@@ -221,10 +216,6 @@ class Einordnung:
     def label(self) -> str:
         return TYP_LABELS.get(self.typ, self.typ)
 
-    @property
-    def unsicher(self) -> bool:
-        """Nur Stufe 3 ist eine Schätzung. Die Anzeige hängt daran ein Fragezeichen."""
-        return self.stufe == 3
 
 
 def typ_aus_score(score: float) -> str:
@@ -474,28 +465,6 @@ def _stufe2(
     return None
 
 
-# ------------------------------------------------------------------ Stufe 3
-
-
-def _stufe3(notiz: str, tab: Tabelle) -> Einordnung | None:
-    """Keyword-Analyse der Verkostungsnotiz. Siehe Modulkopf: heute ohne Datenbasis."""
-    if not notiz.strip():
-        return None
-    hay = _falten(notiz)
-    a = [w for w in tab.opulent if _wortgrenze(w).search(hay)]
-    b = [w for w in tab.straff if _wortgrenze(w).search(hay)]
-    if len(a) + len(b) < MIN_KEYWORD_TREFFER:
-        return None
-    score = (len(a) - len(b)) / max(1, len(a) + len(b))
-    belege = ", ".join(a[:3] + b[:3])
-    return Einordnung(
-        typ=typ_aus_score(score),
-        stufe=3,
-        signale=[f"Notiz nennt {belege}"],
-        score=round(score, 3),
-    )
-
-
 # ------------------------------------------------------------------ Kaskade
 
 
@@ -503,7 +472,6 @@ def einordnen(
     name: str,
     *,
     datenblatt: str = "",
-    notiz: str = "",
     struktur: Struktur | None = None,
     baseline: Struktur | None = None,
     stil_name: str = "",
@@ -519,7 +487,6 @@ def einordnen(
 
     Args:
         datenblatt: Händlertext mit möglichen Analysewerten.
-        notiz: Verkostungsnotiz für Stufe 3.
         struktur: Vivinos gemessene Struktur zu genau diesem Wein.
         baseline: Normalwert seines Vivino-Stils.
         stil_name: ``wine.style.name``, für die Tabelle und als Beleg. Dient Stufe 1d
@@ -534,7 +501,6 @@ def einordnen(
         _stufe1(name, datenblatt, t),
         _stufe1d(denomination, name, jahrgang, stil_name, t),
         _stufe2(struktur, baseline, stil_name, t),
-        _stufe3(notiz, t),
     ):
         if ergebnis is not None:
             return ergebnis
