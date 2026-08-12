@@ -259,6 +259,25 @@ retailers:
     # nur weil bei den Schweizer Händlern die Hälfte der Weine mangels auffindbarer
     # Note gar nicht antritt. Die Schnäppchen-Spalte bleibt hier leer — sie vergliche
     # einen Vivino-Preis mit einem Vivino-Preis.
+    #
+    # WICHTIG, seit 12.8.2026: Vivino ist hier nicht der Verkäufer, sondern der
+    # Vermittler. Verkauft wird von Dritten (vinpark.ch, vino.com, chezgrisoni.ch,
+    # gerstl.ch …), und der Preis kommt aus Vivinos Angebotsdaten — er wird **nicht**
+    # auf der Seite des Verkäufers nachgeprüft. Das ist ein anderer Grad von
+    # Sicherheit als bei den Schweizer Händlern, deren Preise von ihrer eigenen
+    # Seite gelesen werden.
+    #
+    # Vom Nutzer gemeldet und an der Quelle bestätigt: Pio Cesare Barolo 2016 stand
+    # mit CHF 45.47 in Vivinos Daten, vinpark.ch verlangt CHF 57.65 — 21 % mehr, und
+    # zwar nicht wegen eines veralteten Caches: Vivino liefert die 45.47 weiterhin.
+    # Stichprobe über 12 Händlerangebote: bei 4 stand Vivinos Betrag nicht auf der
+    # Seite des Verkäufers. Gesehene Ursachen: Angebot ausverkauft (vino.com),
+    # anderer Betrag (chezgrisoni.ch), nur der Referenzpreis vorhanden.
+    #
+    # Nicht als PriceConfidence abgebildet: das Feld trägt die Sicherheit der
+    # Gebindegrösse, und zwei Bedeutungen in einem Feld waren in diesem Projekt
+    # schon einmal teuer. Stattdessen steht die Herkunft beim Preis („Preis laut
+    # Vivino") und als Satz unter der Marktplatz-Liste.
     role: reference_shop
     note: "Preise in CHF pro 0,75-l-Flasche laut bottle_type; nur diese Flaschengrösse wird übernommen."
     verified_at: "2026-08-08"

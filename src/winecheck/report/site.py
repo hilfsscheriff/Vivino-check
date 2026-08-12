@@ -686,6 +686,19 @@ _TEMPLATE = r"""<!doctype html>
   </main>
 
   <footer>
+    <!-- Anlass war eine Meldung mit drei Worten — „preis finde ich nicht" — und sie traf
+         zu: der Pio Cesare Barolo 2016 stand mit CHF 45.47 in Vivinos Angebotsdaten,
+         vinpark.ch verlangt CHF 57.65. Kein veralteter Cache, Vivino liefert die 45.47
+         weiterhin. Die Stichprobe steht im Satz, weil eine Warnung ohne Zahl entweder
+         überlesen oder überbewertet wird. -->
+    <p><b>Preise beim Vivino-Marktplatz.</b> Dort vermittelt Vivino nur — verkauft wird
+       von Dritten (vinpark.ch, vino.com, chezgrisoni.ch und andere). Der Betrag stammt
+       aus Vivinos Angebotsdaten und wird <b>nicht</b> auf der Seite des Verkäufers
+       nachgeprüft, anders als bei den Schweizer Händlern, deren Preise von ihrer eigenen
+       Seite gelesen werden. In einer Stichprobe von zwölf Angeboten stand Vivinos Betrag
+       bei vier nicht auf der Verkäuferseite — ausverkauft, Preis inzwischen anders, oder
+       nur der Referenzpreis vorhanden; in einem nachgeprüften Fall lag Vivino 21 % zu
+       tief. Vor dem Kauf dem Verweis folgen und den Preis dort ansehen.</p>
     <p><b>Bewertungen</b> von <a href="https://www.vivino.com" target="_blank" rel="noopener">Vivino</a>.
        Die Achse zeigt ausschliesslich die Vivino-Note in ihrer eigenen Skala 1–5 —
        Falstaff- und andere Kritikerpunkte stehen in der Tabelle, aber nicht auf der

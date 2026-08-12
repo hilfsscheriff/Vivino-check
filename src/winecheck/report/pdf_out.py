@@ -149,6 +149,12 @@ def _price_cell(row: WineRow, style) -> Paragraph:
     if cheapest and (cheapest.units or 1) > 1:
         text += (f"<br/><font size=6.5><b>nur {cheapest.units}er-Gebinde</b>, "
                  f"zusammen {chf(cheapest.gesamtpreis)}</font>")
+    # Die Herkunft des Preises, und zwar eigenständig — nicht im Klammerzusatz oben.
+    # Der erscheint nur, wenn Roh- und Normalpreis auseinandergehen, und beim Marktplatz
+    # sind sie gleich: „Preis laut Vivino" stand damit in der CSV und im PDF nirgends,
+    # ausgerechnet bei der Quelle, für die der Hinweis gemacht ist.
+    if cheapest and cheapest.retailer in MARKTPLATZ_QUELLEN:
+        text += "<br/><font size=6.5>Preis laut Vivino, nicht beim Verkäufer geprüft</font>"
     return Paragraph(text, style)
 
 
@@ -277,6 +283,28 @@ _PL_ERKLAERUNG = (
     "Unsicherheit des Modells; die Reihenfolge innerhalb einer solchen Gruppe bedeutet "
     "nichts. Gerechnet wird immer auf den Aktionspreis, nie auf den Rabatt; ein ! "
     "markiert einen fragwürdigen Referenzpreis bei einer Eigenmarke."
+)
+
+
+#: Was der Leser über einen Marktplatzpreis wissen muss, bevor er klickt.
+#:
+#: Anlass war eine Meldung mit drei Worten — „preis finde ich nicht" — und sie traf zu:
+#: der Pio Cesare Barolo 2016 stand mit CHF 45.47 in Vivinos Daten, vinpark.ch verlangt
+#: CHF 57.65. Nicht ein veralteter Cache: Vivino liefert die 45.47 weiterhin.
+#:
+#: Die Stichprobe steht im Satz, weil eine Warnung ohne Zahl entweder überlesen oder
+#: überbewertet wird. 12 Händlerangebote geprüft, bei 4 stand Vivinos Betrag nicht auf
+#: der Seite des Verkäufers.
+_MARKTPLATZ_PREISHINWEIS = (
+    "Zum Preis in dieser Liste: Vivino vermittelt hier, verkauft wird von Dritten "
+    "(vinpark.ch, vino.com, chezgrisoni.ch und andere). Der Betrag stammt aus Vivinos "
+    "Angebotsdaten und wird <b>nicht</b> auf der Seite des Verkäufers nachgeprüft — "
+    "anders als bei den Schweizer Händlern, deren Preise von ihrer eigenen Seite "
+    "gelesen werden. In einer Stichprobe von 12 Angeboten stand Vivinos Betrag bei "
+    "4 nicht auf der Verkäuferseite; gesehene Gründe: Angebot ausverkauft, Preis "
+    "inzwischen anders, nur der Referenzpreis vorhanden. In einem nachgeprüften Fall "
+    "lag Vivino 21 % zu tief. Vor dem Kauf also dem Verweis folgen und den Preis dort "
+    "ansehen."
 )
 
 
@@ -574,6 +602,11 @@ def write_pdf(
             story.append(_ranking_table(
                 besten, st, info=info, show_falstaff=show_falstaff, show_value=True
             ))
+            # Beim Marktplatz gehört die Herkunft des Preises dazu. Vivino vermittelt,
+            # verkauft wird von Dritten, und der Betrag stammt aus Vivinos
+            # Angebotsdaten — nicht von der Seite des Verkäufers.
+            if titel.startswith("Vivino-Marktplatz"):
+                story.append(Paragraph(ch(_MARKTPLATZ_PREISHINWEIS), st["small"]))
 
         # Und dieselbe Frage noch einmal je Preisklasse, für den Schweizer Handel.
         #

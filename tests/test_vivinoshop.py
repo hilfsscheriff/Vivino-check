@@ -314,3 +314,35 @@ def test_die_gebindeangabe_kommt_bis_in_die_zeile():
     flach = row.to_flat()
     assert flach["units_vivinoshop"] == "6"
     assert flach["total_vivinoshop"] == "272.82"
+
+
+def test_der_preis_nennt_seine_herkunft(adapter):
+    """Vivino ist hier Vermittler, nicht Verkäufer. Der Betrag stammt aus seinen
+    Angebotsdaten und wird nicht beim Verkäufer nachgeprüft.
+
+    Vom Nutzer gemeldet und an der Quelle bestätigt: Pio Cesare Barolo 2016 stand mit
+    CHF 45.47 in Vivinos Daten, vinpark.ch verlangt CHF 57.65 — 21 % mehr, und kein
+    veralteter Cache. Stichprobe über 12 Händlerangebote: bei 4 stand Vivinos Betrag
+    nicht auf der Verkäuferseite.
+
+    Bewusst nicht über ``PriceConfidence``: das Feld trägt die Sicherheit der
+    Gebindegrösse, und zwei Bedeutungen in einem Feld waren hier schon einmal teuer.
+    """
+    o = adapter._offer(_treffer())
+    assert "Preis laut Vivino" in o.price_raw_basis, o.price_raw_basis
+    assert o.price_confidence.value == "high", "die Gebindegrösse bleibt sicher"
+
+
+def test_die_preisherkunft_steht_im_pdf_und_im_tooltip():
+    """Sie stand zuerst nur im ``price_raw_basis`` — und der wird im PDF nur gedruckt,
+    wenn Roh- und Normalpreis auseinandergehen. Beim Marktplatz sind sie gleich, also
+    erschien der Hinweis nirgends: ausgerechnet bei der Quelle, für die er gemacht ist.
+    """
+    from pathlib import Path
+
+    wurzel = Path(__file__).resolve().parents[1]
+    pdf = (wurzel / "src/winecheck/report/pdf_out.py").read_text(encoding="utf-8")
+    assert "cheapest.retailer in MARKTPLATZ_QUELLEN" in pdf
+    assert "nicht beim Verkäufer geprüft" in pdf
+    js = (wurzel / "src/winecheck/report/assets/app.js").read_text(encoding="utf-8")
+    assert 'row("Preisquelle"' in js

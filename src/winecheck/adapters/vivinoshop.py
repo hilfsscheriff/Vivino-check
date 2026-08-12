@@ -247,7 +247,22 @@ class VivinoShopAdapter(RetailerAdapter):
             vat_included=True,
             price_basis="bottle",
         )
-        if offer is not None and flaschen:
+        if offer is None:
+            return None
+        # Die Herkunft des Preises gehört an den Preis. Vivino ist hier nicht der
+        # Verkäufer, sondern der Vermittler — verkauft wird von Dritten, und der Betrag
+        # kommt aus Vivinos Angebotsdaten, nicht von der Seite des Verkäufers.
+        #
+        # Vom Nutzer gemeldet und an der Quelle bestätigt: Pio Cesare Barolo 2016 stand
+        # mit CHF 45.47 in Vivinos Daten, vinpark.ch verlangt CHF 57.65 — 21 % mehr, und
+        # kein veralteter Cache: Vivino liefert die 45.47 weiterhin. Stichprobe über 12
+        # Händlerangebote: bei 4 stand Vivinos Betrag nicht auf der Seite des Verkäufers
+        # (ausverkauft, anderer Betrag, nur Referenzpreis).
+        #
+        # Bewusst **nicht** über PriceConfidence: das Feld trägt die Sicherheit der
+        # Gebindegrösse. Zwei Bedeutungen in einem Feld waren hier schon einmal teuer.
+        offer.price_raw_basis = (offer.price_raw_basis + ", Preis laut Vivino").lstrip(", ")
+        if flaschen:
             offer.units = flaschen
             offer.source_note = (
                 f"nur im {flaschen}er-Gebinde: CHF {betrag * flaschen:.2f} für "

@@ -283,6 +283,13 @@ function chart(list) {
     if (valueOf(p) != null) h += row("Preis-Leistung", valueText(p));
     h += row("Preis/75cl", chf(p.price));
     if (gebindeText(p)) h += row("Abnahme", `<span class="warn">${esc(gebindeText(p))}</span>`);
+    /* Beim Marktplatz gehört die Herkunft des Preises dazu: Vivino vermittelt, verkauft
+       wird von Dritten, und der Betrag stammt aus Vivinos Angebotsdaten. In einer
+       Stichprobe von zwölf stand er bei vier nicht auf der Verkäuferseite. Hier im
+       Tooltip und nicht in der Zeile — 625 von 1459 Weinen betrifft es, in der Liste
+       wäre es Rauschen, beim Nachsehen ist es die Antwort. */
+    if (p.cheapest === "vivinoshop")
+      h += row("Preisquelle", `<span class="warn">laut Vivino, nicht beim Verkäufer geprüft</span>`);
     h += row("Händler", esc((D.retailers.find(r => r.key === p.cheapest) || {}).name || p.cheapest));
     if (p.bargain != null) {
       const c = p.bargain > 0 ? "good" : "bad";
