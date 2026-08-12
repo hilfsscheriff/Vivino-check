@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from ..names import STYLE_LABELS
+from ..prices import MARKTPLATZ_QUELLEN
 # Die Preis-Leistungs-Rechnung hat einen Besitzer: winecheck.wert. Sie stand hier und
 # in aggregate.compute_scores, zwei verschiedene Formeln unter demselben Namen.
 from ..wert import (
@@ -74,16 +75,6 @@ _GROUND_LIGHT, _GROUND_DARK = "#faf9f7", "#141114"
 
 
 
-#: Quellen, deren Weine ihre Bewertung mitbringen statt sie über einen
-#: Namensabgleich zu finden. Aktuell nur Vivinos eigener Marktplatz.
-#:
-#: Diese Weine werden getrennt gerechnet und angezeigt. Der Grund ist kein
-#: Misstrauen gegen die Quelle, im Gegenteil: ihre Noten sind die verlässlichsten
-#: im ganzen Bestand. Aber bei den Schweizer Händlern tritt nur rund die Hälfte der
-#: Weine überhaupt an — die andere Hälfte findet bei Vivino keinen Eintrag. In einer
-#: gemeinsamen Rangliste gewänne der Marktplatz jeden Platz, ohne dass daraus etwas
-#: über die Weine folgte.
-MARKTPLATZ_QUELLEN = frozenset({"vivinoshop"})
 
 #: Rebsorten, die sich auf der Seite gezielt ausblenden lassen.
 #:

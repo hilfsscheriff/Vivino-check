@@ -37,6 +37,8 @@ import math
 import statistics
 from typing import Any
 
+from .stiltyp import UNBEKANNT
+
 
 #: So viele Weine braucht ein Lauf, damit sich ein Preisniveau schätzen lässt.
 VALUE_MIN_SAMPLE = 12
@@ -99,13 +101,32 @@ def _wirksame_note(wines: list[dict[str, Any]]):
 
     Gemessen wird über den **ganzen** Lauf, nicht je Sorte: eine 4.5 ist selten,
     unabhängig davon, ob sie an einem Rotwein oder einem Champagner hängt.
+
+    „Der ganze Lauf" heisst: dieselbe Menge, die auch in die Regression eingeht — Note
+    *und* brauchbarer Preis. Der Preisfilter steht hier und nicht bei den Aufrufern,
+    weil er genau dort auseinanderlief: die Seite übergab alle Weine, ``aggregate`` nur
+    die mit Preis. Eine einzige zusätzliche Note verschiebt die Seltenheitskurve, und
+    damit stand für jeden Wein eine andere Zahl in der CSV als auf der Seite. Wer die
+    Menge bestimmen darf, muss eine Stelle sein.
     """
-    noten = sorted(w["rating"] for w in wines if w.get("rating") is not None)
+    # Auf ein Zehntel runden, bevor gezählt wird. Vivino liefert die Note als float32,
+    # und damit sind 4.2 und 4.199999809265137 zwei verschiedene Zahlen. Der Vergleich
+    # ``x >= r - 1e-9`` zählte sie als getrennte Notenstufen, und eine Stufe, die es nur
+    # in der Zahlendarstellung gibt, macht eine Note seltener als sie ist: bis zu 0.083
+    # wirksame Note geschenkt, nach der Preisformel rund 31 Prozent Preisvorteil.
+    #
+    # Ein Zehntel ist die Auflösung, in der Vivino Noten überhaupt ausweist — gerundet
+    # wird also auf das, was die Quelle meint.
+    noten = sorted(
+        round(w["rating"], 1) for w in wines
+        if w.get("rating") is not None and (w.get("price") or 0) > 0
+    )
     n = len(noten)
     if n < VALUE_MIN_SAMPLE:
         return lambda r: r
 
     def seltenheit(r: float) -> float:
+        r = round(r, 1)
         # bisect wäre schneller, aber n liegt bei rund tausend und die Funktion
         # läuft einmal je Wein — Klarheit geht hier vor.
         besser = sum(1 for x in noten if x >= r - 1e-9)
@@ -158,6 +179,24 @@ def _add_value_scores(wines: list[dict[str, Any]]) -> None:
     _je_typ(wines, "valueScoreAll", note)
 
 
+def _typ_gruppe(w: dict[str, Any]) -> str:
+    """Der Gruppenschlüssel eines Weins. ``""`` heisst „kein Typ".
+
+    ``unbekannt`` ist kein Typ, sondern das Eingeständnis, keinen zu kennen — die
+    Unterscheidung gehört hierher und nicht in die Aufrufer. Genau daran ist sie
+    nämlich auseinandergelaufen: die Seite gibt den Rohwert ``"unbekannt"`` weiter,
+    :func:`winecheck.aggregate._wert_scores` bildete ihn vorher selbst auf ``""`` ab.
+    Damit rechnete die Seite für 521 Weine eine eigene Kurve, die CSV für dieselben
+    Weine die globale — 295 von 1010 Zahlen wichen ab, bis zu 0.132 auf einer Skala
+    von rund ±0.5. Wieder zwei Zahlen unter einem Namen, nur eine Ebene tiefer.
+
+    Die globale Kurve ist die richtige, und der Grund steht in :func:`_je_typ`: aus
+    dem Fehlen einer Information keine Erwartung ableiten.
+    """
+    typ = w.get("typ") or ""
+    return "" if typ == UNBEKANNT else typ
+
+
 def _je_typ(wines: list[dict[str, Any]], feld: str, note) -> None:
     """Eine eigene Kurve je Stil-Typ, mit Rückfall über Sorte auf die ganze Gruppe.
 
@@ -197,7 +236,7 @@ def _je_typ(wines: list[dict[str, Any]], feld: str, note) -> None:
         return out
 
     rest: list[dict[str, Any]] = []
-    for typ, mit_typ in teilen(wines, lambda w: w.get("typ") or "").items():
+    for typ, mit_typ in teilen(wines, _typ_gruppe).items():
         if not typ:
             rest.extend(mit_typ)                      # ohne Typ: globale Kurve
             continue
@@ -210,12 +249,37 @@ def _je_typ(wines: list[dict[str, Any]], feld: str, note) -> None:
         # Bezugsmenge einer zu dünnen Zelle ist dabei der **ganze** Typ, nicht die
         # Sammlung der übrigen dünnen Zellen — drei Weisse gegen vier Rosés gerechnet
         # wäre keine Erwartung, sondern ein Zufall.
-        _value_scores_einer_gruppe(mit_typ, feld=feld, note=note)
-        for sorte_gruppe in teilen(mit_typ, lambda w: w.get("style") or "?").values():
-            if brauchbar(sorte_gruppe) >= VALUE_MIN_SAMPLE:
-                _value_scores_einer_gruppe(sorte_gruppe, feld=feld, note=note)
+        _nach_sorte(mit_typ, feld, note, brauchbar, teilen)
     if rest:
-        _value_scores_einer_gruppe(rest, feld=feld, note=note)
+        # Der Resttopf bekommt dieselbe zweite Ebene. Das fehlte, und es war der teuerste
+        # Fehler dieser Rechnung: 38 Champagner mit einem Medianpreis von CHF 42.42 lagen
+        # mit 30 Schaumweinen zu CHF 10.86 auf einer Kurve. Wer einen Champagner gegen
+        # Prosecco normalisiert, weil man von beiden die Machart nicht kennt, misst den
+        # Preisunterschied zweier Kategorien und nennt ihn Preis-Leistung.
+        #
+        # Messbar an der Spitze: Weine ohne Stil-Typ stellten 8.5 % der rankbaren Menge
+        # und 32 % der ersten 25 Plätze — ausgerechnet die eine Gruppe ohne
+        # Typkorrektur beherrschte die Liste, deren Rechtfertigung die Typkorrektur ist.
+        #
+        # Die Sorte trennt hier weiter, was sich preislich nicht vergleichen lässt — genau
+        # der Grund, aus dem sie innerhalb der Typen die zweite Ebene ist. „Kein Typ"
+        # bleibt dabei kein Typ: eine gemeinsame Kurve über alle typlosen Weine gibt es
+        # weiterhin, sie wird nur dort verfeinert, wo eine Sorte die Fallzahl trägt.
+        _nach_sorte(rest, feld, note, brauchbar, teilen)
+
+
+def _nach_sorte(gruppe, feld, note, brauchbar, teilen) -> None:
+    """Erst die gröbere Ebene für alle, dann die feinere für die Zellen, die sie tragen.
+
+    Die Reihenfolge ist der Trick: jeder Wein bekommt am Ende den feinsten Wert, den seine
+    Fallzahl hergibt, und keiner bleibt leer. Die Bezugsmenge einer zu dünnen Zelle ist
+    dabei die **ganze** übergeordnete Gruppe, nicht die Sammlung der übrigen dünnen Zellen
+    — drei Weisse gegen vier Rosés gerechnet wäre keine Erwartung, sondern ein Zufall.
+    """
+    _value_scores_einer_gruppe(gruppe, feld=feld, note=note)
+    for sorte_gruppe in teilen(gruppe, lambda w: w.get("style") or "?").values():
+        if brauchbar(sorte_gruppe) >= VALUE_MIN_SAMPLE:
+            _value_scores_einer_gruppe(sorte_gruppe, feld=feld, note=note)
 
 
 def _value_scores_einer_gruppe(
@@ -249,7 +313,14 @@ def _value_scores_einer_gruppe(
     n = len(xs)
     mean_x, mean_y = sum(xs) / n, sum(ys) / n
     spread = sum((x - mean_x) ** 2 for x in xs)
-    if spread <= 0:                       # alle zum selben Preis
+    if spread <= 0:
+        # Alle zum selben Preis. Die Sicherung ist **kein** Schutz gegen eine Division
+        # durch null: die Steigung wird gesetzt und nicht geschätzt, ``spread`` geht in die
+        # Rechnung darunter gar nicht ein. Sie bleibt, weil eine Gruppe ohne
+        # Preisunterschied auch keine Preis-Leistungs-Aussage trägt — jeder Wein bekäme
+        # allein aus seiner Note eine Zahl, und die Spalte hiesse dann „Note", nicht
+        # „Preis-Leistung". Wer die gesetzte Steigung je durch eine geschätzte ersetzt,
+        # braucht die Zeile dann wirklich.
         return
     # Die Steigung wird **gesetzt**, nicht gemessen — siehe PREIS_GEWICHT. Der
     # Schwerpunkt der Wolke bleibt gemessen: die Gerade läuft weiterhin durch

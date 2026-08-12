@@ -79,6 +79,7 @@ def snapshot(rows: list[WineRow]) -> list[dict[str, Any]]:
             "cheapest_retailer": r.cheapest_retailer,
             "urls": {p.retailer: p.url for p in r.prices if p.url},
             "value_score": r.value_score,
+            "wert_score": r.wert_score,
             "price_band": r.price_band,
             "rank_source": r.rank_source,
         })
@@ -128,7 +129,13 @@ def write_diff(
     # -- 1. Neue Aktionen -------------------------------------------------
     lines += [f"## Neue Aktionen ({len(new_keys)})", ""]
     if new_keys:
-        for key in sorted(new_keys, key=lambda k: -(current[k].value_score or 0)):
+        # Dieselbe Rangfolge wie im PDF. Weine ohne rankbare Zahl kommen zuletzt, nicht
+        # in die Mitte: -1e9, weil die Skala um null liegt und eine 0 der Wert eines
+        # durchschnittlichen Weins ist, nicht die Abwesenheit eines Werts.
+        for key in sorted(
+            new_keys,
+            key=lambda k: -(current[k].wert_score if current[k].wert_rankable() else -1e9),
+        ):
             row = current[key]
             lines.append(f"- {_describe(row)}")
     else:
@@ -250,6 +257,6 @@ def _describe(row: WineRow) -> str:
     pct = row.bargain_percent
     if pct is not None and pct > 0:
         text += f" · **{pct:.0f} % unter Marktpreis**"
-    if row.value_score is not None:
-        text += f" · Score {row.value_score:.0f}"
+    if row.wert_rankable():
+        text += f" · P/L {row.wert_score:+.2f}"
     return text

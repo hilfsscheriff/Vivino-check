@@ -16,8 +16,21 @@ LEAD_COLUMNS = [
     "cheapest_retailer",
     "retailer_count",
     "price_band",
+    # Drei Preis-Leistungs-Spalten, und jede beantwortet eine andere Frage. Damit nicht
+    # wieder zwei Zahlen unter einem Namen stehen, hier festgehalten, welche wo gilt:
+    #
+    #   value_score       alte Kennzahl, Rangposition in der Preisklasse, 0..100.
+    #                     Treibt seit dem 12.8.2026 keine Rangfolge mehr, steht nur noch
+    #                     zum Vergleich da.
+    #   wert_score        Rest der Note über dem Preisniveau, über **beide** Warenwelten
+    #                     gerechnet. Das ist die Zahl, welche die Webseite in der
+    #                     Standardansicht zeigt.
+    #   wert_score_welt   dieselbe Rechnung, aber nur gegen die eigene Warenwelt
+    #                     (Schweizer Handel oder Vivino-Marktplatz). Das ist die Zahl in
+    #                     der Spalte P/L des PDF und die, nach der es sortiert.
     "value_score",
     "wert_score",
+    "wert_score_welt",
     "sorte",
     "trinkreife",
     "trinkreife_text",

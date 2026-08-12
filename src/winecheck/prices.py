@@ -315,6 +315,28 @@ PRICE_BANDS: list[tuple[str, float, float]] = [
 ]
 
 
+#: Quellen, deren Weine ihre Bewertung mitbringen statt sie über einen Namensabgleich
+#: zu finden. Aktuell nur Vivinos eigener Marktplatz.
+#:
+#: Die beiden Warenwelten haben ein eigenes Preisniveau — der Marktplatz liefert aus dem
+#: Ausland, der Schweizer Handel nicht — und darum steht die Liste hier bei den Preisen.
+#: Vorher stand sie in ``report/site``, wo sie der Bericht nicht erreichen konnte, ohne
+#: die Webseite zu importieren.
+#:
+#: Der Grund für die getrennte Rechnung ist kein Misstrauen gegen die Quelle, im
+#: Gegenteil: ihre Noten sind die verlässlichsten im ganzen Bestand. Aber bei den
+#: Schweizer Händlern tritt nur rund die Hälfte der Weine überhaupt an — die andere
+#: Hälfte findet bei Vivino keinen Eintrag. Über eine gemeinsame Erwartungskurve gelegt
+#: würde der systematische Preisunterschied zu einer Aussage über die einzelnen Weine.
+#:
+#: Gegen die Sorge, der Marktplatz gewänne dann „jeden Platz", steht die Messung: in der
+#: gemeinsamen Rechnung besetzt er 15 der ersten 20 Plätze — bei 640 von 924 rankbaren
+#: Weinen, also 75 gegen 69 Prozent. Die gemeinsame Zahl ist damit brauchbar, solange die
+#: Warenwelt je Zeile dabeisteht. Die getrennte bleibt für die Ansicht, die nur eine Welt
+#: zeigt.
+MARKTPLATZ_QUELLEN = frozenset({"vivinoshop"})
+
+
 def price_band(price: float | None) -> str:
     """Preisklasse für den value_score. Ein 4.1er für 7 Franken und ein 4.5er für
     125 Franken sind nicht dasselbe — verglichen wird innerhalb der Klasse."""

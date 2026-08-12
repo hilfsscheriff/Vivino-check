@@ -3,6 +3,11 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+# Die Messdatei von coverage.py ist eine SQLite-Datei und ändert sich bei jedem
+# Testlauf. Versioniert stand sie in jedem Diff und verdeckte die echten Änderungen;
+# einen Nutzen hat sie nicht, weil sie absolute Pfade dieses Rechners enthält.
+.coverage
+.coverage.*
 cache/
 output/
 # Nur die Austauschdatei wird versioniert — sie gibt dem GitHub-Wochenlauf die

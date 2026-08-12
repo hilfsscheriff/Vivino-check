@@ -32,12 +32,39 @@ from ..models import (
     VivinoStatus,
     WineRow,
 )
-from ..prices import PRICE_BANDS
+from ..prices import MARKTPLATZ_QUELLEN, PRICE_BANDS
 from .formatting import ch, chf, datetime_ch, rating_text, truncate
 
 TOP_N = 10
 
-#: Wie viele Weine je Preisklasse in der Preis-Leistungs-Rangliste stehen.
+#: Wie viele Weine in der Preis-Leistungs-Rangliste des Schweizer Handels stehen.
+#:
+#: Eine Liste über alle Preisklassen, nicht fünf klassenweise. Möglich wurde das erst
+#: durch den Wechsel des Sortierschlüssels: die alte Kennzahl war eine Rangposition
+#: *innerhalb* der Klasse und über Klassen hinweg schlicht nicht vergleichbar — global
+#: sortiert besetzten die teuren Weine 19 der ersten 25 Plätze, und die Klasse unter
+#: CHF 10 fiel ganz heraus. In :attr:`WineRow.wert_score_welt` ist der Preis
+#: herausgerechnet.
+#:
+#: Die Klumpung verschwindet damit nicht ganz, sie kippt: die Spitze füllt die Klassen mit
+#: 14/4/2/0/0, weil der gesetzte Preisfaktor über dem gemessenen liegt und günstige Weine
+#: darum begünstigt. Das ist die gewollte Haltung der Kennzahl („gut und günstig"), aber
+#: sie lässt die teuren Klassen leer — darum stehen unter dieser Liste weiterhin die
+#: besten je Preisklasse. Beide Ansichten, nicht eine.
+#:
+#: 20 statt der vorherigen fünf mal vier: dieselbe Menge Weine, eine Reihenfolge.
+TOP_VALUE = 20
+
+#: Wie viele Marktplatzweine ihre eigene Liste bekommen.
+#:
+#: Kürzer als die des Schweizer Handels, obwohl der Marktplatz mit 640 von 924 rankbaren
+#: Weinen die grössere Hälfte stellt. Das ist Absicht und folgt dem Titel des Berichts:
+#: es geht um die Aktionen der Schweizer Weinhändler, und was aus dem Ausland geliefert
+#: wird, ist die Beilage. Vollständig steht der Marktplatz trotzdem hinten in der Liste
+#: aller bewerteten Weine.
+TOP_MARKTPLATZ = 10
+
+#: Wie viele Weine je Preisklasse unter der Liste des Schweizer Handels stehen.
 PER_BAND = 4
 
 _BRAND = colors.HexColor("#6b1030")
@@ -217,21 +244,90 @@ def _table(data: list[list], widths: list[float]) -> Table:
     return t
 
 
+#: Was in der Spalte P/L steht — im Bericht selbst, weil das Papier keinen Mauszeiger hat.
+#:
+#: Die Übersetzung in Prozent ist der Kern: ohne sie ist „+0.10" eine Rangnummer mit
+#: Komma. Auf der Webseite steht sie unter der Tabelle; hier musste sie nachgetragen
+#: werden.
+#:
+#: „Notenpunkte" stand hier zuerst und war unwahr. Der Rest wird auf der *wirksamen* Note
+#: gerechnet — Seltenheit eingemischt — und danach mit der Dämpfung nach Bewertungszahl
+#: multipliziert. Gemessen: wirksam(4.6) liegt 0.22 über 4.6, wirksam(4.1) 0.04 darunter,
+#: und 156 rankbare Weine tragen unter 60 Bewertungen und damit eine Dämpfung bis 0.33.
+#: Zwei Weine mit gleicher Note und gleichem Preis können darum verschieden dastehen.
+_PL_ERKLAERUNG = (
+    "Die Spalte P/L sagt, wie viel besser ein Wein bewertet ist, als sein Preis "
+    "üblicherweise kauft — verglichen mit Weinen derselben <b>Machart</b>, nicht bloss "
+    "derselben Preisklasse. Null heisst „so gut, wie dieses Geld üblicherweise kauft\", "
+    "nicht „mittelmässig\". Als Preis gelesen: <b>0.10 entspricht rund 40 % "
+    "Preisunterschied</b> bei gleicher Note, 0.25 rund 130 %. Dieser Umrechnungsfaktor "
+    "ist gesetzt und nicht gemessen — gemessen wäre er halb so gross, was getreu "
+    "beschreibt, wie der Markt bepreist, aber als Kaufempfehlung nichts taugt. "
+    "Der Preis ist in der Zahl herausgerechnet, darum lassen sich die Preisklassen "
+    "vergleichen: eine 4.4 für CHF 24 kann eine 4.1 für CHF 7 schlagen und umgekehrt. "
+    "Wenig bewertete Weine werden gedämpft, damit ein Glückstreffer aus zwölf Stimmen die "
+    "Liste nicht anführt — dieselbe Note zum gleichen Preis kann darum verschieden "
+    "dastehen. <b>Abstände unter etwa 0.03 sind kein Rangunterschied</b>, sondern die "
+    "Unsicherheit des Modells; die Reihenfolge innerhalb einer solchen Gruppe bedeutet "
+    "nichts. Gerechnet wird immer auf den Aktionspreis, nie auf den Rabatt; ein ! "
+    "markiert einen fragwürdigen Referenzpreis bei einer Eigenmarke."
+)
+
+
+def _schweizer_handel(row: WineRow) -> bool:
+    """Ob der Wein bei einem Schweizer Händler zu kaufen ist.
+
+    Ein Wein in beiden Welten zählt zum Schweizer Handel — dort ist er zu kaufen, und die
+    Lieferung aus dem Ausland ist dann nur eine zweite Möglichkeit.
+    """
+    return any(p.retailer not in MARKTPLATZ_QUELLEN for p in row.prices)
+
+
+def _wert_text(row: WineRow) -> str:
+    """Die Preis-Leistungs-Zahl mit Vorzeichen, oder ein Strich.
+
+    Das Vorzeichen ist die Aussage: null heisst „so gut, wie dieser Preis üblicherweise
+    kauft". Ohne Vorzeichen liest sich eine 0.31 wie eine Note.
+
+    Ein Strich steht dort, wo die Zahl bewusst fehlt — kein Vivino-Treffer, den man
+    ranken darf, oder ein unsicherer Preis. Eine 0 hinzuschreiben wäre eine Behauptung.
+
+    Immer :attr:`WineRow.wert_score_welt`, nie die Zahl über beide Warenwelten. Damit gilt
+    im ganzen Bericht eine Regel — P/L vergleicht einen Wein mit seiner eigenen Welt —
+    und der Leser muss sich nicht je Abschnitt fragen, gegen was gerechnet wurde. Die Zahl
+    über beide Welten steht in ``results.csv`` und ist die, welche die Webseite in der
+    Standardansicht zeigt.
+    """
+    if not row.wert_rankable() or row.wert_score_welt is None:
+        return "—"
+    return f"{row.wert_score_welt:+.2f}"
+
+
 def _ranking_table(
     rows: list[WineRow],
     st: dict,
     *,
     info: dict[str, dict] | None = None,
     show_falstaff: bool = False,
+    show_value: bool = False,
 ) -> Table:
     """Die Rangliste.
 
     Die Falstaff-Spalte erscheint nur, wenn Falstaff überhaupt Werte geliefert hat —
     solange die Quelle blockiert ist, wäre es eine Spalte voll "nicht abgefragt", und
     die Breite fehlt für Kaufquelle und Marktpreis.
+
+    ``show_value`` blendet die Preis-Leistungs-Zahl ein. Wo nach ihr sortiert wird,
+    gehört sie hin: eine Liste mit dem Titel „Bestes Preis-Leistungs-Verhältnis", die
+    ihr Kriterium nicht zeigt, lässt sich nicht nachprüfen. Auf dem Papier gibt es
+    keinen Mauszeiger, mit dem man nachsehen könnte.
     """
     header = ["Wein", "Jg.", "Reife", "Preis/75cl", "Wo kaufen"]
     widths = [50 * mm, 9 * mm, 17 * mm, 22 * mm, 37 * mm]
+    if show_value:
+        header.append("P/L")
+        widths.append(13 * mm)
+        widths[0] -= 13 * mm
     if show_falstaff:
         header.append("Falstaff")
         widths.append(20 * mm)
@@ -251,6 +347,8 @@ def _ranking_table(
             _price_cell(row, st["cell"]),
             _retailer_cell(row, st["cell"], info),
         ]
+        if show_value:
+            cells.append(Paragraph(_wert_text(row), st["cell"]))
         if show_falstaff:
             cells.append(_falstaff_cell(row, st["cell_link"]))
         cells += [
@@ -279,7 +377,24 @@ def _unrated_table(rows: list[WineRow], st: dict, info: dict[str, dict] | None =
 
 
 def _legend(st: dict) -> list:
-    out = [Paragraph(ch("Legende Vivino-Status"), st["h2"])]
+    # Die P/L-Spalte steht auch in der vollständigen Liste hinter dem Seitenumbruch, wo
+    # der erklärende Absatz Seiten entfernt ist. Wer dort zu seiner Preisklasse springt,
+    # sieht „+0.31" und „—" ohne jeden Anhalt.
+    out = [Paragraph(ch("Legende Preis-Leistung (Spalte P/L)"), st["h2"])]
+    out.append(Paragraph(ch(_PL_ERKLAERUNG), st["small"]))
+    out.append(
+        Paragraph(
+            ch("Ein <b>Strich</b> heisst, dass der Wein keine Rangfolge tragen kann: seine "
+               "Note stammt von einem Kritiker und nicht von Vivino, die Vivino-Zuordnung "
+               "ist über den Namen nur vermutet, oder sie trifft bloss den Produzenten "
+               "statt diesen Wein. Der Wein steht trotzdem vollständig im Bericht — eine "
+               "0 hinzuschreiben wäre eine Behauptung."),
+            st["small"],
+        )
+    )
+    out.append(Spacer(1, 3 * mm))
+
+    out.append(Paragraph(ch("Legende Vivino-Status"), st["h2"]))
     rows = [["Status", "Bedeutung"]]
     explain = {
         VivinoStatus.EXACT: "Bewertung für den exakten Jahrgang.",
@@ -359,11 +474,7 @@ def write_pdf(
     best_rating = sorted(
         rated, key=lambda r: -(r.ranking_rating()[0] or 0)
     )[:TOP_N]
-    # Bewusst NICHT global auf TOP_N gekürzt: die Preis-Leistungs-Liste wird
-    # klassenweise ausgegeben, und ein globaler Vorschnitt würde die günstigen Klassen
-    # ganz herauswerfen — beim ersten Lauf fiel die Klasse <10 CHF komplett weg, weil
-    # die zehn höchsten klassenrelativen Werte alle aus den teuren Klassen kamen.
-    scored = [r for r in rated if r.value_score is not None]
+    scored = [r for r in rated if r.wert_rankable()]
 
     story: list = [
         Paragraph(ch("wine-check — Aktionen der Schweizer Weinhändler"), st["h1"]),
@@ -428,33 +539,98 @@ def write_pdf(
         story.append(_ranking_table(bargains[:TOP_N], st, info=info, show_falstaff=show_falstaff))
 
     if scored:
+        # Getrennt nach Warenwelt, und der Schweizer Handel zuerst.
+        #
+        # Ohne die Trennung besetzte der Vivino-Marktplatz 15 der ersten 20 Plätze und in
+        # zwei Preisklassen alle vier. Nicht aus einem Fehler der Rechnung: er trägt 640
+        # der 924 rankbaren Weine, weil seine Noten von Vivino selbst kommen und keinen
+        # Namensabgleich brauchen, während Händlerweine öfter durch die Eignungsprüfung
+        # fallen. Aber ein Heft mit dem Titel „Aktionen der Schweizer Weinhändler", dessen
+        # Empfehlungen man in der Schweiz nicht kaufen kann, verfehlt seinen Zweck.
+        #
+        # Jede Welt wird gegen ihr eigenes Preisniveau gerechnet — der Marktplatz liefert
+        # aus dem Ausland — und darum steht in der Spalte wert_score_welt, nicht
+        # wert_score. Über beide Welten gelegt machte eine Erwartungskurve den
+        # systematischen Preisunterschied zu einer Aussage über die einzelnen Weine.
         story.append(Paragraph(ch("Bestes Preis-Leistungs-Verhältnis"), st["h2"]))
-        story.append(
-            Paragraph(
-                ch("Bewertung relativ zum Aktionspreis, verglichen <b>innerhalb</b> der "
-                   "Preisklasse — und darum auch klassenweise ausgegeben. Ein globaler "
-                   "Rang wäre irreführend: er würde klassenrelative Werte über Klassen "
-                   "hinweg vergleichen und damit systematisch die teuren Weine nach oben "
-                   "spülen. Die günstigen Klassen stehen zuerst. Gerechnet wird immer auf "
-                   "den Aktionspreis, nie auf den Rabatt; ein ! markiert einen "
-                   "fragwürdigen Referenzpreis bei einer Eigenmarke."),
-                st["small"],
-            )
-        )
-        for label, _lo, _hi in PRICE_BANDS:
-            members = [r for r in scored if r.price_band == label]
-            if not members:
+        story.append(Paragraph(ch(_PL_ERKLAERUNG), st["small"]))
+        for titel, gruppe, laenge in (
+            ("Schweizer Handel", [r for r in scored if _schweizer_handel(r)], TOP_VALUE),
+            ("Vivino-Marktplatz — Lieferung aus dem Ausland",
+             [r for r in scored if not _schweizer_handel(r)], TOP_MARKTPLATZ),
+        ):
+            gruppe = [r for r in gruppe if r.wert_score_welt is not None]
+            if not gruppe:
                 continue
-            top = sorted(members, key=lambda r: -(r.value_score or 0))[:PER_BAND]
+            besten = sorted(gruppe, key=lambda r: -(r.wert_score_welt or 0))[:laenge]
+            story.append(Paragraph(ch(f"{titel} — {len(gruppe)} Weine, beste {len(besten)}"),
+                                   st["band"]))
+            story.append(_ranking_table(
+                besten, st, info=info, show_falstaff=show_falstaff, show_value=True
+            ))
+
+        # Und dieselbe Frage noch einmal je Preisklasse, für den Schweizer Handel.
+        #
+        # Die Rangfolge beantwortet „welcher Wein ist sein Geld am meisten wert" — aber
+        # niemand kauft so. Wer 60 Franken ausgeben will, hat von vierzehn Empfehlungen
+        # unter CHF 10 nichts, und genau das kam heraus: die globale Spitze füllte die
+        # Klassen mit 14/4/2/0/0, die beiden teuren Klassen kamen gar nicht vor. Das war
+        # derselbe Verlust wie mit der alten Kennzahl, nur am anderen Ende der Skala.
+        #
+        # Vertretbar ist die Aufteilung erst mit dieser Kennzahl. Eine klassenrelative
+        # Zahl klassenweise auszugeben war eine Notlösung — man konnte die Klassen nicht
+        # vergleichen. Hier bedeutet +0.30 in jeder Klasse dasselbe, und die Aufteilung
+        # ist nur noch eine Ansicht auf dieselbe Zahl.
+        ch_scored = [r for r in scored
+                     if _schweizer_handel(r) and r.wert_score_welt is not None]
+        if ch_scored:
+            story.append(Spacer(1, 2 * mm))
             story.append(
-                KeepTogether([
-                    Paragraph(
-                        ch(f"Preisklasse {label} CHF — {len(members)} Weine, "
-                           f"beste {len(top)}"),
-                        st["band"],
-                    ),
-                    _ranking_table(top, st, info=info, show_falstaff=show_falstaff),
-                ])
+                Paragraph(
+                    ch("Schweizer Handel nach Budget aufgeteilt — für wen die Preisklasse "
+                       "zuerst feststeht. Dieselben Werte wie oben; sie sind über die "
+                       "Klassen hinweg vergleichbar."),
+                    st["small"],
+                )
+            )
+            for label, _lo, _hi in PRICE_BANDS:
+                members = [r for r in ch_scored if r.price_band == label]
+                if not members:
+                    continue
+                besten = sorted(members, key=lambda r: -(r.wert_score_welt or 0))[:PER_BAND]
+                story.append(
+                    KeepTogether([
+                        Paragraph(
+                            ch(f"Preisklasse {label} CHF — {len(members)} Weine, "
+                               f"beste {len(besten)}"),
+                            st["band"],
+                        ),
+                        _ranking_table(
+                            besten, st, info=info, show_falstaff=show_falstaff, show_value=True
+                        ),
+                    ])
+                )
+
+        # Wer nicht in der Liste steht, und warum. Der Satz zählte anfangs nur die Weine
+        # mit Kritikernote — 27 von 117 — und behauptete damit eine Vollständigkeit, die
+        # er nicht hatte: die 90 Weine mit unbestätigter oder produzentenweiter
+        # Vivino-Zuordnung haben gar keine ranking_rating und fielen durch den Filter.
+        fehlen = [r for r in rated if not r.wert_rankable()]
+        if fehlen:
+            kritiker = sum(1 for r in fehlen if r.ranking_rating()[0] is not None)
+            story.append(
+                Paragraph(
+                    ch(f"Nicht in diesen Listen: {len(fehlen)} bewertete Weine. Davon "
+                       f"{kritiker} mit einer Kritikernote statt einer Vivino-Note — eine "
+                       "Parker-95 und eine Vivino-4.3 liegen auf verschiedenen Skalen, und "
+                       "die Rechnung ist auf der Vivino-Skala kalibriert. Die übrigen "
+                       f"{len(fehlen) - kritiker} tragen einen Vivino-Treffer, der nicht "
+                       "ranken darf: Namenszuordnung unbestätigt oder nur ein "
+                       "Produzenten-Durchschnitt. Alle stehen in „Beste Bewertung\" und in "
+                       "der vollständigen Liste hinten — nur nicht in einer Rangfolge, die "
+                       "sie nicht tragen können."),
+                    st["small"],
+                )
             )
 
     cross = [r for r in rows if r.retailer_count > 1]
@@ -477,23 +653,47 @@ def write_pdf(
         story.append(
             Paragraph(
                 ch("Die Ranglisten oben sind Auszüge. Hier stehen alle bewerteten Weine "
-                   "vollständig, nach Preisklasse und darin nach Preis-Leistung sortiert."),
+                   "vollständig — nach Warenwelt, darin nach Preisklasse und darin nach "
+                   "Preis-Leistung. Auch dieser Teil ist nach Warenwelt getrennt, weil "
+                   "P/L im ganzen Bericht dasselbe bedeuten muss: den Vergleich mit der "
+                   "eigenen Welt. Ein Strich heisst, dass der Wein keine Rangfolge tragen "
+                   "kann — die Gründe stehen oben."),
                 st["small"],
             )
         )
-        for label, _lo, _hi in PRICE_BANDS:
-            members = [r for r in rated if r.price_band == label]
-            if not members:
+
+        # Weine ohne Preis-Leistungs-Zahl nach hinten, nicht heraus: sie stehen in der
+        # Klasse weiterhin vollständig, führen sie aber nicht an. ``None`` als -1e9 statt
+        # als -1 — die neue Skala liegt um null, und -1 wäre ein gültiger, sehr
+        # schlechter Wert gewesen. Damit hätte ein Wein ohne Zahl vor einem mit einer
+        # schlechten gestanden.
+        def _nach_wert(r: WineRow):
+            wert = r.wert_score_welt if r.wert_rankable() else None
+            return (-(wert if wert is not None else -1e9), r.best_price or 9e9)
+
+        for welt, gruppe in (
+            ("Schweizer Handel", [r for r in rated if _schweizer_handel(r)]),
+            ("Vivino-Marktplatz", [r for r in rated if not _schweizer_handel(r)]),
+        ):
+            if not gruppe:
                 continue
-            members.sort(key=lambda r: (-(r.value_score or -1), r.best_price or 9e9))
-            story.append(
-                Paragraph(ch(f"Preisklasse {label} CHF — {len(members)} Weine"), st["band"])
-            )
-            story.append(_ranking_table(members, st, info=info, show_falstaff=show_falstaff))
-        rest = [r for r in rated if not r.price_band]
-        if rest:
-            story.append(Paragraph(ch(f"Ohne Preisklasse — {len(rest)} Weine"), st["band"]))
-            story.append(_ranking_table(rest, st, info=info, show_falstaff=show_falstaff))
+            story.append(Paragraph(ch(f"{welt} — {len(gruppe)} Weine"), st["h2"]))
+            for label, _lo, _hi in PRICE_BANDS:
+                members = sorted((r for r in gruppe if r.price_band == label), key=_nach_wert)
+                if not members:
+                    continue
+                story.append(
+                    Paragraph(ch(f"Preisklasse {label} CHF — {len(members)} Weine"), st["band"])
+                )
+                story.append(_ranking_table(
+                    members, st, info=info, show_falstaff=show_falstaff, show_value=True
+                ))
+            rest = sorted((r for r in gruppe if not r.price_band), key=_nach_wert)
+            if rest:
+                story.append(Paragraph(ch(f"Ohne Preisklasse — {len(rest)} Weine"), st["band"]))
+                story.append(_ranking_table(
+                    rest, st, info=info, show_falstaff=show_falstaff, show_value=True
+                ))
 
     if unrated:
         story.append(PageBreak())

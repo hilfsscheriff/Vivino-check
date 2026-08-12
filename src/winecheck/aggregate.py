@@ -266,14 +266,16 @@ def compute_scores(rows: list[WineRow]) -> list[WineRow]:
         rating, source = row.ranking_rating()
         row.rank_source = source
         price = row.best_price
+        # Gebindegrösse unsicher -> keine Zahl. Ein falsch umgerechneter Literpreis
+        # erzeugt einen Scheinsieger. Die Regel steht nicht hier, sondern in
+        # :attr:`WineRow.best_price`, das ``PriceConfidence.LOW`` gar nicht als Preis
+        # gelten lässt — ``price is None`` oben fängt sie also schon.
+        #
+        # Hier stand dieselbe Prüfung ein zweites Mal, ausdrücklich als Ranking-Veto
+        # kommentiert. Am ganzen Bestand fing sie **null** Zeilen. Das ist die
+        # unangenehmste Sorte toter Code: er liest sich wie ein Schutz, und wer
+        # ``best_price`` später lockert, verlässt sich auf ihn.
         if rating is None or price is None or price <= 0:
-            row.value_score = None
-            continue
-        if not any(
-            p.price_confidence is not PriceConfidence.LOW for p in row.prices
-        ):
-            # Gebindegrösse unsicher -> nicht ins Ranking. Ein falsch umgerechneter
-            # Literpreis erzeugt einen Scheinsieger.
             row.value_score = None
             continue
         by_band[row.price_band].append(row)
@@ -323,29 +325,57 @@ def _wert_scores(rows: list[WineRow]) -> None:
     Übersetzt die Wein-Zeilen in die Form, die das Wertmodul erwartet — dasselbe
     Vokabular, das die Seite verwendet — und schreibt das Ergebnis zurück. Ein
     Zwischenschritt statt eines zweiten Rechenwegs: die Formel gibt es nur einmal.
-    """
-    from .wert import _je_typ, _wirksame_note
 
-    tragbar = [
-        r for r in rows
-        if r.vivino is not None and r.vivino.rating is not None and (r.best_price or 0) > 0
-    ]
+    Die Note kommt aus :meth:`WineRow.chart_rating` und nicht aus ``vivino.rating``.
+    Das ist die Hausregel für „eine Vivino-Note auf einer Skala, die sich vergleichen
+    lässt": sie schliesst ``winery_level`` aus, weil ein Produzenten-Mittelwert nicht
+    die Note dieses Weins ist. Die Seite tut dasselbe, nur an anderer Stelle. Vorher
+    stand hier ``vivino.rating`` — damit trugen 22 Weine eine CSV-Zahl, die die Seite
+    zu Recht nicht zeigt, und die 22 verschoben zusätzlich jeden Gruppenmittelwert
+    und damit *jede* Zahl der Spalte gegenüber der Seite.
+
+    ``fuzzy`` bleibt drin, und das ist Absicht: die Zuordnung ist plausibel, nur
+    unbestätigt, und sie herauszunehmen würde die Gruppen ausdünnen. Ins Ranking
+    darf ein solcher Wein trotzdem nicht — dafür gibt es
+    :meth:`WineRow.wert_rankable`, genau wie :meth:`chart_confirmed` neben
+    :meth:`chart_rating` steht.
+
+    Gerechnet wird über :func:`winecheck.wert._add_value_scores` — dieselbe Funktion, die
+    die Seite aufruft, statt eines eigenen Aufrufs von ``_je_typ``. Damit fällt auch die
+    Trennung von Schweizer Handel und Marktplatz mit an, und zwar unvermeidlich: sie
+    steckt in der Funktion. Vorher fehlte sie hier, und das kostete den Bericht seinen
+    Zweck — 15 der 20 empfohlenen Weine waren nur beim Vivino-Marktplatz zu kaufen,
+    in zwei Preisklassen sogar alle vier. Ein Heft mit dem Titel „Aktionen der Schweizer
+    Weinhändler", dessen Empfehlungen man in der Schweiz nicht kaufen kann.
+    """
+    from .prices import MARKTPLATZ_QUELLEN
+    from .wert import _add_value_scores
+
+    tragbar = [r for r in rows if r.chart_rating() is not None and (r.best_price or 0) > 0]
     if not tragbar:
         return
-    dicts = [
-        {
-            "rating": r.vivino.rating,
+    dicts = []
+    for r in tragbar:
+        haendler = {p.retailer for p in r.prices}
+        dicts.append({
+            "rating": r.chart_rating(),
             "ratingCount": r.vivino.rating_count or 0,
             "price": r.best_price,
-            "typ": r.stil.typ if r.stil.typ != "unbekannt" else "",
+            # Roh weitergeben. Ob ``unbekannt`` eine eigene Gruppe bildet, entscheidet
+            # das Wertmodul für alle Aufrufer gleich — siehe wert._typ_gruppe.
+            "typ": r.stil.typ,
             "style": r.style,
-        }
-        for r in tragbar
-    ]
-    _je_typ(dicts, "wertScore", _wirksame_note(dicts))
+            # Zwei Kennzeichen, kein Entweder-oder: ein Wein kann in beiden Welten
+            # stehen, und dann zählt er zum Schweizer Handel — dort ist er zu kaufen.
+            "marketplace": bool(haendler & MARKTPLATZ_QUELLEN),
+            "swiss": bool(haendler - MARKTPLATZ_QUELLEN),
+        })
+    _add_value_scores(dicts)
     for row, d in zip(tragbar, dicts):
-        wert = d.get("wertScore")
-        row.wert_score = round(wert, 3) if wert is not None else None
+        alle = d.get("valueScoreAll")
+        welt = d.get("valueScore")
+        row.wert_score = round(alle, 3) if alle is not None else None
+        row.wert_score_welt = round(welt, 3) if welt is not None else None
 
 
 def band_summary(rows: list[WineRow]) -> list[tuple[str, int, int]]:

@@ -717,6 +717,18 @@ def test_preisgewicht_ist_gesetzt_nicht_gemessen():
     )
 
 
+def _verteilung():
+    """Notenverteilung wie im echten Bestand: unten viele, oben wenige.
+
+    Der Preis muss mit. Die Seltenheit wird über dieselbe Menge gemessen, die auch in
+    die Regression eingeht — sonst hängt die Zahl davon ab, welcher Aufrufer sie holt,
+    und genau daran liefen CSV und Webseite auseinander. Siehe
+    :func:`winecheck.wert._wirksame_note`.
+    """
+    haeufig = {4.0: 60, 4.1: 80, 4.2: 40, 4.3: 15, 4.4: 6, 4.5: 2}
+    return [{"rating": n, "price": 20.0} for n, anzahl in haeufig.items() for _ in range(anzahl)]
+
+
 def test_seltene_noten_zaehlen_mehr():
     """218 Weine tragen eine 4.1, nur 26 eine 4.5.
 
@@ -725,10 +737,7 @@ def test_seltene_noten_zaehlen_mehr():
     """
     from winecheck.report.site import _wirksame_note
 
-    # Eine Verteilung wie im echten Bestand: unten viele, oben wenige.
-    wines = ([{"rating": 4.0}] * 60 + [{"rating": 4.1}] * 80 + [{"rating": 4.2}] * 40
-             + [{"rating": 4.3}] * 15 + [{"rating": 4.4}] * 6 + [{"rating": 4.5}] * 2)
-    note = _wirksame_note(wines)
+    note = _wirksame_note(_verteilung())
     oben = note(4.5) - note(4.4)
     unten = note(4.1) - note(4.0)
     assert oben > unten, "der Schritt oben muss schwerer wiegen als der in der Mitte"
@@ -739,9 +748,7 @@ def test_die_zahl_bleibt_auf_der_notenskala():
     Zahl in Seltenheitseinheiten, die niemand mehr einordnen kann."""
     from winecheck.report.site import _wirksame_note
 
-    wines = ([{"rating": 4.0}] * 60 + [{"rating": 4.1}] * 80 + [{"rating": 4.2}] * 40
-             + [{"rating": 4.3}] * 15 + [{"rating": 4.4}] * 6 + [{"rating": 4.5}] * 2)
-    note = _wirksame_note(wines)
+    note = _wirksame_note(_verteilung())
     assert all(3.5 < note(r) < 5.0 for r in (4.0, 4.1, 4.2, 4.3, 4.4, 4.5))
 
 
@@ -749,8 +756,19 @@ def test_zu_kleine_laeufe_bleiben_linear():
     """Aus einer Handvoll Noten lässt sich keine Seltenheit ableiten."""
     from winecheck.report.site import _wirksame_note
 
-    note = _wirksame_note([{"rating": 4.0}, {"rating": 4.4}])
+    note = _wirksame_note([{"rating": 4.0, "price": 20.0}, {"rating": 4.4, "price": 20.0}])
     assert note(4.4) == 4.4
+
+
+def test_ohne_brauchbaren_preis_keine_seltenheit():
+    """Ein Wein, den wir nicht bepreisen können, spielt in der Preis-Leistungs-Rechnung
+    keine Rolle — auch nicht in ihrer Kalibrierung. Sonst verschiebt er die
+    Seltenheitskurve für alle anderen, ohne selbst eine Zahl zu bekommen."""
+    from winecheck.report.site import _wirksame_note
+
+    mit_preis = _wirksame_note(_verteilung())
+    ohne = _wirksame_note(_verteilung() + [{"rating": 4.9} for _ in range(30)])
+    assert mit_preis(4.5) == ohne(4.5)
 
 
 def test_filterkacheln_zaehlen_die_aktuelle_auswahl(doc):

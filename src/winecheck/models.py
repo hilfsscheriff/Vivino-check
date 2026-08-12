@@ -377,17 +377,34 @@ class WineRow:
     #: Nur informativ — sie treiben das Ranking nicht, Leitquelle bleibt Falstaff.
     critics: dict[str, tuple[float, str]] = field(default_factory=dict)
     winesearcher: Rating | None = None
+    #: Die alte Kennzahl: Rangposition innerhalb der Preisklasse, 0 bis 100. Sie steht
+    #: weiterhin in der CSV, treibt aber seit dem 12.8.2026 **keinen** Sortierschlüssel
+    #: mehr — global sortiert besetzte sie die ersten 25 Plätze mit 19 Weinen über CHF 80
+    #: und liess die Klasse unter CHF 10 ganz aus. Siehe Spec §6.
     value_score: float | None = None
-    #: Dieselbe Frage, andere Rechnung: der Rest der Note über dem Preisniveau, nach
-    #: ``(typ, sorte)`` gruppiert — die Zahl, die die Webseite zeigt. Sie läuft
-    #: **parallel** zu ``value_score``, wie Spec §6 es verlangt („die alte Kennzahl
-    #: parallel weiterrechnen, bis die Verteilung geprüft ist"). Vorher gab es beide
-    #: auch schon, aber in getrennten Ausgabekanälen und ohne dass man sie vergleichen
-    #: konnte: das PDF rankte nach der einen, die Seite zeigte die andere, und beide
-    #: hiessen „Preis-Leistung". Jetzt stehen sie in derselben Zeile nebeneinander.
+    #: Dieselbe Frage, tragfähige Rechnung: der Rest der Note über dem Preisniveau, nach
+    #: ``(typ, sorte)`` gruppiert. Sie treibt die Rangfolge in PDF, CSV und ``diff.md``
+    #: und ist die Zahl, die die Webseite in der Standardansicht zeigt — identisch, mit
+    #: einem Test, der beide Kanäle gegeneinander hält.
+    #:
+    #: Über **beide** Warenwelten gerechnet, wie ``valueScoreAll`` auf der Seite. Wer
+    #: innerhalb einer Welt vergleicht, nimmt :attr:`wert_score_welt`.
     wert_score: float | None = None
+    #: Dieselbe Zahl, aber nur gegen die eigene Warenwelt — Schweizer Handel oder
+    #: Vivino-Marktplatz. Entspricht ``valueScore`` auf der Seite.
+    #:
+    #: Sie wird gebraucht, sobald eine Liste **eine** Welt zeigt. Über beide Welten
+    #: gerechnet gewinnt sonst fast durchgehend der Marktplatz: er trägt 640 der 924
+    #: rankbaren Weine, weil seine Noten von Vivino selbst kommen und keinen
+    #: Namensabgleich brauchen. Ohne diese zweite Zahl standen in der
+    #: Preis-Leistungs-Liste des PDF 15 von 20 Weinen, die man in der Schweiz nicht
+    #: kaufen kann — in zwei Preisklassen alle vier.
+    wert_score_welt: float | None = None
     price_band: str = ""
-    rank_source: str = ""            # welche Skala den Sortierschlüssel gestellt hat
+    #: Welche Skala die Note für „Beste Bewertung" gestellt hat — Falstaff, ein Kritiker
+    #: oder Vivino. **Nicht** die Quelle der Preis-Leistungs-Rangfolge: die läuft
+    #: ausschliesslich über Vivino, weil die Regression auf dieser Skala kalibriert ist.
+    rank_source: str = ""
     is_private_label: bool = False
     #: Zwischenspeicher für :attr:`stil`. Die Einordnung liest mehrere Felder und
     #: wird je Zeile mehrfach abgefragt.
@@ -507,9 +524,19 @@ class WineRow:
     # -- Bewertung ---------------------------------------------------------
     @property
     def has_any_rating(self) -> bool:
+        """Ob irgendeine Fremdbewertung vorliegt.
+
+        Muss dieselben Quellen kennen wie :meth:`ranking_rating`, sonst widerspricht sich
+        der Bericht. Genau das tat er: ``critics`` fehlte hier, und damit standen 41 Weine
+        mit einer Parker-93 oder Suckling-95 unter „Ohne Fremdbewertung" — und trugen in
+        derselben CSV einen Preis-Leistungs-Wert, den ``ranking_rating`` aus genau dieser
+        Note gebildet hatte.
+        """
         if self.falstaff and self.falstaff.value is not None:
             return True
         if self.vivino and self.vivino.has_rating:
+            return True
+        if self.critics:
             return True
         if self.winesearcher and self.winesearcher.value is not None:
             return True
@@ -612,6 +639,30 @@ class WineRow:
         """
         return self._vivino_is_rankable()
 
+    def wert_rankable(self) -> bool:
+        """Ob dieser Wein eine Preis-Leistungs-Rangliste anführen darf.
+
+        Dasselbe Verhältnis wie :meth:`chart_confirmed` zu :meth:`chart_rating`: die
+        Zahl zu *rechnen* ist eine andere Frage als sie zu *sortieren*. In die
+        Regression darf ein unbestätigter Treffer, sonst dünnen die Gruppen aus. An
+        die Spitze einer Liste darf er nicht.
+
+        Verlangt wird ein ranking-taugliches Vivino-Ergebnis. Ohne diese Sperre führte
+        die Liste „Gran Castillo Cabernet Sauvignon" für CHF 6.00 mit einer 4.3 an, die
+        dem *Produzenten* gehört — dazu fünf weitere Produzenten-Mittelwerte und zwei
+        unbestätigte Zuordnungen unter den ersten 25.
+
+        Der zweite Schadensfall — eine unsichere Gebindegrösse, die über einen falsch
+        umgerechneten Literpreis einen Scheinsieger erzeugt — braucht hier **keine**
+        eigene Prüfung: :attr:`best_price` lässt ``PriceConfidence.LOW`` gar nicht
+        durch, und ohne Preis entsteht kein :attr:`wert_score`. Eine Prüfung, die nie
+        greift, gehört nicht in eine Sicherheitsregel: sie liest sich wie ein Schutz
+        und verdeckt, wo der Schutz wirklich sitzt.
+
+        Der Wein bleibt im Bericht sichtbar — nur eben nicht im Sortierschlüssel.
+        """
+        return self.wert_score is not None and self._vivino_is_rankable()
+
     def no_rating_reason(self) -> str:
         """Begründung für die Tabelle 'ohne Bewertung'."""
         bits = []
@@ -638,6 +689,7 @@ class WineRow:
             "price_band": self.price_band,
             "value_score": _fmt_num(self.value_score),
             "wert_score": _fmt_num(self.wert_score),
+            "wert_score_welt": _fmt_num(self.wert_score_welt),
             "bargain_percent": _fmt_num(self.bargain_percent),
             "bargain_plausibility": self.bargain_plausibility.value,
             "vivino_market_price": _fmt_num(v.market_price) if v else "",

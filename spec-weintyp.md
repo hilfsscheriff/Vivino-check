@@ -1,8 +1,8 @@
 # Spec: Stil-Typ («Typ») für Weincheck
 
 **Zielprojekt:** `hilfsscheriff/Vivino-check`
-**Version:** 1.1
-**Status:** Entwurf zur Umsetzung
+**Version:** 1.2
+**Status:** umgesetzt
 
 ---
 
@@ -252,6 +252,17 @@ Begründung: `typ` ist der stärkere Prädiktor der Vivino-Note als `sorte` (§1
 
 **Rückwärtskompatibilität:** Die alte Kennzahl parallel weiterrechnen und beide Werte im Datensatz halten, bis die Verteilung geprüft ist. Ein Umschalter im Debug-Modus genügt.
 
+**Erledigt am 12. August 2026 — Parallelbetrieb beendet.** Die Verteilung ist geprüft, und sie entscheidet die Frage deutlich. Global nach der alten Kennzahl sortiert besetzten die Weine über CHF 80 **neunzehn der ersten fünfundzwanzig Plätze**, und die Klasse unter CHF 10 fiel ganz heraus: die Zahl ist eine Rangposition *innerhalb* der Preisklasse und über Klassen hinweg schlicht nicht vergleichbar. Nach der neuen verteilt sich dieselbe Spitze auf 14/4/2/0/0, weil der Preis darin herausgerechnet ist.
+
+PDF, CSV-Rangfolge und `diff.md` sortieren seither nach der neuen Kennzahl. Die alte bleibt als CSV-Spalte stehen und kommt in keinem Sortierschlüssel mehr vor.
+
+Zwei Punkte, die dabei aufgefallen sind und ohne die die Umstellung falsch gewesen wäre:
+
+1. **Der Sortierschlüssel braucht eine Eignungsprüfung, die Rechnung nicht.** Ungeschützt führten sechs Produzenten-Mittelwerte und zwei unbestätigte Namenszuordnungen die ersten 25 an — angeführt von einem Wein für CHF 6.00 mit einer 4.3, die dem Produzenten gehört und nicht ihm. In die Regression dürfen unbestätigte Treffer (sonst dünnen die Gruppen aus), an die Spitze einer Liste nicht. Produzenten-Mittelwerte gehören in keines von beidem.
+2. **Der Absatz über `typ = unbekannt` galt nur zur Hälfte.** Gefordert ist die globale Verteilung; die Webseite führte `unbekannt` stattdessen als eigene Gruppe. Betroffen waren 521 von 1473 Weinen, und weil jede Gruppierung alle Gruppenmittelwerte verschiebt, wichen **295 von 1010** Zahlen zwischen CSV und Webseite voneinander ab, bis zu 0.132 auf einer Skala von rund ±0.5. Beide Kanäle holen die Zahl jetzt an einer Stelle *und* mit derselben Stichprobe; ein Test hält sie gegeneinander.
+
+**Beide Ansichten bleiben.** Die globale Rangfolge beantwortet «welcher Wein ist sein Geld am meisten wert», aber niemand kauft so — wer 60 Franken ausgeben will, hat von vierzehn Empfehlungen unter CHF 10 nichts. Darunter stehen darum weiterhin die besten je Preisklasse. Vertretbar ist das erst mit dieser Kennzahl: eine klassenrelative Zahl klassenweise auszugeben war eine Notlösung, weil man die Klassen nicht vergleichen konnte. Jetzt bedeutet +0.30 in jeder Klasse dasselbe, und die Aufteilung ist nur noch eine Ansicht auf dieselbe Zahl.
+
 ---
 
 ## 7. UI
@@ -356,6 +367,13 @@ Schritte 1 bis 4 sind für sich wertvoll und liefern schon die Kernaussage. Fall
 ---
 
 ## Changelog
+
+### Version 1.2 — 12. August 2026
+
+- **§6 Parallelbetrieb beendet.** Die Verteilung ist geprüft; PDF, CSV-Rangfolge und `diff.md` sortieren nach der neuen Kennzahl. Messwerte und Begründung stehen in §6.
+- **§6 präzisiert, was die Eignungsprüfung des Sortierschlüssels von der Rechnung trennt.** Unbestätigte Namenszuordnungen rechnen mit, ranken aber nicht; Produzenten-Mittelwerte tun keines von beidem. Ohne diese Trennung führten sechs Produzenten-Mittelwerte die Liste an.
+- **§6 hält fest, dass der Absatz zu `typ = unbekannt` nur zur Hälfte umgesetzt war** und dass CSV und Webseite darum für 295 von 1010 Weinen verschiedene Zahlen zeigten. Behoben, mit Test.
+- **§6 hält die klassenweise Ansicht ausdrücklich fest**, jetzt aber als Ansicht auf dieselbe global vergleichbare Zahl statt als Notlösung.
 
 ### Version 1.1 — 9. August 2026 (Messungen nachgetragen 10. August)
 
