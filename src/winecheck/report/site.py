@@ -324,6 +324,10 @@ _SHORT_KEYS = {
     "swiss": "ch",
     # Ausblendbare Rebsorten, siehe AUSBLENDBARE_SORTEN.
     "grapes": "g",
+    # 1 = stand im Vorlauf noch nicht da. Nur gesetzt, wenn es einen Vorlauf zum
+    # Vergleichen gibt — beim ersten Lauf ist kein Wein "neu", sondern alle sind es,
+    # und dann sagt die Kennzeichnung nichts.
+    "neu": "nu",
 }
 
 
@@ -395,6 +399,9 @@ def build(
     payload = {
         "runs": [
             {"id": r["id"], "label": r["label"],
+             # Ob dieser Lauf einen Vorgänger im Cache hatte. Ohne ihn ist "neu" keine
+             # Auskunft, und der Filter bleibt weg statt eine leere Menge anzubieten.
+             "hasPrev": bool(r.get("hatVorlauf")),
              "wines": [_compact(w) for w in r["wines"]]}
             for r in runs
         ],
@@ -605,6 +612,10 @@ _TEMPLATE = r"""<!doctype html>
             <option value="shop:1">Händler A–Z</option>
           </select>
         </label>
+        <!-- Steht zuerst, weil es die Frage ist, mit der man eine Seite wieder aufruft:
+             was ist seit letzter Woche dazugekommen. Wird ausgeblendet, wenn es keinen
+             Vorlauf zum Vergleichen gibt. -->
+        <label class="cb" id="fNeuBox" hidden title="Weine, die im Vorlauf noch nicht dabei waren"><input type="checkbox" id="fNeu"> nur neu seit dem letzten Lauf</label>
         <label class="cb" title="Nur Weine mit bestätigtem Namensabgleich — ohne unsichere Treffer, ohne Produzenten-Mittelwerte, ohne Weine ohne Eintrag"><input type="checkbox" id="fFound"> nur bei Vivino gefunden</label>
         <label class="cb"><input type="checkbox" id="fBargain"> nur unter Marktpreis</label>
         <!-- Nicht dasselbe wie der Quellen-Chip "Schweizer Handel": der zeigt jeden

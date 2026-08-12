@@ -50,7 +50,7 @@ const S = { run: D.runs[0].id, mat: new Set(), style: new Set([STANDARD_SORTE]),
                teuersten Flaschen. */
             sort: "value", dir: -1, minRating: STANDARD_NOTE, maxPrice: STANDARD_PREIS,
             onlyBargain: false, hideGrapes: new Set(), noVivino: false,
-            onlyFound: false, limit: PAGE };
+            onlyFound: false, onlyNeu: false, limit: PAGE };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 /* Null ist kein Preis. Weine, deren Preisbasis unsicher blieb, kommen ohne Betrag
@@ -124,6 +124,9 @@ function visible(ausser) {
     // fuzzy-Treffer (Name passt nur ungefähr), Produzenten-Mittelwerte und die
     // Weine ohne Eintrag. Das sind genau die gefüllten Punkte im Diagramm.
     if (S.onlyFound && !(w.rating != null && !w.fuzzy)) return false;
+    // "neu" heisst: stand im Vorlauf nicht da. Ohne Vorlauf ist das Feld an keinem
+    // Wein gesetzt, und der Filter wird darum auch nicht angeboten.
+    if (S.onlyNeu && !w.neu) return false;
     return true;
   });
 }
@@ -429,7 +432,8 @@ function table(list) {
     return `<tr>
       <td data-l="Wein"><span class="wine">${esc(w.name)}</span>
         ${vs ? `<span class="meta">${vs}</span>` : ""}
-        ${w.styleLabel || w.maturityShort ? "<br>" : ""}
+        ${w.styleLabel || w.maturityShort || w.neu ? "<br>" : ""}
+        ${w.neu ? `<span class="pill neu">neu</span>` : ""}
         ${w.styleLabel ? `<span class="pill">${esc(w.styleLabel)}</span>` : ""}
         ${w.typ && w.typLabel ? `<span class="pill t-${w.typ}" title="${esc(w.typWarum)}">`
             + esc(w.typLabel) + (w.typStufe === 3 ? " ?" : "") + `</span>` : ""}
@@ -645,6 +649,7 @@ function activeFilterCount() {
     + (S.src !== STANDARD_QUELLE ? 1 : 0)
     + (S.q.trim() ? 1 : 0) + (S.minRating != null ? 1 : 0) + (S.maxPrice != null ? 1 : 0)
     + (S.onlyBargain ? 1 : 0) + (S.onlyFound ? 1 : 0) + (S.noVivino ? 1 : 0)
+    + (S.onlyNeu ? 1 : 0)
     + S.hideGrapes.size;
 }
 
@@ -664,8 +669,17 @@ function render() {
   // jedem Klick, das andere ist zum Nachschlagen.
   document.getElementById("count").innerHTML =
     `<b>${list.length}</b> von ${total} Weinen`;
+  /* „Neu" nur anbieten und nur zählen, wenn dieser Lauf einen Vorgänger im Cache hatte.
+     Beim ersten Lauf ist kein Wein neu, sondern alle sind es — ein Filter darüber wäre
+     eine Auskunft ohne Inhalt, und ein Kästchen, das nichts tut, ist schlimmer als
+     keines. Fällt der Vorlauf weg, fällt auch eine gesetzte Auswahl. */
+  const hatVorlauf = !!currentRun().hasPrev;
+  document.getElementById("fNeuBox").hidden = !hatVorlauf;
+  if (!hatVorlauf && S.onlyNeu) { S.onlyNeu = false; document.getElementById("fNeu").checked = false; }
+  const neu = hatVorlauf ? list.filter(w => w.neu).length : 0;
   document.getElementById("coverage").textContent =
-    `${rated} davon mit Vivino-Note · ${priced} mit Marktpreis`;
+    `${rated} davon mit Vivino-Note · ${priced} mit Marktpreis`
+    + (hatVorlauf ? ` · ${neu} neu seit dem letzten Lauf` : "");
   document.getElementById("tblTitle").textContent =
     list.length === total ? "Alle Weine" : "Gefilterte Weine";
   chart(list); table(list);
@@ -695,6 +709,9 @@ document.getElementById("fBargain").addEventListener("change", e => {
 });
 document.getElementById("fNoVivino").addEventListener("change", e => {
   S.noVivino = e.target.checked; refilter();
+});
+document.getElementById("fNeu").addEventListener("change", e => {
+  S.onlyNeu = e.target.checked; refilter();
 });
 document.getElementById("fFound").addEventListener("change", e => {
   S.onlyFound = e.target.checked; refilter();
@@ -732,7 +749,8 @@ document.getElementById("reset").addEventListener("click", () => {
   S.style = new Set([STANDARD_SORTE]);
   S.src = STANDARD_QUELLE;
   S.minRating = STANDARD_NOTE; S.maxPrice = STANDARD_PREIS;
-  S.onlyBargain = false; S.onlyFound = false; S.noVivino = false; S.hideGrapes.clear();
+  S.onlyBargain = false; S.onlyFound = false; S.noVivino = false; S.onlyNeu = false;
+  S.hideGrapes.clear();
   (D.grapeFilters || []).forEach(g => {
     const box = document.getElementById("fGrape_" + g.key);
     if (box) box.checked = false;
@@ -744,6 +762,7 @@ document.getElementById("reset").addEventListener("click", () => {
   document.getElementById("fBargain").checked = false;
   document.getElementById("fNoVivino").checked = false;
   document.getElementById("fFound").checked = false;
+  document.getElementById("fNeu").checked = false;
   syncSort();
   render();
 });

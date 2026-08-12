@@ -262,6 +262,14 @@
   .pill { display:inline-block; font-size:var(--fs-label); letter-spacing:.14em;
           text-transform:uppercase; color:var(--faint); }
   .pill + .pill::before { content:"·"; margin:0 6px 0 2px; opacity:.6; }
+  /* „neu" bekommt keine eigene Farbe. Farbe hat auf dieser Seite drei Aufgaben —
+     Akzent heisst bedienbar, Urteil heisst gut oder schwach, Gold heisst Wert — und
+     „seit letzter Woche dabei" ist keine davon. Ein vierter Ton würde jede der drei
+     schwächen, und der Akzent würde die Kennzeichnung wie einen Knopf aussehen lassen.
+     Stattdessen Gewicht im vorhandenen Grauwert: dieselbe Pille, nur in Textfarbe statt
+     im leisen Ton. Gefunden wird sie über das Kästchen in der Feinauswahl — so macht die
+     Seite alles auffindbar. */
+  .pill.neu { color:var(--ink); font-weight:600; }
   /* Die Markierung sagt, dass ein Wein die Regel erfüllt. Sie steht bei den Fakten,
      nicht in der Zahlenspalte: dort bräche sie auf drei Zeilen. */
   .marker { display:inline-flex; align-items:center; gap:5px; font-size:var(--fs-label);

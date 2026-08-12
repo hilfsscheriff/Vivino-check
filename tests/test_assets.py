@@ -185,6 +185,55 @@ def test_die_bedienzeile_kann_sich_verkleinern():
     assert "width:100%" in auswahl.group(1)
 
 
+def test_zuruecksetzen_loest_jedes_kaestchen():
+    """Der Zurücksetzen-Knopf pflegt seine Kästchen von Hand, und beim Ergänzen des
+    fünften ist genau das passiert: der Zustand war zurückgesetzt, das Häkchen blieb
+    stehen. Sichtbar hiess das „nur neu" bei voller Liste.
+
+    Der Test hält die Liste beisammen: jedes Kästchen der Feinauswahl muss im
+    Zurücksetzen vorkommen.
+    """
+    js = _asset("app.js")
+    vorlage = re.search(
+        r'getElementById\("reset"\)\.addEventListener\("click".*?\n\}\);', js, re.S)
+    assert vorlage, "Zurücksetzen-Knopf nicht gefunden"
+    zuruecksetzen = vorlage.group(0)
+
+    # Die Kästchen aus der Vorlage lesen, nicht aus dem Verhalten: gefragt ist, was auf
+    # der Seite ankreuzbar ist. Auswahlfelder gehen einen anderen Weg (``syncSort``).
+    from pathlib import Path
+
+    vorlage_py = (Path(__file__).resolve().parents[1]
+                  / "src/winecheck/report/site.py").read_text(encoding="utf-8")
+    kaestchen = set(re.findall(r'type="checkbox" id="(f[A-Z]\w*)"', vorlage_py))
+    assert len(kaestchen) >= 4, f"zu wenige gefunden: {kaestchen}"
+    fehlen = {k for k in kaestchen
+              if f'getElementById("{k}").checked = false' not in zuruecksetzen}
+    assert not fehlen, f"vom Zurücksetzen nicht erfasst: {sorted(fehlen)}"
+
+
+def test_neu_bekommt_keine_eigene_farbe():
+    """Farbe hat auf dieser Seite drei Aufgaben — Akzent, Urteil, Gold — und „seit
+    letzter Woche dabei" ist keine davon. Die Kennzeichnung arbeitet mit Gewicht im
+    vorhandenen Grauwert; auffindbar wird sie über das Kästchen."""
+    css = _asset("app.css")
+    regel = re.search(r"\.pill\.neu \{([^}]*)\}", css)
+    assert regel, "die Kennzeichnung fehlt"
+    assert "var(--ink)" in regel.group(1)
+    for verboten in ("--accent", "--gold", "--good", "--bad", "--typ"):
+        assert verboten not in regel.group(1), f"{verboten} erfindet eine vierte Farbaufgabe"
+
+
+def test_ohne_vorlauf_wird_nichts_als_neu_gezeigt():
+    """Beim ersten Lauf ist kein Wein neu, sondern alle sind es. Ein Kästchen, das dann
+    jeden Wein zeigt, behauptet eine Auskunft, die es nicht hat."""
+    js = _asset("app.js")
+    assert "currentRun().hasPrev" in js
+    assert 'getElementById("fNeuBox").hidden = !hatVorlauf' in js
+    # Eine gesetzte Auswahl muss mitfallen, sonst filtert ein verborgenes Kästchen.
+    assert "if (!hatVorlauf && S.onlyNeu)" in js
+
+
 def test_lange_woerter_duerfen_umbrechen():
     """Vier Ursachen, eine Regel. «Châteauneuf-du-Pape» ist bei 200 % Textgrösse 403 px
     breit, «Weinaktionen» in der Überschrift 317 px — jedes einzelne mehr als ein

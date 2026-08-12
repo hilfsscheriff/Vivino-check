@@ -450,7 +450,10 @@ def site(
     # ``diff.md`` weist Preisänderungen gegenüber dem Vorlauf aus. Wer die
     # Entwicklung über Wochen ansehen will, baut die Seite mit ``--runs 12``.
     cache = Cache.open(cache_path)
-    history = cache.all_runs(limit=runs)
+    # Ein Lauf mehr laden als gezeigt wird: der älteste angezeigte braucht einen
+    # Vorgänger, gegen den sich "neu" bestimmen lässt. Der Zusatzlauf wird nur
+    # verglichen, nicht ausgeliefert.
+    history = cache.all_runs(limit=runs + 1)
     cache.close()
 
     if not history:
@@ -464,12 +467,29 @@ def site(
     from .report.site import _wine_from_snapshot
 
     prepared = []
-    for run in history:
+    for i, run in enumerate(history[:runs]):
         stamp = _time.localtime(run["started_at"])
+        # Gegen den unmittelbaren Vorlauf, nicht gegen den neuesten: bei mehreren
+        # Läufen soll jeder zeigen, was *damals* neu war.
+        vorlauf = history[i + 1] if i + 1 < len(history) else None
+        bekannt = (
+            {w.get("dedup_key") for w in vorlauf["wines"]} if vorlauf is not None else None
+        )
+        wines = []
+        for w in run["wines"]:
+            wein = _wine_from_snapshot(w)
+            # ``None`` statt ``0``, damit das Feld aus der komprimierten JSON fällt.
+            # Ohne Vorlauf bleibt es leer: der erste Lauf hat keine Neuzugänge, er ist
+            # einer, und jeden Wein zu markieren wäre eine Aussage ohne Inhalt.
+            if bekannt is not None and w.get("dedup_key") not in bekannt:
+                wein["neu"] = 1
+            wines.append(wein)
         prepared.append({
             "id": run["id"],
             "label": f"{stamp.tm_mday}.{stamp.tm_mon}.{stamp.tm_year}",
-            "wines": [_wine_from_snapshot(w) for w in run["wines"]],
+            # Damit die Seite den Filter nur anbietet, wenn es etwas zu filtern gibt.
+            "hatVorlauf": bekannt is not None,
+            "wines": wines,
         })
 
     out.mkdir(parents=True, exist_ok=True)
