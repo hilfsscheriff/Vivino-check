@@ -172,6 +172,18 @@ MIN_UI_CONTRAST = 3.0
 
 #: Textfarben der Etikette-Richtung, je Schema, mit ihrem Zweck. Grossgrade dürfen
 #: bei 3:1 liegen (WCAG-Schwelle für grosse Schrift), Kleintext braucht 4.5:1.
+#: Jede Farbe der Seite mit der Schwelle, die ihre **Verwendung** verlangt.
+#:
+#: Die Trennung nach Verwendung ist der Kern: 4.5 für Kleintext, 3.0 für Grossgrade,
+#: Flächen und grafische Objekte. Wo eine Farbe beides muss, gibt es zwei Tokens —
+#: ``--gold``/``--goldtx`` und ``--typ1``/``--typ1tx``.
+#:
+#: Die Typ-Töne fehlten hier, und genau daran ist der Prüfer vorbeigelaufen: sie sind
+#: für Diagrammpunkte auf 3:1 bemessen und standen gleichzeitig als 12-px-Text in jeder
+#: Tabellenzeile. Drei von vier verfehlten dort 4.5:1 — ``--typ2`` mit 3.42:1 — und
+#: ``check_tokens()`` meldete «keine Beanstandung», weil es die vier nicht kannte.
+#: Ein Prüfer, dessen Umfang nicht zur Verwendung passt, ist schlimmer als keiner: er
+#: gibt Sicherheit, die er nicht deckt. Wer eine Farbe ergänzt, ergänzt sie hier.
 _TOKEN_CONTRAST = {
     "hell": (_GROUND_LIGHT, {
         "--ink": ("#1a1719", 4.5), "--muted": ("#6b6668", 4.5),
@@ -179,6 +191,12 @@ _TOKEN_CONTRAST = {
         "--goldtx": ("#8a6a3d", 4.5), "--gold": ("#9a7b4f", 3.0),
         "--good": ("#2e7d32", 4.5), "--bad": ("#c62828", 4.5),
         "--line-strong": ("#8f8a86", 3.0),
+        # Grafiktöne: Punkte im Diagramm, Ränder der Pillen.
+        "--typ1": ("#b4622a", 3.0), "--typ2": ("#a4823f", 3.0),
+        "--typ3": ("#6f7d83", 3.0), "--typ4": ("#3d6f86", 3.0),
+        # Texttöne: die Versalien in der Pille, 12 px.
+        "--typ1tx": ("#a85c27", 4.5), "--typ2tx": ("#886c34", 4.5),
+        "--typ3tx": ("#667278", 4.5), "--typ4tx": ("#3d6f86", 4.5),
     }),
     "dunkel": (_GROUND_DARK, {
         "--ink": ("#f0ebec", 4.5), "--muted": ("#a49da0", 4.5),
@@ -186,6 +204,11 @@ _TOKEN_CONTRAST = {
         "--goldtx": ("#d4b587", 4.5), "--gold": ("#c9a877", 3.0),
         "--good": ("#7cc47f", 4.5), "--bad": ("#ef9a9a", 4.5),
         "--line-strong": ("#6f6a6e", 3.0),
+        "--typ1": ("#e0915c", 3.0), "--typ2": ("#cfae6d", 3.0),
+        "--typ3": ("#9fb0b8", 3.0), "--typ4": ("#7bb4cf", 3.0),
+        # Im Dunkeln reichen dieselben Töne für beides: 7.5 bis 8.9:1.
+        "--typ1tx": ("#e0915c", 4.5), "--typ2tx": ("#cfae6d", 4.5),
+        "--typ3tx": ("#9fb0b8", 4.5), "--typ4tx": ("#7bb4cf", 4.5),
     }),
 }
 

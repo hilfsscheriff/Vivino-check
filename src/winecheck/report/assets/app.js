@@ -346,8 +346,40 @@ function sameWine(a, b) {
   return n === B.size;
 }
 /* ----------------------------------------------------------------- Tabelle */
+/* Wer hatte den Fokus, bevor die Tabelle neu gebaut wurde?
+   ``box.innerHTML = …`` entfernt das fokussierte Element aus dem Dokument, und der
+   Fokus fällt auf ``BODY`` — gemessen beim Sortieren und beim Nachladen. Sichtbar ist
+   das nicht, für die Tastatur ist es der Abbruch: bei 1473 Weinen und 50 je Seite wird
+   „Weitere anzeigen" bis zu 29 Mal gedrückt, und jedes Mal beginnt der Weg wieder am
+   Dokumentanfang über 159 fokussierbare Elemente.
+
+   Die Filterkacheln lösen dasselbe Problem seit je über ``data-chip`` — hier dieselbe
+   Idee mit dem Sortierschlüssel beziehungsweise der Kennung des Knopfes. */
+function fokusMerken(box) {
+  const a = document.activeElement;
+  if (!a || !box.contains(a)) return null;
+  if (a.classList.contains("sortbtn")) return { art: "sort", col: a.dataset.col };
+  if (a.id === "more") return { art: "more" };
+  return null;
+}
+
+function fokusZurueck(box, merk) {
+  if (!merk) return;
+  if (merk.art === "sort") {
+    const b = box.querySelector(`.sortbtn[data-col="${CSS.escape(merk.col)}"]`);
+    if (b) b.focus();
+    return;
+  }
+  // Nach dem letzten Nachladen ist der Knopf weg. Dann den Absatz an seiner Stelle
+  // fokussieren: der Fokus bleibt, wo er war, und die Meldung „Alle N angezeigt" wird
+  // gelesen, statt dass beides stillschweigend verschwindet.
+  const b = box.querySelector("#more") || box.querySelector(".more");
+  if (b) { if (!b.hasAttribute("tabindex")) b.setAttribute("tabindex", "-1"); b.focus(); }
+}
+
 function table(list) {
   const box = document.getElementById("table");
+  const merk = fokusMerken(box);
   if (!list.length) { box.innerHTML = '<p class="empty">Kein Wein passt zu dieser Auswahl.</p>'; return; }
   const shopName = k => (D.retailers.find(r => r.key === k) || {}).name || k;
   // Leere Werte sortieren immer nach unten, in beiden Richtungen. Ein Wein ohne Note
@@ -416,11 +448,23 @@ function table(list) {
     ["price", "Preis/75cl", "num"], ["shop", "Wo kaufen", ""],
     ["bargain", "gegen Markt", "num"],
   ];
+  /* ``aria-sort`` am Spaltenkopf, nicht nur der Pfeil im Text.
+     Vorher trug der Knopf ein festes ``aria-label="Nach X sortieren"``. Das war doppelt
+     schädlich: es sagte den Zustand nicht — welche Spalte sortiert, in welcher Richtung —
+     und es *überschrieb* als zugänglicher Name den Textinhalt, sodass der Pfeil auch
+     nicht vorgelesen wurde. Gehört hat man „Nach Preis-Leistung sortieren, Schaltfläche"
+     und damit nichts über die Reihenfolge, die die Seite gerade zeigt.
+
+     Jetzt: der sichtbare Text ist der Name, der Pfeil ist für die Ausgabe verborgen
+     (er ist Dekoration derselben Aussage), und der Zustand steht als ``aria-sort`` am
+     ``th`` — die Standardform für sortierbare Tabellen. ``scope`` dazu: bei einer
+     einzeiligen Kopfzeile leiten Browser es her, geschrieben veraltet es nicht. */
   const head = COLS.map(([k, label, cls]) => {
     const on = S.sort === k;
-    const arrow = on ? (S.dir < 0 ? " ▾" : " ▴") : "";
-    return `<th class="${cls}${on ? " sorted" : ""}"><button type="button" class="sortbtn"`
-      + ` data-col="${k}" aria-label="Nach ${esc(label)} sortieren">${esc(label)}${arrow}</button></th>`;
+    const richtung = on ? (S.dir < 0 ? "descending" : "ascending") : "none";
+    const arrow = on ? ` <span aria-hidden="true">${S.dir < 0 ? "▾" : "▴"}</span>` : "";
+    return `<th class="${cls}${on ? " sorted" : ""}" scope="col" aria-sort="${richtung}">`
+      + `<button type="button" class="sortbtn" data-col="${k}">${esc(label)}${arrow}</button></th>`;
   }).join("");
   const rest = sorted.length - S.limit;
   box.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`
@@ -443,6 +487,8 @@ function table(list) {
     syncSort();
     render();
   }));
+
+  fokusZurueck(box, merk);
 }
 
 /* ------------------------------------------------------------------ Filter */

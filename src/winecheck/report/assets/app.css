@@ -27,6 +27,15 @@
        verliert nur den Typ, nicht das Urteil.
        Die vier Toene sind gegen den Grund auf >= 3:1 geprueft (Grossgrad/Flaeche). */
     --typ1:#b4622a; --typ2:#a4823f; --typ3:#6f7d83; --typ4:#3d6f86;
+    /* Dieselben vier Toene fuer Kleintext, dieselbe Trennung wie --gold/--goldtx.
+       Der Grund: die Toene oben sind fuer Punkte und Raender gemacht und dort mit 3:1
+       richtig bemessen — als 12-px-Text in der Tabelle gilt aber 4.5:1, und drei von
+       vier verfehlten das (--typ2 mit 3.42:1, --typ3 mit 4.04, --typ1 mit 4.23).
+       Nur die Helligkeit ist gesenkt, Farbton und Saettigung bleiben: die Rampe warm ->
+       kuehl muss dieselbe sein, sonst sagen Pille und Diagrammpunkt verschiedene Dinge.
+       --typ4tx ist mit dem Grafikton identisch, der erreichte schon 5.23:1.
+       Im Dunkeln liegen alle vier bei 7.5 bis 8.9:1 — dort gibt es nichts zu trennen. */
+    --typ1tx:#a85c27; --typ2tx:#886c34; --typ3tx:#667278; --typ4tx:#3d6f86;
     /* Didot ist die Etikettenschrift, Optima der humanistische Begleiter, Menlo
        hält die Zahlenspalten. Nichts wird geladen: die Seite bleibt ohne
        Drittanbieter, und jede Stufe hat einen breit vorhandenen Ersatz. */
@@ -51,15 +60,31 @@
             --brand:#e0879f; --accent:#e0879f;
             --gold:#c9a877; --goldtx:#d4b587;
             --good:#7cc47f; --bad:#ef9a9a;
-            --typ1:#e0915c; --typ2:#cfae6d; --typ3:#9fb0b8; --typ4:#7bb4cf; }
+            --typ1:#e0915c; --typ2:#cfae6d; --typ3:#9fb0b8; --typ4:#7bb4cf;
+            --typ1tx:#e0915c; --typ2tx:#cfae6d; --typ3tx:#9fb0b8; --typ4tx:#7bb4cf; }
   }
   @media (pointer: coarse) { :root { --control-h:44px; } }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   /* Ein Fokusstil für alles Bedienbare — vorher hing das Aussehen am Browser. */
   :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  html { -webkit-text-size-adjust:100%; }
+  /* Die sticky Suchleiste ist deckend und bei 375 px 117 px hoch. Ohne diese Zeile
+     schiebt der Browser ein fokussiertes Element beim Blättern an den oberen Rand —
+     also unter die Leiste, wo es vollständig verschwindet. Gemessen mit
+     ``scrollIntoView(true)``: Ziel bei top 0, Leistenunterkante bei 117.
+     Grosszügig bemessen, weil die Leiste mit der Breite wächst; zu viel Vorlauf kostet
+     nur ein Stück Bildlauf, zu wenig kostet den Fokus. */
+  html { -webkit-text-size-adjust:100%; scroll-padding-top:8.5rem; }
+  /* Grundschrift in ``rem``, nicht in Pixel: sonst skaliert der Fliesstext bei reiner
+     Textvergrösserung nicht mit, während die Rollen darüber (alle in ``rem``) es tun.
+     Bei Standardeinstellung derselbe Wert wie vorher — 1rem sind 16 px. */
+  /* Lange Wörter dürfen umbrechen, wenn sie sonst nicht passen — und nur dann.
+     Auf dieser Seite gibt es reichlich davon: «Châteauneuf-du-Pape» ist bei 200 %
+     Textgrösse 403 px breit, «Weinaktionen» in der Überschrift 317 px, beide mehr als
+     ein 320-px-Fenster. Ohne diese Regel schob jedes einzelne davon die Seite seitwärts,
+     und man behebt sie eine nach der anderen. Ein getrennter Name ist unschön, eine
+     Seite, die waagrecht läuft, ist unbenutzbar. */
   body { margin:0; background:var(--bg); color:var(--ink);
-         font:16px/1.55 var(--sans);
+         font:1rem/1.55 var(--sans); overflow-wrap:break-word;
          padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   .wrap { max-width:1080px; margin:0 auto; padding:26px 18px 56px; }
   h1 { font-family:var(--serif); font-size:var(--fs-page-title); font-weight:400;
@@ -129,7 +154,15 @@
   .controls { display:flex; flex-wrap:wrap; gap:14px 26px; align-items:flex-end;
               font-size:var(--fs-body-sm); color:var(--muted); }
   /* Auswahlfelder sind unterstrichen, nicht umkastet — Etiketten arbeiten mit Linien. */
-  .controls label { display:flex; flex-direction:column; gap:5px; white-space:nowrap;
+  /* Kein ``nowrap`` und ``min-width:0``: das waren die beiden Gründe, weshalb die Seite
+     bei 320 px Breite und vergrösserter Schrift waagrecht scrollte. Ein Flex-Element
+     darf sich standardmässig nicht unter seinen Inhalt verkleinern, und die längste
+     Option von ``Sortieren`` ("Preis-Leistung, beste zuerst") bestimmte damit eine
+     Mindestbreite von 415 px — bei 320 px Fenster. Gemessen: ab 150 % Textgrösse
+     erschien der Balken, bei 200 % waren es 430 gegen 320 px.
+     ``max-width:100%`` half nicht: es begrenzt gegen den Container, nicht gegen die
+     eigene Mindestbreite. */
+  .controls label { display:flex; flex-direction:column; gap:5px; min-width:0;
                     min-height:var(--control-h); }
   .controls label > span { font-size:var(--fs-label); letter-spacing:.2em;
                            text-transform:uppercase; color:var(--faint); }
@@ -137,8 +170,11 @@
                      background:transparent; border:0;
                      border-bottom:1px solid var(--line-strong);
                      padding:4px 16px 6px 0; min-height:var(--control-h); cursor:pointer;
-                     appearance:none; max-width:100%; }
-  .controls .cb { flex-direction:row; align-items:center; gap:9px; cursor:pointer; }
+                     appearance:none; width:100%; }
+  /* Die Kästchen-Zeile bleibt in einer Zeile, darf sich aber umbrechen, wenn die
+     Beschriftung sonst nicht passt. */
+  .controls .cb { flex-direction:row; align-items:center; gap:9px; cursor:pointer;
+                  flex-wrap:wrap; }
   .controls input[type=checkbox] { accent-color:var(--accent); width:19px; height:19px;
                                    flex:0 0 auto; }
   .coverage { font-size:var(--fs-body-sm); color:var(--faint); margin:15px 0 0;
@@ -167,10 +203,12 @@
      erfundener Ton waere eine Behauptung ueber den Wein. */
   /* Die Pille traegt den Ton als Rand, nicht als Flaeche: gefuellte Farbflaechen
      sind auf dieser Seite dem Wert vorbehalten. */
-  .pill.t-fruchtsuess { border-color:var(--typ1); color:var(--typ1); }
-  .pill.t-weich_modern { border-color:var(--typ2); color:var(--typ2); }
-  .pill.t-ausgewogen { border-color:var(--typ3); color:var(--typ3); }
-  .pill.t-straff_herb { border-color:var(--typ4); color:var(--typ4); }
+  /* Rand aus dem Grafikton, Text aus dem Textton: der Rand ist eine Flaeche und
+     kommt mit 3:1 aus, die 12-px-Versalien darin brauchen 4.5:1. */
+  .pill.t-fruchtsuess { border-color:var(--typ1); color:var(--typ1tx); }
+  .pill.t-weich_modern { border-color:var(--typ2); color:var(--typ2tx); }
+  .pill.t-ausgewogen { border-color:var(--typ3); color:var(--typ3tx); }
+  .pill.t-straff_herb { border-color:var(--typ4); color:var(--typ4tx); }
   .pt.t-fruchtsuess { stroke:var(--typ1); }
   .pt.t-weich_modern { stroke:var(--typ2); }
   .pt.t-ausgewogen { stroke:var(--typ3); }
@@ -253,6 +291,16 @@
     h1 { font-size:1.6rem; }
     .wrap { padding:20px 15px 44px; }
     thead { display:none; }
+    /* Auch die Tabelle selbst wird zum Block. ``tr`` und ``td`` sind hier ohnehin
+       schon Blöcke — der Tabellenkasten darüber blieb aber ein Tabellenkasten und hielt
+       damit eine Mindestbreite aus dem Inhalt seiner Zellen. Bei vergrösserter Schrift
+       auf 320 px liess sich der nicht unterschreiten, und die Seite lief seitwärts, auch
+       nachdem der lange Weinname umbrechen durfte.
+       Für assistive Technik geht dabei nichts verloren: mit ``display:block`` an ``tr``
+       und ``td`` ist die Tabellenrolle auf dieser Breite längst aufgegeben, und die
+       Spaltennamen stehen als ``data-l`` vor jedem Wert. */
+    table { display:block; }
+    tbody { display:block; }
     tr { display:block; border-bottom:1px solid var(--line); padding:14px 0; }
     td { display:block; border:0; padding:2px 0; text-align:left; }
     td[data-l]::before { content:attr(data-l) " "; color:var(--faint);
@@ -262,7 +310,12 @@
        gibt es keine Spalte mehr — dort ist es nur eine Zeile ohne Inhalt, und
        beim Marktpreis betrifft das die Mehrheit der Weine. */
     td.noval { display:none; }
-    .num, .pl { text-align:left; }
+    /* ``nowrap`` hält in der Tabelle die Zahlenspalte zusammen. In der Kartenansicht
+       steht davor aber der Spaltenname aus ``data-l``, und beides zusammen ergibt eine
+       Zeile, die nicht brechen darf: «PREIS-LEISTUNG +0.36» war bei 200 % Textgrösse
+       389 px breit in einem 290 px breiten Kasten — der letzte Grund für waagrechtes
+       Scrollen. Hier gibt es keine Spalte mehr, die ausgerichtet bleiben müsste. */
+    .num, .pl { text-align:left; white-space:normal; }
     .pl { font-size:1.7em; }
     /* Das Diagramm braucht Breite, die es hier nicht hat. Die Liste ist auf dieser
        Breite die vollständigere Ansicht. */
