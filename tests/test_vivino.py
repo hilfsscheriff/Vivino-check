@@ -433,3 +433,41 @@ def test_weingutseite_ohne_eigenes_wort_liefert_nichts():
                         url="u", year=None, vintage_avg=None, vintage_count=0,
                         wine_avg=4.2, wine_count=900)]
     assert _nur_derselbe_wein("Avignonesi", kandidaten) == []
+
+
+def test_der_rueckfall_hoert_auf_sobald_er_etwas_gefunden_hat():
+    """Hier stand ``if best.status is VivinoStatus.EXACT: break``, und das konnte per
+    Konstruktion nie zutreffen: ``_weingut_kandidaten`` setzt ``year`` auf None,
+    ``classify`` verlangt für EXACT aber ``c.year is not None``. Der Abbruch war toter
+    Code — die zweite Gutsseite wurde auch dann geholt, wenn die erste den Wein schon
+    gebracht hatte. Zwei Sekunden Tempolimit je gerettetem Wein, gegen den eigenen
+    Kommentar über der Schleife."""
+    from winecheck.ratings.vivino import VivinoAdapter, _Cand
+
+    geholt: list[str] = []
+
+    def _kand(*, name, slug="", year=None, wine_avg=None, wine_count=0):
+        return _Cand(name=name, wine_name=name, winery="Fallet Dart", url="https://x/w/1",
+                     year=year, vintage_avg=None, vintage_count=0,
+                     wine_avg=wine_avg, wine_count=wine_count, winery_slug=slug)
+
+    a = VivinoAdapter(fetcher=None)
+    # Die Suche nennt zwei Gueter, findet den Wein selbst aber nicht.
+    a._search = lambda q, **kw: [
+        _kand(name="Fallet Dart Brut Millesime", slug="erstes-gut"),
+        _kand(name="Irgendein Fremder Wein", slug="zweites-gut"),
+    ]
+    a._trinkfenster = lambda *args, **kw: (None, None)
+
+    def _gut(slug):
+        geholt.append(slug)
+        if slug != "erstes-gut":
+            return []
+        return [_kand(name="Fallet Dart Cuvée de Réserve Brut Champagne",
+                      wine_avg=4.1, wine_count=533)]
+
+    a._weingut_kandidaten = _gut
+    r = a._best_of("Fallet Dart Champagne Brut Cuvée de Réserve", None,
+                   "fallet dart champagne brut cuvee reserve", set())
+    assert r.status.value == "wine_level", r.status
+    assert geholt == ["erstes-gut"], f"zweite Gutsseite unnoetig geholt: {geholt}"

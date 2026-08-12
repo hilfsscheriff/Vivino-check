@@ -40,8 +40,9 @@ import time
 from typing import Any, Iterator
 
 from ..fetching import Blocked
-from ..models import Offer
-from ..ratings.vivino import API_URL, PER_PAGE, _struktur
+
+from ..models import Offer, VivinoResult, VivinoStatus
+from ..ratings.vivino import API_URL, PER_PAGE, saat_payload, _struktur
 from .base import FetchReport, RetailerAdapter
 
 #: Die Farben, die dieses Projekt führt — dieselben wie bei der Bewertungsabfrage.
@@ -261,33 +262,32 @@ class VivinoShopAdapter(RetailerAdapter):
         """
         geschrieben = 0
         for b in self.bewertungen:
-            cache.put_rating(
-                "vivino",
-                b["name"],
-                b["vintage"],
-                {
-                    "status": "exact",
-                    "query": b["name"],
-                    "url": b["url"],
-                    "note": "Note kam mit dem Angebot — kein Namensabgleich nötig",
-                    "rating": b["rating"],
-                    "rating_count": b["rating_count"],
-                    "matched_name": b["name"],
-                    "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                    "match_confidence": "exact",
-                    "wine_type_id": b.get("wine_type_id"),
-                    "style_name": b.get("style_name") or "",
-                    "country": b.get("country") or "",
-                    "region_name": b.get("region_name") or "",
-                    "taste": b.get("taste") or {},
-                    "style_baseline": b.get("style_baseline") or {},
-                    # Kein Marktpreis: er käme von Vivino und würde mit einem
-                    # Vivino-Preis verglichen. Der Vergleich wäre zirkulär, und
-                    # die Schnäppchen-Spalte bliebe eine Aussage über sich selbst.
-                    "market_price_note": "entfällt — Angebot und Marktpreis stammen beide von Vivino",
-                    "candidates": [],
-                },
-                status="exact",
+            # Ueber ein echtes VivinoResult statt ueber ein handgebautes Dictionary:
+            # so erbt dieser Pfad jedes Feld, das dem Ergebnis hinzugefuegt wird.
+            # Vorher stand die Feldliste hier ein zweites Mal, und als Machart und
+            # Herkunft dazukamen, fehlten sie genau hier.
+            ergebnis = VivinoResult(
+                status=VivinoStatus.EXACT,
+                query=b["name"],
+                url=b["url"],
+                note="Note kam mit dem Angebot — kein Namensabgleich nötig",
+                rating=b["rating"],
+                rating_count=b["rating_count"],
+                matched_name=b["name"],
+                checked_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+                match_confidence="exact",
+                wine_type_id=b.get("wine_type_id"),
+                style_name=b.get("style_name") or "",
+                country=b.get("country") or "",
+                region_name=b.get("region_name") or "",
+                taste=b.get("taste") or {},
+                style_baseline=b.get("style_baseline") or {},
+                # Kein Marktpreis: er kaeme von Vivino und wuerde mit einem
+                # Vivino-Preis verglichen. Der Vergleich waere zirkulaer, und die
+                # Schnaeppchen-Spalte bliebe eine Aussage ueber sich selbst.
+                market_price_note="entfällt — Angebot und Marktpreis stammen beide von Vivino",
             )
+            cache.put_rating("vivino", b["name"], b["vintage"],
+                             saat_payload(ergebnis), status="exact")
             geschrieben += 1
         return geschrieben

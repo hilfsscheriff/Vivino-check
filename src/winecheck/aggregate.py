@@ -298,7 +298,54 @@ def compute_scores(rows: list[WineRow]) -> list[WineRow]:
             # Bewertung zählt doppelt: ein guter Wein soll einen billigen schlechten
             # nicht automatisch verlieren.
             row.value_score = round(100 * (2 * r_pos + (1 - p_pos)) / 3, 1)
+
+    # Dieselbe Frage, andere Rechnung — und zwar die, welche die Webseite zeigt.
+    #
+    # Vorher gab es beide Kennzahlen auch schon, aber in getrennten Ausgabekanälen:
+    # das PDF rankte nach ``value_score`` (Rangposition in der Preisklasse), die Seite
+    # zeigte den Regressionsrest nach ``(typ, sorte)``, und beide hiessen dem Nutzer
+    # gegenüber „Preis-Leistung". Als Spec §6 die Gruppierung auf den Stil-Typ
+    # umstellte, landete das nur in der Seite — die PDF-Rangliste blieb bei der
+    # unkorrigierten Rechnung, also bei genau der Verzerrung, die §6 beheben sollte.
+    #
+    # Jetzt stehen beide in derselben Zeile. Angezeigt und geranked wird weiterhin
+    # ``value_score``: §6 verlangt ausdrücklich Parallelbetrieb, „bis die Verteilung
+    # geprüft ist", und die PDF-Rangfolge umzustellen ist eine Produktentscheidung,
+    # keine Aufräumarbeit. Wer sie treffen will, tauscht in pdf_out.py und diff.py den
+    # Sortierschlüssel — die Zahl liegt bereit.
+    _wert_scores(rows)
     return rows
+
+
+def _wert_scores(rows: list[WineRow]) -> None:
+    """Trägt :attr:`WineRow.wert_score` aus :mod:`winecheck.wert` ein.
+
+    Übersetzt die Wein-Zeilen in die Form, die das Wertmodul erwartet — dasselbe
+    Vokabular, das die Seite verwendet — und schreibt das Ergebnis zurück. Ein
+    Zwischenschritt statt eines zweiten Rechenwegs: die Formel gibt es nur einmal.
+    """
+    from .wert import _je_typ, _wirksame_note
+
+    tragbar = [
+        r for r in rows
+        if r.vivino is not None and r.vivino.rating is not None and (r.best_price or 0) > 0
+    ]
+    if not tragbar:
+        return
+    dicts = [
+        {
+            "rating": r.vivino.rating,
+            "ratingCount": r.vivino.rating_count or 0,
+            "price": r.best_price,
+            "typ": r.stil.typ if r.stil.typ != "unbekannt" else "",
+            "style": r.style,
+        }
+        for r in tragbar
+    ]
+    _je_typ(dicts, "wertScore", _wirksame_note(dicts))
+    for row, d in zip(tragbar, dicts):
+        wert = d.get("wertScore")
+        row.wert_score = round(wert, 3) if wert is not None else None
 
 
 def band_summary(rows: list[WineRow]) -> list[tuple[str, int, int]]:
@@ -335,3 +382,75 @@ def _spread(row: WineRow) -> float | None:
 
 def spread(row: WineRow) -> float | None:
     return _spread(row)
+
+
+# --------------------------------------------------------------- Reissleine
+
+#: Ab so vielen blockierten Weinen ist eine Bewertungsquelle dichtgemacht, nicht das
+#: Sortiment gewechselt. Beim ersten CI-Lauf waren es 465 von 478.
+MAX_BLOCKIERT_ANTEIL = 0.20
+
+#: So viel der bisher ausgelieferten Bewertungen muss ein neuer Stand mindestens
+#: erreichen. Ein Sortimentswechsel drückt die Trefferquote legitim, ein stiller
+#: Ausfall halbiert sie.
+MIN_BEWERTET_ANTEIL = 0.66
+
+#: Unter so wenigen bisher ausgelieferten Bewertungen ist der Vergleich sinnlos —
+#: beim ersten Lauf gibt es keinen Vorstand.
+MIN_VERGLEICHSBASIS = 20
+
+
+class Unplausibel(RuntimeError):
+    """Der neue Stand ist so viel schlechter als der alte, dass er nicht taugt.
+
+    Warum das hier steht und nicht nur im Workflow: die beiden Schwellen gab es schon,
+    aber ausschliesslich in ``.github/workflows/weekly.yml``. Der lokale Weg — rate,
+    ratings-export, report, site, git push — hatte keine, und über den wird tatsächlich
+    veröffentlicht. Eine Schemaänderung bei Vivino während eines lokalen Nachtlaufs
+    hätte die versionierte Austauschdatei mit Leerwerten überschrieben und eine Seite
+    ohne Noten publiziert, ohne dass etwas fehlschlägt.
+
+    Eine Regel für beide Wege, an einer Stelle gepflegt.
+    """
+
+
+def pruefe_plausibilitaet(rows: list[WineRow], bewertet_vorher: int | None = None) -> None:
+    """Wirft :class:`Unplausibel`, wenn der Stand nicht ausgeliefert werden darf.
+
+    Zwei Prüfungen, beide aus dem Wochenlauf übernommen:
+
+    * **Blockade.** Sind über :data:`MAX_BLOCKIERT_ANTEIL` der Weine als ``blocked``
+      gemeldet, hat eine Quelle dichtgemacht. Das ist das eindeutige Signal — ein
+      Sortimentswechsel erzeugt kein Sperrmuster.
+    * **Stiller Einbruch.** Fällt die Zahl bewerteter Weine unter
+      :data:`MIN_BEWERTET_ANTEIL` des bisher ausgelieferten Stands, liefert eine Quelle
+      leer statt zu blocken. Das ist der Fall, den eine Schemaänderung erzeugt.
+
+    Args:
+        bewertet_vorher: Zahl der Bewertungen im bisher ausgelieferten Stand. ``None``
+            heisst „kein Vergleichsstand" — dann greift nur die Blockadeprüfung.
+    """
+    if not rows:
+        raise Unplausibel("Keine Weine im Bestand — es gibt nichts auszuliefern.")
+
+    blockiert = sum(
+        1 for r in rows if r.vivino is not None and r.vivino.status is VivinoStatus.BLOCKED
+    )
+    if blockiert > len(rows) * MAX_BLOCKIERT_ANTEIL:
+        raise Unplausibel(
+            f"{blockiert} von {len(rows)} Weinen blockiert "
+            f"(Grenze {MAX_BLOCKIERT_ANTEIL:.0%}) — eine Bewertungsquelle hat "
+            f"dichtgemacht. Der alte Stand bleibt stehen."
+        )
+
+    bewertet = sum(1 for r in rows if r.vivino is not None and r.vivino.has_rating)
+    if (
+        bewertet_vorher is not None
+        and bewertet_vorher >= MIN_VERGLEICHSBASIS
+        and bewertet < bewertet_vorher * MIN_BEWERTET_ANTEIL
+    ):
+        raise Unplausibel(
+            f"nur {bewertet} bewertete Weine gegenüber {bewertet_vorher} bisher "
+            f"(Grenze {MIN_BEWERTET_ANTEIL:.0%}) — eine Quelle liefert still leer. "
+            f"Der alte Stand bleibt stehen."
+        )

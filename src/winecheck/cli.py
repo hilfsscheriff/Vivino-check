@@ -30,9 +30,13 @@ from .adapters.shopware import ShopwareAdapter
 from .adapters.vivinoshop import VivinoShopAdapter
 from .adapters.wineoutlet import WineOutletAdapter
 from .aggregate import (
+    MIN_BEWERTET_ANTEIL,
+    MIN_VERGLEICHSBASIS,
+    Unplausibel,
     attach_maturity,
     compute_scores,
     merge_offers,
+    pruefe_plausibilitaet,
     resolve_shared_ratings,
 )
 from .cache import Cache
@@ -191,10 +195,29 @@ def rate(
     refresh: bool = typer.Option(False, "--refresh", help="Bewertungs-Cache ignorieren"),
     retry_failed: bool = typer.Option(False, "--retry-failed", help="blocked/no_entry erneut prüfen"),
     limit: int = typer.Option(0, "--limit", help="nur die ersten N Weine (zum Ausprobieren)"),
+    nachtragen: str = typer.Option(
+        "", "--nachtragen", metavar="<feld>",
+        help="nur Weine neu abfragen, deren Bewertung dieses Payload-Feld nicht trägt",
+    ),
 ) -> None:
-    """Falstaff abfragen und Vivino **für jeden** Wein — unabhängig voneinander."""
+    """Falstaff abfragen und Vivino **für jeden** Wein — unabhängig voneinander.
+
+    ``--nachtragen <feld>`` ist der schmale Weg für eine Feldergänzung. Kommt ein neues
+    Feld aus der Vivino-Antwort dazu, tragen die bestehenden Cache-Einträge es nicht,
+    und bisher half nur ``--refresh`` — ein Volllauf. Gemessen sind das 1567 Weine bei
+    rund sechs Sekunden, also zweieinhalb Stunden; als ``region_name`` nachgezogen
+    wurde, waren es zwei Läufe und gut vier Stunden für ein Feld, das in derselben
+    Antwort schon mitkam. Der Nachtrag verwirft nur die Einträge ohne dieses Feld und
+    lässt den Rest stehen.
+    """
     reg = load_registry(registry)
     cache = Cache.open(cache_path)
+    if nachtragen:
+        verworfen = cache.verwerfe_ratings_ohne_feld("vivino", nachtragen)
+        _echo(f"Nachtrag '{nachtragen}': {verworfen} Bewertungen verworfen, "
+              f"der Rest bleibt aus dem Cache.")
+        if not verworfen:
+            _echo("Nichts nachzutragen — jede Bewertung mit Treffer führt das Feld.")
     offers = [_offer_from_payload(d) for d in cache.all_offers()]
     rows = compute_scores(attach_maturity(merge_offers(offers)))
     if limit:
@@ -263,6 +286,8 @@ RATINGS_FILE = Path("state/ratings-cache.json")
 def ratings_export(
     out: Path = typer.Option(RATINGS_FILE, "--out"),
     cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache"),
+    force: bool = typer.Option(False, "--force",
+                               help="auch schreiben, wenn der Stand schlechter ist"),
 ) -> None:
     """Bewertungen in eine versionierbare Datei schreiben.
 
@@ -273,6 +298,23 @@ def ratings_export(
     """
     cache = Cache.open(cache_path)
     rows = cache.export_ratings()
+    # Die versionierte Austauschdatei nicht gegen einen schlechteren Stand tauschen.
+    # Sie ist die einzige Notenquelle des Wochenlaufs, der selbst nicht bei Vivino
+    # nachfragen kann — sie mit Leerwerten zu überschreiben nimmt der Seite die Noten,
+    # und zwar dauerhaft, weil der Cache lokal und nicht versioniert ist.
+    if out.exists() and not force:
+        try:
+            vorher = json.loads(out.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            vorher = None
+        if isinstance(vorher, list) and len(vorher) >= MIN_VERGLEICHSBASIS \
+                and len(rows) < len(vorher) * MIN_BEWERTET_ANTEIL:
+            _echo(
+                f"Abbruch: nur {len(rows)} Bewertungen gegenüber {len(vorher)} in "
+                f"{out}. Die bestehende Datei bleibt stehen — mit --force überschreiben.",
+                err=True,
+            )
+            raise typer.Exit(2)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
     cache.close()
@@ -317,6 +359,21 @@ def report(
     reports = _load_reports()
     uncertain = _load_uncertain()
 
+    # Reissleine, bevor irgendetwas geschrieben wird. Diese beiden Schwellen gab es
+    # bisher nur in .github/workflows/weekly.yml — der lokale Weg (rate, report, site,
+    # git push) hatte keine, und veröffentlicht wird tatsächlich über den lokalen.
+    # Eine Schemaänderung bei einer Bewertungsquelle hätte die versionierte
+    # Austauschdatei mit Leerwerten überschrieben, ohne dass etwas fehlschlägt.
+    _prev_id, previous = cache.previous_snapshot()
+    bewertet_vorher = (
+        sum(1 for d in previous if d.get("vivino_rating") is not None) if previous else None
+    )
+    try:
+        pruefe_plausibilitaet(rows, bewertet_vorher)
+    except Unplausibel as exc:
+        _echo(f"Abbruch: {exc}", err=True)
+        raise typer.Exit(2) from exc
+
     out.mkdir(parents=True, exist_ok=True)
     csv_path = write_csv(rows, out / "results.csv")
     pdf_path = write_pdf(
@@ -326,7 +383,6 @@ def report(
     png_path = write_scatter(rows, out / "scatter.png")
     html_path = write_interactive(rows, out / "scatter.html", retailer_info=info)
 
-    _prev_id, previous = cache.previous_snapshot()
     diff_path = write_diff(rows, previous, out / "diff.md", source_reports=reports)
     cache.save_snapshot(snapshot(rows), label="report")
 

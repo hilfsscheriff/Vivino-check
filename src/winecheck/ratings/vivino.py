@@ -251,8 +251,45 @@ def _display_name(c: _Cand) -> str:
     return wein
 
 
+class VertragsBruch(Blocked):
+    """Die Antwort ist formal in Ordnung, trägt aber nicht die erwartete Struktur.
+
+    Der Unterschied zu „nichts gefunden" ist der ganze Punkt. Beides ergab bisher eine
+    leere Kandidatenliste, und damit sah ein umbenannter Schlüssel bei Vivino genauso
+    aus wie ein Wein, den es dort wirklich nicht gibt: jeder Wein wurde ``no_entry``,
+    die Trefferquote fiel von 27 % auf 100 % Lücke, und der Bericht las sich wie ein
+    Datenbefund statt wie ein Defekt.
+
+    Nachgemessen am 10.8.2026 mit sechs Drift-Fällen: ``explore_vintage`` umbenannt,
+    ``matches`` zu ``results``, die ``vintage``-Ebene entfallen — alle drei ergaben
+    stillschweigend null Kandidaten ohne Ausnahme.
+
+    Erbt von :class:`Blocked`, damit der bestehende Umgang mit Quellenausfällen greift:
+    der Lauf bricht nicht ab, die Quelle wird als gestört gemeldet, und der alte Stand
+    bleibt stehen. Eine leere, aber strukturell gültige Antwort löst das *nicht* aus —
+    „kein Treffer" bleibt eine gültige Auskunft.
+    """
+
+
 def _parse_candidates(payload: dict[str, Any]) -> list[_Cand]:
+    if not isinstance(payload, dict):
+        raise VertragsBruch(f"Vivino-Antwort ist kein Objekt, sondern {type(payload).__name__}",
+                            kind="parse")
+    if payload and "explore_vintage" not in payload:
+        # Ein leerer Rumpf ist erlaubt (und kommt bei Ratenbegrenzung vor); ein
+        # gefüllter ohne dieses Feld bedeutet, dass sich das Schema bewegt hat.
+        raise VertragsBruch(
+            "Vivino-Antwort ohne 'explore_vintage' — Schema verändert. "
+            f"Vorhandene Schlüssel: {sorted(payload)[:6]}",
+            kind="parse",
+        )
     ev = payload.get("explore_vintage") or {}
+    if ev and not isinstance(ev.get("matches"), list):
+        raise VertragsBruch(
+            "Vivino-Antwort ohne Liste 'explore_vintage.matches' — Schema verändert. "
+            f"Vorhandene Schlüssel: {sorted(ev)[:6]}",
+            kind="parse",
+        )
     out: list[_Cand] = []
     seen: set[tuple[int, int | None]] = set()
     for match in ev.get("matches") or []:
@@ -293,6 +330,15 @@ def _parse_candidates(payload: dict[str, Any]) -> list[_Cand]:
                 style_baseline=_struktur((wine.get("style") or {}).get("baseline_structure")),
                 prices=_parse_prices(match),
             )
+        )
+    # Treffer da, aber keiner auswertbar: dann hat sich die Form *innerhalb* der Liste
+    # bewegt — etwa die ``vintage``-Ebene entfallen. Ohne diese Prüfung wäre auch das
+    # stumm, weil jeder einzelne Zugriff schon defensiv ist und None liefert.
+    if ev.get("matches") and not out:
+        raise VertragsBruch(
+            f"{len(ev['matches'])} Treffer, aber keiner auswertbar — Schema verändert. "
+            f"Schlüssel des ersten Treffers: {sorted(ev['matches'][0])[:6]}",
+            kind="parse",
         )
     return out
 
@@ -815,7 +861,14 @@ class VivinoAdapter:
                                exclude_hosts=exclude_hosts)
                 if self._RANK[res.status] > self._RANK[best.status]:
                     best = res
-                if best.status is VivinoStatus.EXACT:
+                # Sobald *irgendetwas* gefunden ist, reicht es. Hier stand
+                # ``is VivinoStatus.EXACT``, und das konnte per Konstruktion nie
+                # zutreffen: _weingut_kandidaten setzt ``year`` auf None, classify
+                # verlangt fuer EXACT aber ``c.year is not None``. Der Abbruch war
+                # toter Code, und die zweite Gutsseite wurde auch dann geholt, wenn
+                # die erste den Wein schon gebracht hatte — zwei Sekunden Tempolimit
+                # je gerettetem Wein, gegen den eigenen Kommentar oben.
+                if best.status is not VivinoStatus.NO_ENTRY:
                     break
         return best
 
@@ -993,6 +1046,33 @@ def _to_payload(r: VivinoResult) -> dict[str, Any]:
             for c in r.candidates
         ],
     }
+
+
+def saat_payload(result: VivinoResult) -> dict[str, Any]:
+    """Cache-Payload für eine Note, die mit dem Angebot kam statt gesucht zu werden.
+
+    Warum das hier steht und nicht im Adapter: es gab zwei Wege, wie ein Ergebnis in
+    den Cache kommt, und der zweite baute seine Feldliste von Hand nach. Als
+    ``style_name``, ``taste``, ``country`` und ``region_name`` dazukamen, bekam der
+    reguläre Weg sie und dieser nicht — **703 von 1452 Weinen** blieben ohne Stil-Typ,
+    ausgerechnet die mit der verlässlichsten Note. Aufgefallen ist es nur beim
+    Gegenlesen einer Quote, nicht durch einen Fehler.
+
+    Jetzt geht auch dieser Weg durch :func:`_to_payload`. Ein neues Feld am
+    :class:`~winecheck.models.VivinoResult` erscheint damit in beiden Pfaden — mit
+    seinem Vorgabewert, wenn der Adapter es nicht füllt, aber nie als fehlender
+    Schlüssel.
+
+    Eine Ausnahme bleibt und ist der Grund, dass es diese Funktion gibt statt eines
+    direkten Aufrufs: ``_to_payload`` setzt ``drink_checked`` auf True, weil der
+    reguläre Weg das Trinkfenster im selben Durchgang holt. Diese Weine haben es nicht
+    — ``rate`` zieht es beim nächsten Lauf nach, und zwar genau dann, wenn der Marker
+    fehlt (siehe :meth:`VivinoAdapter.lookup`). Würde er hier mitgeschrieben, verlören
+    645 Weine still ihr Trinkfenster.
+    """
+    d = _to_payload(result)
+    d["drink_checked"] = False
+    return d
 
 
 def _from_payload(d: dict[str, Any]) -> VivinoResult:

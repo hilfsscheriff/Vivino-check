@@ -51,12 +51,20 @@ CREATE TABLE IF NOT EXISTS ratings (
     PRIMARY KEY (source, name_key, vintage)
 );
 CREATE TABLE IF NOT EXISTS offers (
-    retailer      TEXT NOT NULL,
+    -- "source_key", nicht "retailer": hier steht der Schluessel des *Adapters*, nicht
+    -- der Haendler. Fuer den Aggregator Aktionis ist es "aktionis", waehrend die
+    -- Angebote darunter zu Coop, Denner, Otto's, Volg und SPAR gehoeren — der echte
+    -- Haendler steht im Payload.
+    --
+    -- Die Spalte hiess "retailer" und hat genau dadurch eine falsche Auswertung
+    -- erzeugt: eine Zaehlung je Haendler ueber diese Spalte ergab, fuenf Haendler
+    -- seien auf null gefallen. Sie waren vollstaendig da, nur unter "aktionis".
+    source_key    TEXT NOT NULL,
     name_key      TEXT NOT NULL,
     vintage       TEXT NOT NULL,
     payload       TEXT NOT NULL,
     fetched_at    REAL NOT NULL,
-    PRIMARY KEY (retailer, name_key, vintage)
+    PRIMARY KEY (source_key, name_key, vintage)
 );
 CREATE TABLE IF NOT EXISTS runs (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,6 +80,31 @@ def _key(name: str, vintage: int | None) -> tuple[str, str]:
     return normalized_name(name), str(vintage or "")
 
 
+def _migriere(conn: sqlite3.Connection) -> None:
+    """Bestehende Caches auf das aktuelle Schema bringen.
+
+    Nur eine Wanderung bisher: die Spalte ``offers.retailer`` heisst ``source_key``,
+    weil dort der Adapter-Schluessel steht und nicht der Haendler. Fuer den Aggregator
+    Aktionis ist es "aktionis", waehrend die Angebote darunter zu Coop, Denner, Otto's,
+    Volg und SPAR gehoeren.
+
+    Der alte Name hat eine falsche Auswertung erzeugt: eine Zaehlung je Haendler ueber
+    diese Spalte ergab, fuenf Haendler seien auf null gefallen — sie waren vollstaendig
+    da, nur unter "aktionis" gebucht.
+
+    Umbenennen statt neu aufbauen: der Cache ist regenerierbar, aber ein voller
+    ``fetch`` kostet Anfragen bei siebzehn Quellen, und ein ``rate`` danach Stunden. Wer
+    das Werkzeug aktualisiert, soll seinen Bestand behalten.
+    """
+    hat = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if "offers" not in hat:
+        return
+    spalten = {r[1] for r in conn.execute("PRAGMA table_info(offers)")}
+    if "retailer" in spalten and "source_key" not in spalten:
+        conn.execute("ALTER TABLE offers RENAME COLUMN retailer TO source_key")
+        conn.commit()
+
+
 @dataclass
 class Cache:
     path: Path
@@ -83,6 +116,7 @@ class Cache:
         p.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(p)
         conn.row_factory = sqlite3.Row
+        _migriere(conn)
         conn.executescript(_SCHEMA)
         conn.commit()
         return cls(path=p, conn=conn)
@@ -156,13 +190,13 @@ class Cache:
         self.conn.commit()
 
     # -- Angebote ----------------------------------------------------------
-    def get_offer(self, retailer: str, name: str, vintage: int | None, *, refresh: bool = False):
+    def get_offer(self, source_key: str, name: str, vintage: int | None, *, refresh: bool = False):
         if refresh:
             return None
         nk, vt = _key(name, vintage)
         row = self.conn.execute(
-            "SELECT * FROM offers WHERE retailer=? AND name_key=? AND vintage=?",
-            (retailer, nk, vt),
+            "SELECT * FROM offers WHERE source_key=? AND name_key=? AND vintage=?",
+            (source_key, nk, vt),
         ).fetchone()
         if row is None:
             return None
@@ -170,13 +204,13 @@ class Cache:
             return None
         return json.loads(row["payload"])
 
-    def put_offer(self, retailer: str, name: str, vintage: int | None, payload: dict[str, Any]) -> None:
+    def put_offer(self, source_key: str, name: str, vintage: int | None, payload: dict[str, Any]) -> None:
         nk, vt = _key(name, vintage)
         self.conn.execute(
-            "INSERT INTO offers (retailer, name_key, vintage, payload, fetched_at) VALUES (?,?,?,?,?) "
-            "ON CONFLICT(retailer, name_key, vintage) DO UPDATE SET "
+            "INSERT INTO offers (source_key, name_key, vintage, payload, fetched_at) VALUES (?,?,?,?,?) "
+            "ON CONFLICT(source_key, name_key, vintage) DO UPDATE SET "
             "payload=excluded.payload, fetched_at=excluded.fetched_at",
-            (retailer, nk, vt, json.dumps(payload, ensure_ascii=False), time.time()),
+            (source_key, nk, vt, json.dumps(payload, ensure_ascii=False), time.time()),
         )
         self.conn.commit()
 
@@ -189,8 +223,8 @@ class Cache:
         ).fetchall()
         return [json.loads(r["payload"]) for r in rows]
 
-    def clear_offers(self, retailer: str) -> None:
-        self.conn.execute("DELETE FROM offers WHERE retailer=?", (retailer,))
+    def clear_offers(self, source_key: str) -> None:
+        self.conn.execute("DELETE FROM offers WHERE source_key=?", (source_key,))
         self.conn.commit()
 
     # -- Läufe (für diff.md) ----------------------------------------------
@@ -309,6 +343,47 @@ class Cache:
             n += 1
         self.conn.commit()
         return n
+
+    def verwerfe_ratings_ohne_feld(self, quelle: str, feld: str) -> int:
+        """Löscht Bewertungen mit Treffer, denen ein Payload-Feld fehlt.
+
+        Der Nachtrag-Modus. Wird ein Feld an der Antwort einer Bewertungsquelle
+        ergänzt, tragen die bestehenden Cache-Einträge es nicht — und bisher gab es
+        dafür nur ``rate --refresh``, also einen Volllauf über alles.
+
+        Was das kostet, ist gemessen: 1567 Weine bei rund sechs Sekunden je Wein sind
+        zweieinhalb Stunden. Als am 10.8.2026 ``region_name`` nachgezogen wurde, waren
+        es zwei Läufe hintereinander, weil der erste noch mit dem alten Code lief —
+        gut vier Stunden für ein Feld, das in derselben Antwort schon mitkam.
+
+        Gelöscht wird nur, was einen Treffer hat: Einträge ohne Kandidaten können das
+        Feld gar nicht tragen, und sie erneut abzufragen wäre die Arbeit, die
+        ``--retry-failed`` macht.
+
+        Rückgabe: Zahl der verworfenen Einträge. Der nächste ``rate``-Lauf fragt genau
+        diese neu ab und lässt alles andere aus dem Cache stehen.
+        """
+        mit_treffer = ("exact", "wine_level", "too_few_ratings", "winery_level")
+        rows = self.conn.execute(
+            "SELECT rowid, payload, status FROM ratings WHERE source=?", (quelle,)
+        ).fetchall()
+        weg = []
+        for r in rows:
+            if (r["status"] or "") not in mit_treffer:
+                continue
+            try:
+                payload = json.loads(r["payload"] or "{}")
+            except json.JSONDecodeError:
+                weg.append(r["rowid"])
+                continue
+            if not payload.get(feld):
+                weg.append(r["rowid"])
+        if weg:
+            self.conn.executemany(
+                "DELETE FROM ratings WHERE rowid=?", [(x,) for x in weg]
+            )
+            self.conn.commit()
+        return len(weg)
 
     def stats(self) -> dict[str, int]:
         q = self.conn.execute

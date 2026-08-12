@@ -17,6 +17,7 @@ LEAD_COLUMNS = [
     "retailer_count",
     "price_band",
     "value_score",
+    "wert_score",
     "sorte",
     "trinkreife",
     "trinkreife_text",

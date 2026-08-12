@@ -378,6 +378,14 @@ class WineRow:
     critics: dict[str, tuple[float, str]] = field(default_factory=dict)
     winesearcher: Rating | None = None
     value_score: float | None = None
+    #: Dieselbe Frage, andere Rechnung: der Rest der Note über dem Preisniveau, nach
+    #: ``(typ, sorte)`` gruppiert — die Zahl, die die Webseite zeigt. Sie läuft
+    #: **parallel** zu ``value_score``, wie Spec §6 es verlangt („die alte Kennzahl
+    #: parallel weiterrechnen, bis die Verteilung geprüft ist"). Vorher gab es beide
+    #: auch schon, aber in getrennten Ausgabekanälen und ohne dass man sie vergleichen
+    #: konnte: das PDF rankte nach der einen, die Seite zeigte die andere, und beide
+    #: hiessen „Preis-Leistung". Jetzt stehen sie in derselben Zeile nebeneinander.
+    wert_score: float | None = None
     price_band: str = ""
     rank_source: str = ""            # welche Skala den Sortierschlüssel gestellt hat
     is_private_label: bool = False
@@ -629,6 +637,7 @@ class WineRow:
             "retailer_count": self.retailer_count,
             "price_band": self.price_band,
             "value_score": _fmt_num(self.value_score),
+            "wert_score": _fmt_num(self.wert_score),
             "bargain_percent": _fmt_num(self.bargain_percent),
             "bargain_plausibility": self.bargain_plausibility.value,
             "vivino_market_price": _fmt_num(v.market_price) if v else "",

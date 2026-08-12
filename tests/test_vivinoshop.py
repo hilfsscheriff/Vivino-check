@@ -168,3 +168,61 @@ def test_die_weinadresse_der_saat_bleibt_ohne_jahrgang(adapter):
 def test_ohne_jahrgang_bleibt_die_adresse_wie_sie_war(adapter):
     o = adapter._offer(_treffer(jahr=None))
     assert o.url == "https://www.vivino.com/w/222", o.url
+
+
+def test_die_saat_traegt_dieselben_felder_wie_der_suchweg(adapter):
+    """Es gab zwei Wege, wie ein Ergebnis in den Cache kommt, und der zweite baute
+    seine Feldliste von Hand nach. Als Machart und Herkunft dazukamen, bekam der
+    reguläre Weg sie und dieser nicht — 703 von 1452 Weinen blieben ohne Stil-Typ,
+    ausgerechnet die mit der verlässlichsten Note.
+
+    Dieser Test ist die Regressionssperre: beide Pfade müssen dieselbe Feldmenge
+    schreiben. Ein künftiges Feld kann damit nur noch an einer Stelle vergessen
+    werden."""
+    from winecheck.models import VivinoResult, VivinoStatus
+    from winecheck.ratings.vivino import _to_payload, saat_payload
+
+    regulaer = set(_to_payload(VivinoResult(
+        status=VivinoStatus.EXACT, query="q", url="u", note="n")))
+    saat = set(saat_payload(VivinoResult(
+        status=VivinoStatus.EXACT, query="q", url="u", note="n")))
+    assert saat == regulaer, f"nur in einem Pfad: {saat ^ regulaer}"
+
+
+def test_die_saat_laesst_das_trinkfenster_offen(adapter):
+    """``_to_payload`` setzt ``drink_checked``, weil der reguläre Weg das Fenster im
+    selben Durchgang holt. Diese Weine haben es nicht — ``rate`` zieht es nach, und
+    zwar genau dann, wenn der Marker fehlt. Stünde er hier, verlören 645 Weine still
+    ihr Trinkfenster."""
+    from winecheck.models import VivinoResult, VivinoStatus
+    from winecheck.ratings.vivino import saat_payload
+
+    d = saat_payload(VivinoResult(status=VivinoStatus.EXACT, query="q", url="u", note="n"))
+    assert d["drink_checked"] is False
+
+
+def test_die_saat_schreibt_machart_und_herkunft(adapter):
+    """Der konkrete Anlassfall: die Felder müssen bis in den Cache-Payload kommen."""
+    class _Cache:
+        def __init__(self):
+            self.geschrieben = []
+
+        def put_rating(self, quelle, name, jahrgang, payload, *, status):
+            self.geschrieben.append(payload)
+
+    m = _treffer()
+    m["vintage"]["wine"]["style"] = {"name": "Rioja Rot", "baseline_structure":
+                                     {"sweetness": 1.0, "tannin": 3.0, "acidity": 3.0}}
+    m["vintage"]["wine"]["region"] = {"name": "Rioja", "country": {"name": "Spanien"}}
+    m["vintage"]["wine"]["taste"] = {"structure": {"sweetness": 2.0, "tannin": 3.0,
+                                                   "acidity": 3.0, "user_structure_count": 90}}
+    adapter._offer(m)
+    c = _Cache()
+    adapter.saee_bewertungen(c)
+    assert len(c.geschrieben) == 1
+    p = c.geschrieben[0]
+    assert p["style_name"] == "Rioja Rot"
+    assert p["country"] == "Spanien"
+    assert p["region_name"] == "Rioja"
+    assert p["taste"]["sweetness"] == 2.0
+    assert p["style_baseline"]["tannin"] == 3.0

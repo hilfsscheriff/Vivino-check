@@ -1,0 +1,286 @@
+  :root {
+    /* ---------------------------------------------------------------- Etikette
+       Nach der Weinetikette gebaut: gestochener Serif, Linien statt Kästen, viel
+       Ruhe, eine tiefe Farbe. Gold trägt den Wert — die Kennzahl, das markierte
+       Feld — und sonst nichts.
+
+       Farbe hat drei Aufgaben und keine vierte: Akzent (bedienbar), Urteil
+       (gut/schwach), Gold (Wert). Der Händler bekommt keine Farbe mehr: er stand
+       nur im Diagramm als Punktfarbe, und dieselben Töne mussten dort gleichzeitig
+       die Trinkreife tragen. Jetzt steht sein Name im Tooltip und in der Tabelle.
+
+       Alle Textwerte gegen beide Gründe auf >= 4.5:1 geprüft, Grossgrade auf 3:1,
+       Ränder von Bedienelementen auf 3:1. */
+    --ink:#1a1719; --muted:#6b6668; --faint:#78716d;
+    --line:#e2dedc; --line-strong:#8f8a86;
+    --bg:#faf9f7; --panel:#f4f2ef; --chip:transparent;
+    --brand:#6d1834; --accent:#6d1834;
+    /* Gold erreicht auf dem hellen Grund nur 3.75:1 — es trägt darum ausschliesslich
+       Grossgrade und Flächen. Kleintext in Gold nimmt --goldtx mit 4.74:1. */
+    --gold:#9a7b4f; --goldtx:#8a6a3d;
+    --good:#2e7d32; --bad:#c62828;
+    /* Der Stil-Typ ist die eine Ausnahme von "Farbe hat drei Aufgaben". Er bekommt
+       keine vier Kategorienfarben, sondern **eine ordinale Rampe** warm -> kuehl:
+       die Achse ist geordnet (fruchtsuess -> straff_herb), und vier gleichrangige
+       Toene wuerden das verschweigen. Zweiter Kanal bleibt die Fuellung — gefuellt
+       heisst "gut und guenstig", hohl nicht. Wer die Rampe nicht unterscheiden kann,
+       verliert nur den Typ, nicht das Urteil.
+       Die vier Toene sind gegen den Grund auf >= 3:1 geprueft (Grossgrad/Flaeche). */
+    --typ1:#b4622a; --typ2:#a4823f; --typ3:#6f7d83; --typ4:#3d6f86;
+    /* Didot ist die Etikettenschrift, Optima der humanistische Begleiter, Menlo
+       hält die Zahlenspalten. Nichts wird geladen: die Seite bleibt ohne
+       Drittanbieter, und jede Stufe hat einen breit vorhandenen Ersatz. */
+    --serif:Didot, "Didot LT STD", "Hoefler Text", Garamond, "Times New Roman", serif;
+    --sans:Optima, Candara, "Gill Sans", "Gill Sans MT", "Trebuchet MS", "Segoe UI", sans-serif;
+    --mono:Menlo, "SF Mono", Consolas, monospace;
+    /* Mindesthöhe für Bedienelemente. Auf Zeigergeräten kompakt, auf Touch 44 px —
+       dort entscheidet die Treffgenauigkeit, hier die Dichte. */
+    --control-h:36px;
+    /* Fünf Textrollen. Der Lesetext liegt auf 16 px: die Tabelle ist die am
+       längsten gelesene Fläche der Seite. */
+    --fs-page-title:2rem;     /* h1, Didot */
+    --fs-title:1.25rem;       /* Abschnittstitel, Didot */
+    --fs-body:1rem;           /* Tabelle, Suchfeld, Tooltip */
+    --fs-body-sm:.875rem;     /* Metatext, Chips, Zähler, Footer, Hinweise */
+    --fs-label:.75rem;        /* Legenden, Spaltenköpfe, Pills — gesperrte Versalien */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#f0ebec; --muted:#a49da0; --faint:#8b8488;
+            --line:#2b262a; --line-strong:#6f6a6e;
+            --bg:#141114; --panel:#1c181c; --chip:transparent;
+            --brand:#e0879f; --accent:#e0879f;
+            --gold:#c9a877; --goldtx:#d4b587;
+            --good:#7cc47f; --bad:#ef9a9a;
+            --typ1:#e0915c; --typ2:#cfae6d; --typ3:#9fb0b8; --typ4:#7bb4cf; }
+  }
+  @media (pointer: coarse) { :root { --control-h:44px; } }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  /* Ein Fokusstil für alles Bedienbare — vorher hing das Aussehen am Browser. */
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:16px/1.55 var(--sans);
+         padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .wrap { max-width:1080px; margin:0 auto; padding:26px 18px 56px; }
+  h1 { font-family:var(--serif); font-size:var(--fs-page-title); font-weight:400;
+       margin:6px 0 0; letter-spacing:-.01em; line-height:1.05; }
+  .sub { color:var(--muted); font-size:var(--fs-body-sm); margin:9px 0 0; }
+  /* Zeichen und Titel stehen nebeneinander; das Zeichen richtet sich an der
+     Versalhöhe aus, nicht am Kastenrand — sonst hängt es unter der Zeile. */
+  .head { display:flex; align-items:center; gap:16px; }
+  .head > div { min-width:0; }
+  .mark { flex:none; width:56px; height:56px; display:block; }
+  /* Die Haarlinie unter dem Kopf ist das Etikettenmotiv: getrennt wird mit Linien,
+     nicht mit Flächen. */
+  .rule { height:1px; background:var(--ink); opacity:.8; margin:15px 0 0; }
+  /* ---- Suche und Filter ---------------------------------------------------- */
+  /* Suchfeld, Treffermenge und Rückweg bleiben stehen: wer in der Liste liest und
+     die Auswahl ändern will, soll nicht nach oben zurück müssen. */
+  .search { position:sticky; top:0; z-index:5; background:var(--bg);
+            padding:12px 0 10px; border-bottom:1px solid var(--line); }
+  .search input { width:100%; font:400 var(--fs-title)/1.35 var(--serif);
+                  padding:5px 0 8px; background:transparent; color:var(--ink);
+                  border:0; border-bottom:1px solid var(--ctl, var(--line-strong)); }
+  .search input::placeholder { color:var(--faint); font-family:var(--serif); }
+  .search input:focus { outline:0; border-bottom:2px solid var(--accent); padding-bottom:7px; }
+  .search .bar { margin:9px 0 0; }
+  .bar { display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+         flex-wrap:wrap; }
+  .count { font-size:var(--fs-body-sm); color:var(--muted); }
+  .count b { color:var(--ink); font-family:var(--mono); font-weight:600;
+             font-variant-numeric:tabular-nums; }
+  .reset { background:none; border:0; color:var(--accent); font:inherit;
+           font-size:var(--fs-body-sm); cursor:pointer; padding:6px 0;
+           text-decoration:underline; min-height:var(--control-h); }
+  fieldset { border:0; margin:0; padding:0; }
+  fieldset + fieldset { margin-top:15px; }
+  legend { font-size:var(--fs-label); text-transform:uppercase; letter-spacing:.2em;
+           color:var(--faint); margin-bottom:8px; padding:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; }
+  /* Pillen behalten ihren Umriss: sie sind schaltbar, dort ist der Rahmen
+     Information und keine Dekoration. */
+  .chip { display:inline-flex; align-items:center; gap:7px;
+          border:1px solid var(--line-strong); background:var(--chip); color:var(--muted);
+          font:inherit; font-size:var(--fs-body-sm); padding:8px 14px; border-radius:999px;
+          cursor:pointer; min-height:var(--control-h); }
+  .chip[aria-pressed="true"] { background:var(--accent); border-color:var(--accent);
+                               color:var(--bg); font-weight:600; }
+  .chip .n { color:var(--faint); font-family:var(--mono); font-size:var(--fs-label);
+             font-variant-numeric:tabular-nums; }
+  .chip[aria-pressed="true"] .n { color:var(--bg); opacity:.85; }
+  /* Kein eigener Oberstrich: die sticky Leiste darüber hat schon einen, sonst
+     stehen zwei Linien mit einer leeren Lücke dazwischen. */
+  .filters { padding:16px 0 0; margin-top:0; border-top:0; }
+  #filterBox > summary { font-size:var(--fs-label); letter-spacing:.16em;
+                         text-transform:uppercase; color:var(--accent); cursor:pointer;
+                         display:flex; align-items:center; gap:9px;
+                         min-height:var(--control-h); list-style:none; }
+  #filterBox > summary::-webkit-details-marker { display:none; }
+  #filterBox > summary::after { content:"▾"; margin-left:auto; font-size:1.1em;
+                                transition:transform .15s; }
+  #filterBox[open] > summary::after { transform:rotate(180deg); }
+  #filterBox > summary .n { color:var(--faint); letter-spacing:0; text-transform:none;
+                            font-size:var(--fs-body-sm); }
+  #filterBox[open] > summary { margin-bottom:10px; }
+  /* Am Desktop ist Platz — dort sind die Filter immer offen und der Aufklapper
+     wäre nur ein zusätzlicher Klick. */
+  @media (min-width: 721px) { #filterBox > summary { display:none; } }
+  .fine { border-top:1px solid var(--line); padding-top:15px; margin-top:16px; }
+  .controls { display:flex; flex-wrap:wrap; gap:14px 26px; align-items:flex-end;
+              font-size:var(--fs-body-sm); color:var(--muted); }
+  /* Auswahlfelder sind unterstrichen, nicht umkastet — Etiketten arbeiten mit Linien. */
+  .controls label { display:flex; flex-direction:column; gap:5px; white-space:nowrap;
+                    min-height:var(--control-h); }
+  .controls label > span { font-size:var(--fs-label); letter-spacing:.2em;
+                           text-transform:uppercase; color:var(--faint); }
+  .controls select { font:400 var(--fs-body)/1 var(--serif); color:var(--ink);
+                     background:transparent; border:0;
+                     border-bottom:1px solid var(--line-strong);
+                     padding:4px 16px 6px 0; min-height:var(--control-h); cursor:pointer;
+                     appearance:none; max-width:100%; }
+  .controls .cb { flex-direction:row; align-items:center; gap:9px; cursor:pointer; }
+  .controls input[type=checkbox] { accent-color:var(--accent); width:19px; height:19px;
+                                   flex:0 0 auto; }
+  .coverage { font-size:var(--fs-body-sm); color:var(--faint); margin:15px 0 0;
+              padding-top:12px; border-top:1px solid var(--line); }
+  /* ---- Abschnitte: Haarlinie statt Karte --------------------------------- */
+  .card { border:0; border-radius:0; background:transparent; padding:24px 0 0;
+          margin:22px 0 0; border-top:1px solid var(--ink); }
+  .card h2 { font-family:var(--serif); font-size:var(--fs-title); font-weight:400;
+             margin:0 0 4px; letter-spacing:-.005em; }
+  /* ---- Diagramm ---------------------------------------------------------- */
+  svg { width:100%; height:auto; display:block; overflow:visible;
+        touch-action:manipulation; }
+  .grid { stroke:var(--line); }
+  .axis { stroke:var(--line); stroke-width:1; }
+  .tick { fill:var(--faint); font-size:10px; font-family:var(--sans); }
+  .alabel { fill:var(--faint); font-size:10px; font-family:var(--sans); }
+  /* Der Vektor zeigt die Abweichung vom Preisniveau, der Punkt sitzt an seiner
+     Spitze. Im markierten Feld ist er gefüllt und golden, sonst hohl und leise. */
+  /* Die Trendlinie muss so aussehen wie ihr Symbol in der Legende — sonst sagen
+     Diagramm und Legende Unterschiedliches. */
+  .trend { stroke:var(--muted); stroke-width:1.1; opacity:.55; }
+  /* Der Trefferkreis liegt unsichtbar vor dem Punkt und nimmt die Ereignisse.
+     pointer-events:all trifft auch ohne Füllung. */
+  .hit { fill:transparent; stroke:none; pointer-events:all; cursor:pointer; }
+  /* Punktfarbe = Stil-Typ. Ohne Typ bleibt der Punkt grau wie bisher — ein
+     erfundener Ton waere eine Behauptung ueber den Wein. */
+  /* Die Pille traegt den Ton als Rand, nicht als Flaeche: gefuellte Farbflaechen
+     sind auf dieser Seite dem Wert vorbehalten. */
+  .pill.t-fruchtsuess { border-color:var(--typ1); color:var(--typ1); }
+  .pill.t-weich_modern { border-color:var(--typ2); color:var(--typ2); }
+  .pill.t-ausgewogen { border-color:var(--typ3); color:var(--typ3); }
+  .pill.t-straff_herb { border-color:var(--typ4); color:var(--typ4); }
+  .pt.t-fruchtsuess { stroke:var(--typ1); }
+  .pt.t-weich_modern { stroke:var(--typ2); }
+  .pt.t-ausgewogen { stroke:var(--typ3); }
+  .pt.t-straff_herb { stroke:var(--typ4); }
+  .pt.good.t-fruchtsuess { fill:var(--typ1); }
+  .pt.good.t-weich_modern { fill:var(--typ2); }
+  .pt.good.t-ausgewogen { fill:var(--typ3); }
+  .pt.good.t-straff_herb { fill:var(--typ4); }
+  .pt { fill:none; stroke:var(--muted); stroke-width:1.1; opacity:.55;
+        pointer-events:none; }
+  .pt.good { fill:var(--gold); stroke:var(--gold); opacity:.95; }
+  /* Der sichtbare Punkt reagiert über seinen Trefferkreis — er ist dessen
+     unmittelbarer Nachbar. */
+  .hit:hover + .pt { stroke:var(--ink); stroke-width:1.8; opacity:1; }
+  .zone { fill:var(--gold); fill-opacity:.14; }
+  .zone-edge { fill:none; stroke:var(--gold); stroke-width:1.3; stroke-dasharray:5 3; }
+  .zone-t { fill:var(--goldtx); font-family:var(--sans); font-size:9.5px;
+            font-weight:600; letter-spacing:1.6px; }
+  .zone-s { fill:var(--goldtx); font-family:var(--sans); font-size:9px; opacity:.9; }
+  .lead { fill:none; stroke:var(--goldtx); stroke-width:.9; }
+  .lead-t { fill:var(--ink); font-family:var(--sans); font-size:10.5px; }
+  .legend { font-size:var(--fs-body-sm); color:var(--muted); margin:8px 0 12px;
+            display:flex; flex-wrap:wrap; gap:8px 22px; }
+  .legend span { display:flex; align-items:center; gap:7px; }
+  .legend svg { flex:0 0 auto; width:auto; }
+  .empty { color:var(--muted); font-size:var(--fs-body-sm); padding:24px 2px;
+           text-align:center; }
+  /* ---- Tabelle: Linien, Serif für Namen, Mono für Zahlen ----------------- */
+  table { width:100%; border-collapse:collapse; font-size:var(--fs-body); }
+  th { text-align:left; font-size:var(--fs-label); text-transform:uppercase;
+       letter-spacing:.18em; color:var(--faint); font-weight:400; padding:0 9px 9px;
+       border-bottom:1px solid var(--ink); background:transparent; }
+  td { padding:13px 9px; border-bottom:1px solid var(--line); vertical-align:baseline;
+       background:transparent; }
+  tr:last-child td { border-bottom:0; }
+  a { color:var(--accent); }
+  .wine { font-family:var(--serif); font-size:1.28em; line-height:1.25; }
+  .meta { color:var(--faint); font-size:var(--fs-body-sm); }
+  .num { font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap;
+         text-align:right; font-size:.92em; }
+  /* Die Kennzahl ist der Anker der Seite: Didot, gross, gold. */
+  .pl { font-family:var(--serif); font-size:1.55em; line-height:1; color:var(--gold);
+        text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .pl.neg { color:var(--muted); }
+  .good { color:var(--good); font-weight:600; }
+  .bad { color:var(--bad); }
+  .warn { color:var(--accent); }
+  .matched { color:var(--faint); font-size:.78em; }
+  /* Sorte und Trinkreife als gesperrte Versalien, nicht als gefüllte Pillen —
+     Flächen gehören in dieser Richtung nicht ins Bild. */
+  .pill { display:inline-block; font-size:var(--fs-label); letter-spacing:.14em;
+          text-transform:uppercase; color:var(--faint); }
+  .pill + .pill::before { content:"·"; margin:0 6px 0 2px; opacity:.6; }
+  /* Die Markierung sagt, dass ein Wein die Regel erfüllt. Sie steht bei den Fakten,
+     nicht in der Zahlenspalte: dort bräche sie auf drei Zeilen. */
+  .marker { display:inline-flex; align-items:center; gap:5px; font-size:var(--fs-label);
+            letter-spacing:.13em; text-transform:uppercase; color:var(--goldtx);
+            border:1px solid var(--gold); border-radius:999px; padding:4px 9px;
+            margin-top:7px; }
+  th .sortbtn { font:inherit; color:inherit; background:none; border:0; padding:0;
+                cursor:pointer; letter-spacing:inherit; text-transform:inherit; }
+  th .sortbtn:hover { color:var(--accent); }
+  th.sorted { color:var(--ink); }
+  th.num .sortbtn { width:100%; text-align:right; }
+  .tblnote { font-size:var(--fs-body-sm); color:var(--muted); margin:0 0 14px; }
+  .chartnote { font-size:var(--fs-body-sm); color:var(--muted); margin:0 0 10px;
+               max-width:78ch; }
+  .colhint { font-size:var(--fs-body-sm); color:var(--faint); }
+  .more { margin:16px 0 0; text-align:center; }
+  .more button { font:inherit; font-size:var(--fs-body-sm); color:var(--accent);
+                 cursor:pointer; background:transparent;
+                 border:1px solid var(--line-strong); border-radius:999px;
+                 padding:9px 20px; min-height:var(--control-h); }
+  .more button:hover { border-color:var(--accent); }
+  .more .meta { display:block; margin-top:7px; }
+  /* Auf dem Handy ist thead ausgeblendet — dort ist der Hinweis schlicht falsch.
+     Derselbe Breakpoint wie für Kartenansicht und Diagramm: 720 px. */
+  @media (max-width: 720px) {
+    .colhint { display:none; }
+    h1 { font-size:1.6rem; }
+    .wrap { padding:20px 15px 44px; }
+    thead { display:none; }
+    tr { display:block; border-bottom:1px solid var(--line); padding:14px 0; }
+    td { display:block; border:0; padding:2px 0; text-align:left; }
+    td[data-l]::before { content:attr(data-l) " "; color:var(--faint);
+                         font-size:var(--fs-label); letter-spacing:.1em;
+                         text-transform:uppercase; }
+    /* In der Tabelle hält ein "—" die Spalte ausgerichtet. In der Kartenansicht
+       gibt es keine Spalte mehr — dort ist es nur eine Zeile ohne Inhalt, und
+       beim Marktpreis betrifft das die Mehrheit der Weine. */
+    td.noval { display:none; }
+    .num, .pl { text-align:left; }
+    .pl { font-size:1.7em; }
+    /* Das Diagramm braucht Breite, die es hier nicht hat. Die Liste ist auf dieser
+       Breite die vollständigere Ansicht. */
+    .chart { display:none; }
+  }
+  #tip { position:fixed; z-index:20; pointer-events:none; opacity:0;
+         transition:opacity .1s; max-width:320px; background:var(--bg);
+         border:1px solid var(--line-strong); border-radius:2px; padding:12px 14px;
+         font-size:var(--fs-body-sm); line-height:1.45;
+         box-shadow:0 10px 30px rgba(0,0,0,.16); }
+  #tip.on { opacity:1; }
+  #tip .n { font-family:var(--serif); font-size:1.15em; display:block;
+            margin-bottom:7px; line-height:1.25; }
+  #tip .r { display:flex; justify-content:space-between; gap:14px; }
+  #tip .k { color:var(--faint); }
+  #tip .also { margin-top:9px; padding-top:7px; border-top:1px solid var(--line); }
+  #tip .also b { display:block; margin-bottom:4px; font-weight:600; }
+  footer { color:var(--faint); font-size:var(--fs-body-sm);
+           border-top:1px solid var(--line); padding-top:16px; margin-top:32px; }
+  footer p { margin:.5em 0; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }

@@ -673,16 +673,24 @@ def test_jeder_kurzschluessel_wird_wieder_entpackt(doc):
     blieb undefiniert, und der Quellenfilter zeigte in den Stellungen "Schweizer
     Handel" und "Vivino-Marktplatz" null von 1391 Weinen. Nur "alle" ging, weil es
     keine der beiden Bedingungen prüft.
+
+    Der Test prüfte früher, ob jemand die zweite Tabelle von Hand nachgeführt hat. Es
+    gibt keine zweite mehr: das JavaScript bekommt die Umkehrung von ``_SHORT_KEYS``
+    beim Bauen eingesetzt. Geprüft wird jetzt die Zusicherung selbst — die Abbildung im
+    Dokument *ist* die Umkehrung, vollständig und ohne Zusatz.
     """
+    import json
     import re
 
     from winecheck.report.site import _SHORT_KEYS
 
     text = doc()
-    tabelle = text.split("const KEYS =", 1)[1].split("};", 1)[0]
-    entpackt = set(re.findall(r'(\w+)\s*:\s*"', tabelle))
-    fehlt = {kurz for kurz in _SHORT_KEYS.values() if kurz not in entpackt}
-    assert not fehlt, f"nicht entpackt: {sorted(fehlt)}"
+    roh = re.search(r"const KEYS = (\{.*?\});", text, re.S)
+    assert roh, "Schlüsselabbildung nicht im Dokument"
+    entpackt = json.loads(roh.group(1))
+    assert entpackt == {kurz: lang for lang, kurz in _SHORT_KEYS.items()}
+    # Und die Umkehrung ist eindeutig: kein Kurzschlüssel zweimal belegt.
+    assert len(set(_SHORT_KEYS.values())) == len(_SHORT_KEYS)
 
 
 def test_die_gesetzte_gewichtung_steht_auf_der_seite(doc):
@@ -838,3 +846,17 @@ def test_weine_ohne_typ_kommen_in_die_globale_gruppe():
     )
     _je_typ(wines, "valueScore", None)
     assert all(w.get("valueScore") is not None for w in wines)
+
+
+def test_die_schwelle_steht_nur_an_einer_stelle(doc):
+    """Die Regel für „gut und günstig" stand zweimal da: als Konstante und als Prosa.
+    Commit e79e008 hob GOOD_RATING_MIN auf 4.3, der Satz tausend Zeilen weiter blieb
+    bei 4.2 — die veröffentlichte Seite behauptete eine Regel, die sie nicht anwandte.
+    Jetzt wird der Wert eingesetzt und kann nicht mehr veralten."""
+    text = doc()
+    assert f"ab Note {GOOD_RATING_MIN:g} und bis CHF {GOOD_PRICE_MAX:g}" in text
+    # Kein Platzhalter darf stehen bleiben.
+    assert "__GOOD_RATING__" not in text and "__GOOD_PRICE__" not in text
+    # Und die alte, falsche Zahl darf im Satz zur festen Regel nicht mehr vorkommen.
+    satz = text.split("gut und günstig</b>:", 1)[1][:60]
+    assert "4.2" not in satz, satz
