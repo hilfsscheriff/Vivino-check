@@ -68,6 +68,14 @@ ADAPTERS: dict[str, type[RetailerAdapter]] = {
     "wineoutlet": WineOutletAdapter,
 }
 
+#: So gross muss der Vorlauf mindestens sein, damit "neu" etwas bedeutet — als
+#: Anteil am aktuellen Lauf. Darunter wird gar nichts markiert.
+#:
+#: Zwei Drittel ist grosszuegig: eine Quelle, die eine Woche ausfaellt, kostet
+#: selten mehr als ein Viertel des Bestands. Wer darunter faellt, hat kein
+#: Aktionskarussell erlebt, sondern einen kaputten Lauf.
+VERGLEICH_MIN_ANTEIL = 0.66
+
 DEFAULT_CACHE = Path("cache/winecheck.sqlite")
 STATE_DIR = Path("state")
 
@@ -475,6 +483,20 @@ def site(
         bekannt = (
             {w.get("dedup_key") for w in vorlauf["wines"]} if vorlauf is not None else None
         )
+        # Ein Vorlauf, der viel kleiner ist als der aktuelle, taugt nicht als
+        # Vergleich. Genau das trat am 14.08. ein: der Klon hatte wochenlang mit
+        # altem Code gerechnet, sein letzter Stand zählte 477 Weine, der neue 1524.
+        # Rechnerisch waren damit über tausend Weine "neu" — und eine Kennzeichnung,
+        # die zwei Drittel der Liste trifft, sagt nichts mehr aus.
+        #
+        # Lieber gar keine Markierung als eine wertlose: wer die Seite oeffnet, soll
+        # "neu" als Hinweis lesen koennen, nicht als Grundrauschen.
+        if bekannt is not None and len(bekannt) < len(run["wines"]) * VERGLEICH_MIN_ANTEIL:
+            _echo(
+                f"  Vorlauf zu klein ({len(bekannt)} gegen {len(run['wines'])} Weine) — "
+                f"nichts als neu markiert."
+            )
+            bekannt = None
         wines = []
         for w in run["wines"]:
             wein = _wine_from_snapshot(w)

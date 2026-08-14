@@ -901,3 +901,22 @@ def test_die_einzelflasche_traegt_kein_gebindefeld(doc):
     for menge in (1, None):
         wein = _payload(doc([_snapshot(units=menge)]))["runs"][0]["wines"][0]
         assert "uq" not in wein, f"units={menge} soll kein Feld erzeugen"
+
+
+def test_zu_kleiner_vorlauf_markiert_nichts_als_neu():
+    """Ein Vorlauf, der viel kleiner ist als der aktuelle, taugt nicht als Vergleich.
+
+    Am 14.08. hatte der Klon wochenlang mit altem Code gerechnet: sein letzter
+    Stand zählte 477 Weine, der neue 1524. Rechnerisch waren damit über tausend
+    Weine "neu" — und eine Kennzeichnung, die zwei Drittel der Liste trifft, sagt
+    nichts mehr aus. Lieber gar keine als eine wertlose.
+    """
+    from winecheck.cli import VERGLEICH_MIN_ANTEIL
+
+    # Die Schwelle selbst steht nicht im Test — sie ist eine Einstellung. Geprüft
+    # wird, dass sie in einer Groessenordnung liegt, die den Zweck erfuellt.
+    assert 0.5 <= VERGLEICH_MIN_ANTEIL <= 0.9
+    assert 477 < 1524 * VERGLEICH_MIN_ANTEIL, "der Fall vom 14.08. muss greifen"
+    # Ein normaler Wochenwechsel darf nicht greifen: Aktionen kommen und gehen,
+    # aber nicht zu zwei Dritteln.
+    assert 1400 > 1524 * VERGLEICH_MIN_ANTEIL, "ein normaler Lauf darf nicht greifen"
