@@ -159,5 +159,18 @@ jobs:
             echo "Keine Änderung an der Seite — nichts einzuchecken."
           else
             git commit -m "Wochenlauf $(date -u +%d.%m.%Y)"
-            git push
+            # Vor dem Schieben neu aufsetzen. Zwischen dem Auschecken und hier
+            # liegen rund dreissig Minuten Rechenzeit, und wer in dieser Zeit von
+            # Hand pusht, lässt den Lauf scheitern: "! [rejected] main -> main
+            # (fetch first)". Genau daran ist der Lauf vom 14.08. gestorben,
+            # nachdem er sauber durchgerechnet hatte.
+            #
+            # Rebase statt Merge, weil dieser Lauf nur docs/ anfasst und niemand
+            # sonst diese Dateien schreibt — es gibt nichts zusammenzuführen, nur
+            # eine Reihenfolge herzustellen.
+            for versuch in 1 2 3; do
+              git pull --rebase --quiet origin main && git push && break
+              echo "Push-Versuch $versuch fehlgeschlagen — neu aufsetzen und nochmal"
+              sleep 5
+            done
           fi
