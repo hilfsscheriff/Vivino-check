@@ -25,6 +25,27 @@ sage() { printf '%s  %s\n' "$(date '+%d.%m.%Y %H:%M:%S')" "$*" | tee -a "$PROTOK
 
 sage "── Wochenlauf gestartet"
 
+# Diese Arbeitskopie ist nicht die, in der von Hand gearbeitet wird — erst den
+# aktuellen Stand holen, sonst baut der Lauf auf altem Code.
+#
+# Hart zurücksetzen statt bloss ziehen: der Klon *erzeugt* bei jedem Lauf
+# docs/index.html und state/ratings-cache.json neu. Bricht ein Lauf nach dem Bauen
+# ab — etwa an der Reissleine —, bleiben diese Dateien geändert liegen und ein
+# ``git pull --ff-only`` scheitert daran ab sofort **jede** Woche. Genau das ist
+# passiert: der Lauf vom 14.08. arbeitete 48 Commits hinterher, fand 616 statt 1564
+# Weine und wurde von der Reissleine zu Recht gestoppt.
+#
+# Hier darf zurückgesetzt werden, weil in diesem Klon nichts von Hand entsteht: er
+# holt den Stand, rechnet und schiebt das Ergebnis zurück. Die Arbeitskopie unter
+# ~/Library/CloudStorage bleibt unberührt.
+if ! git fetch -q origin 2>>"$PROTOKOLL"; then
+  sage "WARNUNG: git fetch fehlgeschlagen — arbeite mit dem lokalen Stand weiter"
+elif ! git reset --hard -q origin/main 2>>"$PROTOKOLL"; then
+  sage "WARNUNG: git reset fehlgeschlagen — arbeite mit dem lokalen Stand weiter"
+else
+  sage "Stand geholt: $(git log --oneline -1)"
+fi
+
 if ! command -v uv >/dev/null 2>&1; then
   sage "FEHLER: uv nicht gefunden. PATH=$PATH"
   exit 1
