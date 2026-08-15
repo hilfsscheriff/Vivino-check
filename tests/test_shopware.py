@@ -169,3 +169,52 @@ def test_letzter_jahrgang_gewinnt(vintana):
         'Valdobbiadene DOCG Millesimato Dry 2025 - 0.75l</div>' + _VINTANA_PREIS
     ))
     assert o.vintage == 2025
+
+
+# -- Die vorangestellte Anbauregion ----------------------------------------
+def test_die_region_verlaesst_den_namen():
+    """Caratello stellt jedem Wein seine Region voran — für Vivino ist das Gift.
+
+    Aus "Toscana Montepulciano – Avignonesi IL Marzocco Cortona DOC/bc" wurde die
+    Abfrage "toscana montepulciano avignonesi marzocco cortona bc", und die beiden
+    Ortsnamen zogen die Suche auf "Avignonesi 50 & 50" — einen anderen Wein
+    desselben Guts, rot statt weiss, CHF 94 statt CHF 28.60. Weil der Fehltreffer
+    ein Roter ist, stand der Chardonnay bei uns als Rotwein in der Liste.
+    """
+    from winecheck.adapters.shopware import _ohne_herkunft
+    name, region = _ohne_herkunft("Toscana Montepulciano – Avignonesi IL Marzocco Cortona DOC/bc")
+    assert name == "Avignonesi IL Marzocco Cortona DOC/bc"
+    assert region == "Toscana Montepulciano"
+
+
+def test_ohne_gedankenstrich_bleibt_alles_stehen():
+    from winecheck.adapters.shopware import _ohne_herkunft
+    assert _ohne_herkunft("Vietti Barolo Brunate DOCG") == ("Vietti Barolo Brunate DOCG", "")
+
+
+def test_ein_langer_vorderteil_ist_keine_region():
+    """Vier Wörter sind die Grenze. Was länger ist, ist kein Ortsname."""
+    from winecheck.adapters.shopware import _ohne_herkunft
+    lang = "Ein sehr langer Name mit Gedankenstrich – Rosso Toscana IGT"
+    assert _ohne_herkunft(lang) == (lang, "")
+
+
+def test_ein_kurzer_hinterteil_wird_nicht_abgetrennt():
+    """Die Regel darf nie den Weinnamen wegwerfen und die Warengruppe behalten.
+
+    Das ist kein theoretischer Fall: "Café de Paris Ice – Schaumwein, Frankreich
+    (0.75l)" würde bei einer allgemeinen Fassung zu "Schaumwein, Frankreich". Dieser
+    Wein kommt über einen anderen Adapter herein, aber die Regel muss auch hier
+    standhalten.
+    """
+    from winecheck.adapters.shopware import _ohne_herkunft
+    assert _ohne_herkunft("Château X – Rosso IGT") == ("Château X – Rosso IGT", "")
+
+
+def test_das_bio_kuerzel_faellt_weg():
+    """"/bc" ist Caratellos Bio-Vermerk, kein Namensbestandteil — als "bc" landete
+    er bisher im Suchbegriff."""
+    from winecheck.adapters.shopware import _RE_BIOCODE
+    assert _RE_BIOCODE.sub("", "Avignonesi IL Marzocco Cortona DOC/bc") == "Avignonesi IL Marzocco Cortona DOC"
+    assert _RE_BIOCODE.sub("", "Rosso Toscana IGT/b") == "Rosso Toscana IGT"
+    assert _RE_BIOCODE.sub("", "Barolo DOCG") == "Barolo DOCG"

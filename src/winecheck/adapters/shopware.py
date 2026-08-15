@@ -52,6 +52,50 @@ def _angezeigt_von(html: str) -> tuple[int, int]:
     """(sichtbar, insgesamt) — (0, 0), wenn die Seite nichts dazu sagt."""
     m = _RE_ANGEZEIGT.search(html or "")
     return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+
+
+#: „Toscana Montepulciano – Avignonesi IL Marzocco Cortona DOC/bc". Vor dem
+#: Gedankenstrich steht die Anbauregion, dahinter Produzent und Wein.
+_RE_HERKUNFT = re.compile(r"^([^\d–—]{3,42})\s+[–—]\s+(.{12,})$")
+
+#: Caratellos Bio-Kürzel am Ende der Klassifikation: „DOC/bc", „IGT/b".
+_RE_BIOCODE = re.compile(r"/(?:bc|b|c)\s*$", re.I)
+
+
+def _ohne_herkunft(name: str) -> tuple[str, str]:
+    """Trennt die vorangestellte Anbauregion ab und gibt (Name, Region) zurück.
+
+    Caratello stellt jedem Wein seine Region voran. Für den Vivino-Abgleich ist das
+    Gift: aus „Toscana Montepulciano – Avignonesi IL Marzocco Cortona DOC/bc" wurde
+    die Abfrage ``toscana montepulciano avignonesi marzocco cortona bc``, und die
+    beiden Ortsnamen zogen die Suche auf „Avignonesi 50 & 50" — einen anderen Wein
+    desselben Guts, rot statt weiss, CHF 94 statt CHF 28.60. Weil der Fehltreffer
+    ein Roter ist, stand der Chardonnay bei uns als Rotwein in der Liste.
+
+    Vivino führt den Wein sehr wohl: „Avignonesi Il Marzocco Chardonnay 2024".
+    Ohne das Präfix findet ihn die Suche auf Anhieb.
+
+    Betroffen sind alle 75 Caratello-Weine; 36 davon hatten bisher einen
+    unbestätigten, fehlenden oder falschen Treffer. Viele der „fuzzy" markierten
+    waren inhaltlich richtig (Vietti Barolo Brunate → Vietti Barolo Brunate) und
+    scheiterten nur an den Zusatzwörtern.
+
+    **Warum das hier steht und nicht allgemein gilt:** dieselbe Regel auf alle Quellen
+    angewendet macht aus „Café de Paris Ice – Schaumwein, Frankreich (0.75l)" den
+    Namen „Schaumwein, Frankreich (0.75l)" — sie wirft den Wein weg und behält die
+    Warengruppe. Dieser Wein kommt über den Aggregator und damit über einen anderen
+    Adapter herein; hier kann ihm nichts passieren. Eine allgemeine Fassung bräuchte
+    eine verlässliche Unterscheidung zwischen Region und Produktname, und die gibt es
+    nicht.
+    """
+    m = _RE_HERKUNFT.match(name or "")
+    if not m:
+        return name, ""
+    region, rest = m.group(1).strip(), m.group(2).strip()
+    # Kurzer Ortsname vorn, vollständiger Weinname hinten — sonst bleibt alles stehen.
+    if len(region.split()) > 4 or len(rest.split()) < 3:
+        return name, ""
+    return rest, region
 #: Währung vorn („CHF 13.90") wie hinten („6,50 CHF*"). Shopware 6 stellt sie in
 #: der Standardausgabe nach, ältere Themes davor.
 _RE_PREIS = re.compile(r"(?:(?:CHF|Fr\.?)\s*([\d'’.,]+)|([\d'’.,]+)\s*(?:CHF|Fr\.?))")
@@ -148,6 +192,11 @@ class ShopwareAdapter(RetailerAdapter):
         name = _text(box.css_first(".product-name"))
         if not name:
             return None
+        # Anbauregion und Bio-Kürzel raus — beides trübt den Vivino-Abgleich, ohne
+        # zum Namen beizutragen. Die Region wird nicht verworfen, sondern wandert in
+        # die Quellennotiz.
+        name, region = _ohne_herkunft(name)
+        name = _RE_BIOCODE.sub("", name).strip()
         # Die Beschreibung trägt bei manchen Läden den Produzenten („Château Barka").
         # Für Vivino ist der das wichtigste Wort, im Namen steht er nicht. Bei anderen
         # steht dort Werbeprosa — die muss draussen bleiben, sonst sucht Vivino nach
@@ -215,4 +264,7 @@ class ShopwareAdapter(RetailerAdapter):
             vintage=int(jahre[-1]) if jahre else None,
             vat_included=True,
             price_basis="bottle",
+            # Die abgetrennte Anbauregion geht nicht verloren, sie steht nur nicht
+            # mehr im Suchbegriff.
+            source_note=region,
         )
