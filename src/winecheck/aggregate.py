@@ -228,13 +228,27 @@ def resolve_shared_ratings(rows: list[WineRow]) -> list[WineRow]:
         if len(signaturen) < 2:
             continue
 
-        def guete(r: WineRow) -> tuple[int, int]:
+        def guete(r: WineRow) -> tuple[int, int, int]:
             v = r.vivino
             konf = _CONF_RANG.get((v.match_confidence or "") if v else "", 0)
             # Bei gleichem Rang gewinnt, wessen Name im Fundnamen am besten aufgeht.
             eigen = set(distinctive_tokens(r.name))
-            gefunden = set(distinctive_tokens((v.matched_name or "") if v else ""))
-            return (konf, len(eigen & gefunden) - len(eigen - gefunden))
+            treffer = (v.matched_name or "") if v else ""
+            gefunden = set(distinctive_tokens(treffer))
+            # Dritter Schlüssel, sonst entscheidet die Reihenfolge der Liste. Genau
+            # das geschah bei Rocca di Frassinello: „la Rocca" und „il Frassinello
+            # Merlot" beanspruchten beide den gleichnamigen Hauptwein „Rocca di
+            # Frassinello Maremma Toscana", beide als wine_level, beide mit demselben
+            # Wert oben — und der Eintrag ging an den, der zufällig vorne stand.
+            #
+            # Über die unterscheidenden Wörter sind die zwei nicht zu trennen: nach
+            # Abzug von Region und Rebsorte bleibt bei beiden nur der Gutsname. Über
+            # *alle* Wörter schon: „la Rocca" trägt keines, das der Vivino-Eintrag
+            # nicht kennt, „il Frassinello Merlot" trägt „merlot". Wer ein Wort
+            # mitbringt, das der Eintrag nirgends nennt, hat den schwächeren Anspruch
+            # — er ist eher ein eigener Wein des Hauses.
+            fremd = len(set(tokenize(r.name)) - set(tokenize(treffer)))
+            return (konf, len(eigen & gefunden) - len(eigen - gefunden), -fremd)
 
         sieger = max(gruppe, key=guete)
         for row in gruppe:

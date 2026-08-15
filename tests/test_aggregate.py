@@ -248,3 +248,42 @@ def test_different_vintages_of_one_wine_keep_their_rating():
         zeilen.append(r)
     resolve_shared_ratings(zeilen)
     assert all(r.vivino.rating == 3.9 for r in zeilen), "alle drei Jahrgänge behalten die Note"
+
+
+# -- Zwei Weine, ein Vivino-Eintrag ----------------------------------------
+def test_den_eintrag_bekommt_der_wein_ohne_fremdes_wort():
+    """Wer ein Wort mitbringt, das der Eintrag nicht kennt, hat den schwaecheren
+    Anspruch.
+
+    Fortsetzung des Falls oben, eine Stufe feiner. "la Rocca" und "il Frassinello
+    Merlot" beanspruchten beide den gleichnamigen Hauptwein, beide als wine_level.
+    Ueber die *unterscheidenden* Woerter sind sie nicht zu trennen: nach Abzug von
+    Region und Rebsorte bleibt bei beiden nur der Gutsname, der Guetewert ist
+    identisch. Der Eintrag ging deshalb an den, der zufaellig vorne stand — und das
+    war der Merlot.
+
+    Ueber *alle* Woerter geht es: "la Rocca" traegt keines, das der Eintrag nicht
+    nennt, "il Frassinello Merlot" traegt "merlot".
+    """
+    from winecheck.aggregate import resolve_shared_ratings
+    from winecheck.models import VivinoResult, VivinoStatus
+
+    def zeile(name):
+        o = Offer(retailer="x", name=name, vintage=2022, price_per_bottle_incl_vat=37.5,
+                  price_raw=37.5, price_raw_basis="inkl. MwSt")
+        r = merge_offers([o])[0]
+        r.vivino = VivinoResult(
+            status=VivinoStatus.WINE_LEVEL, query="q",
+            url="https://www.vivino.com/de/maremma-toscana/w/11745", note="n",
+            rating=4.2, rating_count=4658, match_confidence="wine_level",
+            matched_name="Rocca di Frassinello Maremma Toscana",
+        )
+        return r
+
+    merlot = zeile("Rocca di Frassinello il Frassinello Merlot Maremma Toscana DOC")
+    rocca = zeile("Rocca di Frassinello la Rocca Maremma Toscana DOC")
+    # Der Merlot steht zuerst — vorher gewann allein diese Reihenfolge.
+    resolve_shared_ratings([merlot, rocca])
+    assert rocca.vivino.rating == 4.2, "der Wein ohne fremdes Wort behaelt die Note"
+    assert merlot.vivino.rating is None
+    assert "anderen Wein" in merlot.vivino.note
