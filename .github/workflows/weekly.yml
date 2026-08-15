@@ -1,24 +1,53 @@
-# Wöchentlicher Lauf: Aktionen holen, bewerten, Seite bauen und einchecken.
+# Wöchentlicher Lauf — ABGESCHALTET seit 14.08.2026.
 #
-# Läuft auf GitHub, nicht auf einem Rechner zu Hause — der Freitagslauf kommt also
-# auch dann, wenn der Laptop zu ist.
+# ==========================================================================
+# Warum er nicht mehr planmässig läuft
+# ==========================================================================
+# Vivino sperrt Rechenzentrums-IPs. Das war lange nur für die *Bewertungen* ein
+# Thema — die holt der Mac, dieser Lauf übernahm sie aus state/ratings-cache.json.
 #
-# Der Push auf docs/ löst pages.yml aus, das die Seite ausliefert. Zwei Workflows
-# statt einem, weil sie verschiedene Aufgaben haben: dieser sammelt Daten (35 Minuten,
-# hunderte Netzanfragen), jener liefert aus (20 Sekunden). Wer nur die Seite neu
-# ausliefern will, soll dafür keine 600 Vivino-Abfragen auslösen.
+# Seit Vivinos eigener Marktplatz als Aktionsquelle dazugekommen ist, trifft die
+# Sperre auch die *Preise*:
+#
+#     vivinoshop   blocked   0 Positionen   Vivino API HTTP 403
+#
+# Damit sieht dieser Lauf 849 statt 1524 Weinen — die fehlenden 675 sind der
+# Marktplatz. Seine eigene Plausibilitätsprüfung schlägt darum zuverlässig an und
+# verhindert die Veröffentlichung:
+#
+#     Abbruch: nur 340 bewertete Weine gegenüber 1036 bisher.
+#
+# Das ist richtig so, macht ihn aber nutzlos: er kann konstruktionsbedingt nie mehr
+# durchkommen und erzeugte jede Woche einen roten Lauf, den jemand anschauen muss.
+# Ein ehrlich abgeschalteter Automatismus ist besser als einer, der wöchentlich
+# scheitert.
+#
+# Der Mac-Lauf (scripts/wochenlauf.sh, freitags 07:00 per launchd) macht ohnehin
+# alles: Preise, Bewertungen, Trinkfenster, Seite, Push. Er ist nicht der Ersatz,
+# er war immer schon der vollständigere Weg.
+#
+# ==========================================================================
+# Wann er wieder Sinn ergäbe
+# ==========================================================================
+# Wenn Vivino als Aktionsquelle wegfiele, oder wenn die Marktplatz-Angebote wie
+# die Bewertungen als Datei mitgegeben würden. Letzteres wurde verworfen: Preise
+# veralten schneller als Noten, und eine Woche alte Aktionspreise als aktuell
+# auszugeben widerspricht dem Zweck des Berichts.
+#
+# Zum Wiedereinschalten: den schedule-Block unten wieder einkommentieren und
+# `gh workflow enable Wochenlauf` ausführen.
+#
+# Der Push auf docs/ löst pages.yml aus, das die Seite ausliefert. Jenes bleibt
+# aktiv — es liefert aus, was der Mac einlagert.
 name: Wochenlauf
 
 on:
-  schedule:
-    # Freitag 12:00 UTC = 14:00 Sommerzeit in der Schweiz — bewusst **nach** dem
-    # Mac-Lauf um 07:00. Der trägt die Bewertungen in state/ratings-cache.json ein;
-    # dieser Lauf holt sie sich von dort, weil er Vivino nicht selbst fragen kann.
-    # Umgekehrte Reihenfolge hiesse: mit den Noten der Vorwoche arbeiten.
-    #
-    # Lief der Mac am Freitag nicht (ausgeschaltet), aktualisiert dieser Lauf
-    # wenigstens die Preise. Genau dafür ist er da.
-    - cron: "0 12 * * 5"
+  # Abgeschaltet, siehe oben. Von Hand bleibt er startbar, damit sich die Lage
+  # nachprüfen lässt — er wird an der Plausibilitätsprüfung scheitern, solange
+  # Vivino den Marktplatz nicht ausliefert.
+  #
+  # schedule:
+  #   - cron: "0 12 * * 5"
   workflow_dispatch:
 
 # Nur ein Lauf gleichzeitig. Zwei parallele Läufe würden sich beim Commit in die

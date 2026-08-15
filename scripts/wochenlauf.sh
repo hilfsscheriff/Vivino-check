@@ -1,7 +1,10 @@
 #!/bin/bash
 # Wöchentlicher Lauf auf dem Mac: Aktionen holen, bewerten, Seite bauen, einchecken.
 #
-# Warum lokal und nicht auf GitHub: Vivino sperrt Rechenzentrums-IPs. Ein Testlauf auf
+# Warum lokal und nicht auf GitHub: Vivino sperrt Rechenzentrums-IPs. Das trifft seit
+# 14.08.2026 auch die Preise des Vivino-Marktplatzes (HTTP 403), nicht mehr nur die
+# Bewertungen — der GitHub-Lauf sah dort 849 statt 1524 Weinen und ist deshalb
+# abgeschaltet. Dieser Lauf hier ist damit der einzige. Ein Testlauf auf
 # GitHubs Rechnern holte die Preise fehlerfrei, bekam aber nach 13 Abfragen für 465 von
 # 478 Weinen ein "blocked". Über den Hausanschluss läuft es durch.
 #
@@ -90,7 +93,7 @@ fi
 uv run wine-check site --out ./docs >>"$PROTOKOLL" 2>&1
 
 # -- 4. Reissleine ----------------------------------------------------------
-# Dieselbe Prüfung wie im GitHub-Workflow: ein Lauf, der die Datenlage
+# Dieselbe Prüfung wie im (abgeschalteten) GitHub-Workflow: ein Lauf, der die Datenlage
 # verschlechtert, wird nicht veröffentlicht. Eine blockierte Bewertungsquelle ist
 # kein Grund, den guten Stand zu überschreiben.
 PRUEFUNG=$(uv run python - <<'PY'
@@ -117,10 +120,16 @@ if [ $STATUS -ne 0 ]; then
   exit 1
 fi
 
-# -- 5. Bewertungen für den GitHub-Lauf mitgeben ----------------------------
-# Der Wochenlauf auf GitHub holt frische Preise, kann aber nicht bei Vivino
-# nachfragen (Rechenzentrums-IPs werden gesperrt). Diese Datei gibt ihm die hier
-# ermittelten Noten mit, damit die Seite dort Preise *und* Bewertungen zeigt.
+# -- 5. Bewertungen sichern -------------------------------------------------
+# Der Bewertungs-Cache liegt in einer SQLite-Datei, die nicht im Repo steht (zu
+# gross, zu unhandlich im Diff). Diese Ausfuhr ist die versionierte Fassung: sie
+# überlebt einen neu aufgesetzten Rechner und macht nachvollziehbar, wann eine
+# Note dazukam.
+#
+# Ursprünglich war sie für den GitHub-Lauf gedacht, der Vivino nicht selbst fragen
+# kann. Der ist seit 14.08.2026 abgeschaltet — Vivino sperrt inzwischen auch die
+# Preise des Marktplatzes für Rechenzentrums-IPs, womit dort die Hälfte des
+# Bestands fehlte. Die Ausfuhr bleibt trotzdem: als Sicherung ist sie das wert.
 uv run wine-check ratings-export >>"$PROTOKOLL" 2>&1
 
 # -- 6. Einchecken ----------------------------------------------------------
