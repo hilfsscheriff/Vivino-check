@@ -121,3 +121,14 @@ def test_ohne_jahrgang_wird_keiner_geraten(adapter):
 def test_die_adresse_wird_absolut(adapter):
     o = adapter._offer(_produkt())
     assert o.url.startswith("https://www.flaschenpost.ch/negromaro")
+
+
+def test_die_adresse_traegt_keinen_query_string(adapter):
+    """Das url-Feld hängt ?_size=7500 an, und die Webseite antwortet darauf mit 404.
+
+    _size trägt dort dieselbe interne Zehntel-Milliliter-Zahl wie bottleSize, die
+    Seite erwartet aber Milliliter. Ungeprüft übernommen waren alle 477 Links tot.
+    """
+    o = adapter._offer(_produkt())
+    assert "?" not in o.url
+    assert o.url == "https://www.flaschenpost.ch/negromaro-salento-igp_poggio-maru"

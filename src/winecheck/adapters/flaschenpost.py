@@ -181,7 +181,13 @@ class FlaschenpostAdapter(RetailerAdapter):
             # Rangliste — besser als ein falscher Literpreis.
             ml = None
 
-        pfad = str(mv.get("url") or "").lstrip("/")
+        # Nur der Slug, ohne Query-String. Das ``url``-Feld der Schnittstelle hängt
+        # ``?_size=7500&_packaging=…&_sku=…`` an — und ``_size`` trägt dort dieselbe
+        # interne Zehntel-Milliliter-Zahl wie ``bottleSize``. Die Webseite erwartet
+        # an dieser Stelle Milliliter: mit ``_size=7500`` antwortet sie „Die
+        # angeforderte Seite existiert nicht", mit dem blossen Slug findet sie den
+        # Wein. Ungeprüft übernommen waren damit alle 477 Links tot.
+        pfad = str(mv.get("url") or "").lstrip("/").split("?")[0]
         return self.make_offer(
             name=voll,
             url=f"{BASIS_URL}{pfad}" if pfad else BASIS_URL,

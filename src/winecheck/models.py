@@ -491,6 +491,20 @@ class WineRow:
             return None
         if not any(p.price_confidence is not PriceConfidence.LOW for p in self.prices):
             return None
+        # Bei unbestätigter Namenszuordnung gibt es keine Ersparnis auszuweisen.
+        #
+        # Der Marktpreis stammt von *dem* Wein, den Vivino gefunden hat. Ist die
+        # Zuordnung nur ``fuzzy``, kann das ein anderer sein — und dann vergleicht
+        # die Prozentzahl zwei verschiedene Weine. „Juan Gil Monastrell" für
+        # CHF 8.90 landete auf „Juan Gil Bruto" und wies damit 85 % Ersparnis gegen
+        # dessen Marktpreis von CHF 58 aus. Das ist kein Schnäppchen, das ist ein
+        # Rechenfehler mit Ausrufezeichen.
+        #
+        # Die *Note* darf bleiben: sie ist als unbestätigt gekennzeichnet, und wer
+        # sie sieht, kann dem Link folgen und selbst urteilen. Eine Prozentzahl
+        # dagegen liest sich wie eine Tatsache, und niemand rechnet ihr nach.
+        if self.vivino is not None and self.vivino.match_confidence == "fuzzy":
+            return None
         return round((market - price) / market * 100, 1)
 
     @property
