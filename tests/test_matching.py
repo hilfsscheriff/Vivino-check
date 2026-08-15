@@ -721,3 +721,39 @@ def test_die_rebsorte_bleibt_ein_unterscheidendes_fremdwort():
     Produzent gemeinsam ist, trägt die Rebsorte die Unterscheidung."""
     d = match_wine("Piemonte – Vietti Barolo Rocche di Castiglione DOCG", "Vietti Arneis Roero")
     assert not d.matched, d.reason
+
+
+# -- Gleichstand: Rangfolge statt Alphabet ---------------------------------
+def test_bei_punktgleichstand_gewinnt_die_sicherere_stufe():
+    """"fuzzy" stand alphabetisch vor "wine_level" — und entschied damit.
+
+    "Rocca di Frassinello la Rocca" (CHF 37.50) und "Rocca di Frassinello
+    Baffonero" (rund CHF 200) erreichen beide exakt 100 Punkte gegen den
+    Händlernamen. Der richtige Wein ist "wine_level", der falsche "fuzzy", und weil
+    f vor w kommt, trug der Wein die Note 4.5 des Spitzenweins.
+
+    "fuzzy" heisst "die Quelle trägt Wörter, die der Händler nicht nennt" — also
+    vielleicht ein anderer Wein. "wine_level" heisst "dieser Wein, anderer Jahrgang".
+    Das zweite ist die sicherere Aussage.
+    """
+    from winecheck.matching import rank_candidates
+    hits, _ = rank_candidates(
+        "Rocca di Frassinello la Rocca Maremma Toscana DOC",
+        [
+            ("Rocca di Frassinello Baffonero Maremma Toscana", 2021, True),
+            ("Rocca di Frassinello Maremma Toscana", 2021, True),
+        ],
+        retailer_vintage=2022,
+    )
+    assert hits, "beide Kandidaten passen — einer muss gewinnen"
+    assert "Baffonero" not in (hits[0].decision.source_name or "")
+
+
+def test_die_rangfolge_folgt_der_deklaration_im_modell():
+    """Die Reihenfolge in MatchConfidence ist die Rangfolge — sicher vor unsicher."""
+    from winecheck.matching import _konfidenz_rang
+    from winecheck.models import MatchConfidence
+    rang = [_konfidenz_rang(s) for s in
+            (MatchConfidence.EXACT, MatchConfidence.WINE_LEVEL,
+             MatchConfidence.FUZZY, MatchConfidence.WINERY_LEVEL, MatchConfidence.NONE)]
+    assert rang == sorted(rang), "die Stufen müssen von sicher nach unsicher aufsteigen"

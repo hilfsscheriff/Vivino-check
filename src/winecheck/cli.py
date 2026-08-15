@@ -211,6 +211,10 @@ def rate(
         "", "--nachtragen", metavar="<feld>",
         help="nur Weine neu abfragen, deren Bewertung dieses Payload-Feld nicht trägt",
     ),
+    neu_beurteilen: str = typer.Option(
+        "", "--neu-beurteilen", metavar="<stufe>",
+        help="nur Weine neu abfragen, deren Treffer diese Konfidenzstufe hat (z.B. fuzzy)",
+    ),
 ) -> None:
     """Falstaff abfragen und Vivino **für jeden** Wein — unabhängig voneinander.
 
@@ -230,6 +234,14 @@ def rate(
               f"der Rest bleibt aus dem Cache.")
         if not verworfen:
             _echo("Nichts nachzutragen — jede Bewertung mit Treffer führt das Feld.")
+    if neu_beurteilen:
+        # Für den anderen Anlass als der Nachtrag: nicht ein neues Feld, sondern eine
+        # geänderte Entscheidungsregel im Matcher. Dann sind nur die Einträge einer
+        # Stufe betroffen, und ein Volllauf über alles wäre zweieinhalb Stunden für
+        # nichts.
+        verworfen = cache.verwerfe_ratings_mit_konfidenz("vivino", neu_beurteilen)
+        _echo(f"Neubeurteilung '{neu_beurteilen}': {verworfen} Bewertungen verworfen, "
+              f"der Rest bleibt aus dem Cache.")
     offers = [_offer_from_payload(d) for d in cache.all_offers()]
     rows = compute_scores(attach_maturity(merge_offers(offers)))
     if limit:

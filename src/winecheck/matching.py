@@ -778,6 +778,33 @@ class Ranked:
     decision: MatchDecision
 
 
+#: Rangfolge der Konfidenzstufen, wie sie in :class:`MatchConfidence` deklariert
+#: sind: sicher vor unsicher. Kleiner ist besser.
+_KONFIDENZ_RANG = {stufe: i for i, stufe in enumerate(MatchConfidence)}
+
+
+def _konfidenz_rang(stufe: MatchConfidence) -> int:
+    """Wie vertrauenswürdig ist diese Stufe? Kleiner ist besser.
+
+    Klingt nach einer Formalität, war aber ein handfester Fehler: sortiert wurde
+    vorher nach ``confidence.value``, also alphabetisch über den Text der Stufe. Und
+    alphabetisch steht „fuzzy" vor „wine_level".
+
+    Bei gleichem Ähnlichkeitswert entschied damit der Anfangsbuchstabe. Genau so
+    verlor „Rocca di Frassinello la Rocca" (CHF 37.50) gegen „Rocca di Frassinello
+    Baffonero" (rund CHF 200): beide Kandidaten erreichten exakt 100 Punkte, der
+    richtige Wein war als ``wine_level`` eingestuft, der falsche als ``fuzzy`` — und
+    ``f`` kommt vor ``w``. Der Wein bekam die Note 4.5 des Spitzenweins.
+
+    ``fuzzy`` heisst „ähnlich genug, aber die Quelle trägt Wörter, die der Händler
+    nicht nennt" — also *vielleicht ein anderer Wein*. ``wine_level`` heisst „dieser
+    Wein, nur ein anderer Jahrgang". Das zweite ist die sicherere Aussage und gehört
+    nach vorn. Die Deklarationsreihenfolge im Modell sagt das seit jeher; nur gelesen
+    hat sie hier niemand.
+    """
+    return _KONFIDENZ_RANG.get(stufe, len(_KONFIDENZ_RANG))
+
+
 def rank_candidates(
     retailer_name: str,
     candidates: list[tuple[str, int | None, bool]],
@@ -806,7 +833,7 @@ def rank_candidates(
         if d.matched:
             hits.append(Ranked(i, d))
 
-    hits.sort(key=lambda h: (-h.decision.score, h.decision.confidence.value))
+    hits.sort(key=lambda h: (-h.decision.score, _konfidenz_rang(h.decision.confidence)))
     ambiguous = False
     if len(hits) >= 2:
         top, second = hits[0].decision, hits[1].decision

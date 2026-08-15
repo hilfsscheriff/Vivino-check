@@ -385,6 +385,36 @@ class Cache:
             self.conn.commit()
         return len(weg)
 
+    def verwerfe_ratings_mit_konfidenz(self, quelle: str, stufe: str) -> int:
+        """Löscht Bewertungen einer bestimmten Konfidenzstufe.
+
+        Geschwistermethode zu :meth:`verwerfe_ratings_ohne_feld`, für den anderen
+        Anlass: nicht ein neues Feld, sondern eine geänderte **Entscheidungsregel**.
+
+        Gebaut, als auffiel, dass die Kandidaten bei Punktgleichstand alphabetisch
+        sortiert wurden und „fuzzy" damit vor „wine_level" gewann — „Rocca di
+        Frassinello la Rocca" (CHF 37.50) trug die Note des Baffonero (rund CHF 200).
+        Betroffen sein können nur Einträge, die als ``fuzzy`` endeten; alle anderen
+        neu abzufragen wären zweieinhalb Stunden für nichts.
+
+        Rückgabe: Zahl der verworfenen Einträge.
+        """
+        rows = self.conn.execute(
+            "SELECT rowid, payload FROM ratings WHERE source=?", (quelle,)
+        ).fetchall()
+        weg = []
+        for r in rows:
+            try:
+                payload = json.loads(r["payload"] or "{}")
+            except json.JSONDecodeError:
+                continue
+            if (payload.get("match_confidence") or "") == stufe:
+                weg.append(r["rowid"])
+        if weg:
+            self.conn.executemany("DELETE FROM ratings WHERE rowid=?", [(x,) for x in weg])
+            self.conn.commit()
+        return len(weg)
+
     def stats(self) -> dict[str, int]:
         q = self.conn.execute
         return {
