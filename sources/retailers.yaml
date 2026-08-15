@@ -153,26 +153,34 @@ retailers:
     domain: flaschenpost.ch
     adapter: flaschenpost
     enabled: true
-    status: ok
+    status: delisted_only
     urls: []
     vat_included: true
     price_basis: bottle
     private_label_brands: []
     wine_only: true
-    # Die Webseite liegt hinter Cloudflare und war darum lange blockiert. Die
-    # Produkt-API ist es nicht: /api/products antwortet mit HTTP 200 und JSON —
-    # geprüft mit ehrlichem Projekt-User-Agent, ganz ohne User-Agent und als
-    # Chrome, alle drei byteidentisch. Es gibt dort keine Bot-Erkennung, die
-    # getäuscht würde, und robots.txt sperrt /api/ nicht.
+    # Absichtlich nicht "blocked": dieser Wert heisst in diesem Projekt "Schutz
+    # wird nicht umgangen", und das trifft hier nicht zu. Der Zugriff ist frei —
+    # /api/products antwortet jedem mit HTTP 200, geprüft mit ehrlichem
+    # Projekt-User-Agent, ganz ohne und als Chrome, alle drei byteidentisch.
     #
-    # Sollte der Pfad geschlossen werden, meldet der Adapter "blocked" und die
-    # Quelle ist wieder draussen — wie Coop und Migros. Nicht umgangen wird nichts.
+    # Unbrauchbar ist nicht der Zugang, sondern der Inhalt: die Schnittstelle führt
+    # ausschliesslich ausgelistete Ware. Über 6000 geprüfte Produkte war keines
+    # published, keines active, keines lieferbar; 20 stichprobenweise geöffnete
+    # Produktseiten antworteten alle mit 404, während ein Wein von der
+    # Kategorieseite des Ladens 200 lieferte. Die 476 "Aktionen" waren Phantome
+    # mit toten Links und Preisen von gestern.
+    #
+    # "blocked" bliebe der Eintrag für immer, weil dann gar nicht mehr abgefragt
+    # wird. Mit diesem Wert läuft der Adapter weiter, prüft drei Seiten und meldet
+    # sich blockiert — und füllt sich von selbst wieder, falls der Laden den Pfad
+    # je auf lebendes Sortiment umstellt.
     note: >
-      Grösster Online-Weinhändler CH. Über die öffentliche Produkt-API gelesen,
-      nicht über die geschützte Webseite. Rund 476 Aktionsweine mit Streichpreis.
-      Die Schnittstelle nennt keinen Jahrgang — darum keine Trinkreife und bei
-      Vivino höchstens wine_level. Blätterung endet bei Offset 32'000 (61 % des
-      Katalogs).
+      Grösster Online-Weinhändler CH, derzeit ohne verwertbare Daten. Die offene
+      Produkt-API liefert nur ausgelistete Ware (published=false, active=false,
+      Produktseiten 404), die Webseite selbst liegt hinter Cloudflare. Der Adapter
+      prüft wöchentlich drei Seiten nach und meldet blockiert. Details im Kopf von
+      adapters/flaschenpost.py.
     verified_at: "2026-08-15"
 
   - key: moevenpick

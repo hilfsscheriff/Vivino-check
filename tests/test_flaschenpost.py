@@ -1,13 +1,24 @@
-"""Flaschenpost — gelesen über die öffentliche Produkt-API statt über die Webseite.
+"""Flaschenpost — die Quelle, die sauber aussah und keine gültige Aktion enthielt.
 
-Die Webseite liegt hinter Cloudflare. Die API ist es nicht, und das wurde geprüft
-statt angenommen: dieselbe Anfrage mit ehrlichem Projekt-User-Agent, ganz ohne
-User-Agent und als Chrome lieferte dreimal byteidentisch dieselbe Antwort.
+Die Schnittstelle ist offen und gut strukturiert. Sie führt aber ausschliesslich
+ausgelistete Ware: über 6000 geprüfte Produkte war keines ``published``, keines
+``active``, keines lieferbar, und alle 20 stichprobenweise geöffneten Produktseiten
+antworteten mit 404 (Gegenprobe mit einem lebenden Wein des Ladens: 200).
+
+Diese Tests halten beides fest — dass der Lesecode stimmt, und dass er trotzdem
+nichts ausliefert, solange die Quelle tot ist.
 """
+
+import json
 
 import pytest
 
-from winecheck.adapters.flaschenpost import FlaschenpostAdapter, _de
+from winecheck.adapters.flaschenpost import (
+    PRO_SEITE,
+    PROBE_SEITEN,
+    FlaschenpostAdapter,
+    _de,
+)
 from winecheck.config import SourceConfig
 
 
@@ -19,7 +30,8 @@ def adapter():
 
 
 def _produkt(*, aktion=1050, referenz=1395, liter=14.0, groesse=7500,
-             name="Negromaro Salento IGP", produzent="Poggio Marù"):
+             name="Negromaro Salento IGP", produzent="Poggio Marù",
+             published=True, active=True):
     preis = {"initialPrice": {"amount": referenz, "currency": "CHF"}}
     if aktion is not None:
         preis["discountPrice"] = {"amount": aktion, "currency": "CHF"}
@@ -27,10 +39,13 @@ def _produkt(*, aktion=1050, referenz=1395, liter=14.0, groesse=7500,
         preis["literPrice"] = {"amount": liter, "currency": "CHF"}
     return {
         "name": {"de-CH": name, "fr-CH": "…"},
+        "slug": {"de-CH": "negromaro-salento-igp_poggio-maru"},
         "productTypeName": "wines",
         "masterVariant": {
             "sku": "1203292",
             "url": "negromaro-salento-igp_poggio-maru?_size=7500",
+            "published": published,
+            "active": active,
             "price": preis,
             "attributes": {
                 "producer": {"key": "abc", "label": produzent},
@@ -118,17 +133,83 @@ def test_ohne_jahrgang_wird_keiner_geraten(adapter):
     assert o.vintage is None
 
 
-def test_die_adresse_wird_absolut(adapter):
-    o = adapter._offer(_produkt())
-    assert o.url.startswith("https://www.flaschenpost.ch/negromaro")
+# -- Die Adresse -----------------------------------------------------------
+def test_die_adresse_traegt_sprachpraefix_und_keinen_query_string(adapter):
+    """Zwei Fehler in einer Adresse, beide am lebenden Laden nachgemessen.
 
+    Das url-Feld der Schnittstelle liefert ``<slug>?_size=7500``. Ohne ``/de/``
+    antwortet die Webseite mit 404; und ``_size`` trägt dort die interne
+    Zehntel-Milliliter-Zahl, wo die Seite Milliliter erwartet.
 
-def test_die_adresse_traegt_keinen_query_string(adapter):
-    """Das url-Feld hängt ?_size=7500 an, und die Webseite antwortet darauf mit 404.
-
-    _size trägt dort dieselbe interne Zehntel-Milliliter-Zahl wie bottleSize, die
-    Seite erwartet aber Milliliter. Ungeprüft übernommen waren alle 477 Links tot.
+    Gegenprobe an einem Wein, den der Laden aktuell führt: ``/de/<slug>`` liefert
+    200, ``/<slug>`` und ``/<slug>?_size=750`` liefern 404.
     """
     o = adapter._offer(_produkt())
+    assert o.url == "https://www.flaschenpost.ch/de/negromaro-salento-igp_poggio-maru"
     assert "?" not in o.url
-    assert o.url == "https://www.flaschenpost.ch/negromaro-salento-igp_poggio-maru"
+
+
+# -- Ausgelistete Ware -----------------------------------------------------
+def test_unpubliziertes_produkt_wird_uebersprungen(adapter):
+    """Die Prüfung, die von Anfang an gefehlt hat.
+
+    Ohne sie kamen 477 Positionen in den Bestand, deren Seiten allesamt 404
+    lieferten und deren "Aktionspreise" aus der Vergangenheit stammten. Ein
+    Phantomangebot mit totem Link ist schlechter als eine Lücke.
+    """
+    assert adapter._offer(_produkt(published=False)) is None
+    assert adapter._offer(_produkt(active=False)) is None
+    assert adapter._offer(_produkt(published=False, active=False)) is None
+
+
+class _StubFetcher:
+    """Liefert immer dieselbe Seite — genug, um den Abbruch zu prüfen."""
+
+    def __init__(self, produkte):
+        self.payload = json.dumps({"results": produkte})
+        self.aufrufe = 0
+
+    def get(self, url, params=None, expect_json=False):
+        self.aufrufe += 1
+        return type("Res", (), {"ok": True, "status_code": 200, "text": self.payload})()
+
+
+def test_tote_quelle_meldet_blockiert_statt_leer(adapter):
+    """"Leer" hiesse: diese Woche keine Aktionen. Das wäre eine andere Aussage.
+
+    Die Quelle ist nicht aktionsfrei, sie ist unbrauchbar — und das gehört so in der
+    Übersicht zu stehen, neben Coop und Migros, statt als unauffällige Null.
+    """
+    adapter.fetcher = _StubFetcher([_produkt(published=False, active=False)] * 5)
+    bericht = adapter.fetch()
+    assert bericht.status == "blocked"
+    assert "ausgelistete" in bericht.message
+    assert not bericht.offers
+
+
+def test_der_abbruch_kommt_frueh(adapter):
+    """Nach PROBE_SEITEN ist Schluss — nicht nach 65.
+
+    Sechs Sekunden Nachprüfen pro Woche sind der Preis dafür, dass die Quelle sich
+    von selbst wieder füllt, falls der Laden den Pfad je auf lebendes Sortiment
+    umstellt. Zwei Minuten wären es nicht wert.
+    """
+    # Volle Seiten, sonst endet die Blätterung schon nach der ersten und der
+    # Abbruch, um den es hier geht, käme gar nicht zum Zug.
+    fetcher = _StubFetcher([_produkt(published=False, active=False)] * PRO_SEITE)
+    adapter.fetcher = fetcher
+    adapter.fetch()
+    assert fetcher.aufrufe == PROBE_SEITEN
+
+
+def test_lebende_ware_kaeme_durch(adapter):
+    """Der Lesecode bleibt scharf: sobald ein Produkt publiziert ist, greift er.
+
+    Sonst wäre nicht unterscheidbar, ob die Quelle tot ist oder der Adapter kaputt.
+    """
+    fetcher = _StubFetcher([_produkt(), _produkt(published=False)])
+    adapter.fetcher = fetcher
+    bericht = adapter.fetch()
+    assert bericht.status == "ok"
+    assert len(bericht.offers) == 1
+    assert bericht.offers[0].price_per_bottle_incl_vat == 10.50

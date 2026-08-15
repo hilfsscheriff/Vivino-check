@@ -1,12 +1,52 @@
-"""Flaschenpost — der grösste Schweizer Onlinehändler, über seine Produkt-API.
+"""Flaschenpost — offene Produkt-API, die nur ausgelistete Ware führt.
 
-Die Webseite selbst liegt hinter einer Cloudflare-Challenge und war darum lange als
-``blocked`` eingetragen. Die Produkt-API ist es nicht:
+Ergebnis vorweg: **diese Quelle liefert keine gültigen Aktionen.** Der Adapter
+bleibt bestehen und prüft das bei jedem Lauf nach, aber er meldet ``blocked``,
+solange sich daran nichts ändert. Wer nur wissen will, warum Flaschenpost fehlt,
+kann nach dem nächsten Abschnitt aufhören zu lesen.
 
-    GET /api/products?limit=500&page=1   →  HTTP 200, application/json
+Was schiefging
+--------------
+Die Schnittstelle antwortet bereitwillig und sieht sauber aus — Preise, Produzent,
+Region, Literpreis, alles in Feldern statt in Fliesstext. 477 rabattierte Positionen
+kamen daraus in den Bestand. Erst als ein einzelner Link angeklickt wurde, kam
+heraus, dass keine davon existiert.
 
-Warum das keine Umgehung ist
-----------------------------
+Die Nachprüfung, Schritt für Schritt:
+
+* 20 Adressen aus der Schnittstelle im Browser geöffnet — **20 mal HTTP 404**,
+  „Die angeforderte Seite wurde entweder verschoben, existiert nicht …".
+* Gegenprobe mit einem Wein von der Kategorieseite des Ladens
+  (``mauro-tinto-cosecha_bodegas-mauro``) — **HTTP 200**. Die Prüfmethode taugt
+  also, die Adressen taugen nicht.
+* Dann der Blick auf die Felder, die vorher niemand gelesen hatte::
+
+      "published": false,  "active": false,  "stock": {"isAvailable": false}
+
+* Über **6000 geprüfte Produkte: kein einziges** publiziert, aktiv oder lieferbar.
+  Auch nicht mit ``?published=true``, ``?active=true``, ``?inStock=true`` und drei
+  weiteren Filterversuchen — die Schnittstelle kennt schlicht nichts anderes.
+
+``/api/products`` ist demnach keine Ladenschnittstelle, sondern eine Projektion auf
+ausgelistetes Sortiment: alte Jahrgänge, ausverkaufte Posten, zurückgezogene Artikel.
+Die „Aktionspreise" darin sind historisch. 477 Phantomangebote mit toten Links und
+Preisen von gestern sind schlechter als eine Lücke — genau der Fall, für den in
+diesem Projekt die Regel gilt, lieber nichts zu zeigen als etwas Plausibles.
+
+Zwei falsche Fährten, damit sie niemand erneut verfolgt
+-------------------------------------------------------
+1. Das ``url``-Feld hängt ``?_size=7500`` an, während die Webseite an dieser Stelle
+   Milliliter erwartet (``?_size=750``). Das sah nach der Ursache aus und war
+   keine: mit korrigierter Grösse antwortet die Seite genauso mit 404.
+2. Die echten Adressen tragen ein Sprachpräfix (``/de/<slug>``), das der
+   Schnittstelle fehlt. Auch das behebt nichts — ``/de/`` plus Slug ist für einen
+   lebenden Wein gültig, für die 6000 aus der Schnittstelle nicht.
+
+Beide Beobachtungen stimmen. Beide erklären den Fehler nicht. Der Grund liegt eine
+Ebene tiefer, und wer nur an der Adresse schraubt, findet ihn nicht.
+
+Warum der Zugriff selbst in Ordnung war
+---------------------------------------
 Geprüft, nicht angenommen. Dieselbe Anfrage wurde dreimal gestellt — mit dem
 ehrlichen Projekt-User-Agent samt Kontaktadresse, ganz ohne User-Agent, und als
 Chrome. Alle drei Male dieselbe Antwort, **byteidentisch** (25'871 B). Es gibt auf
@@ -23,44 +63,27 @@ alle die Challenge. Dieser eine Pfad ist also eine Ausnahme in ihrer Konfigurati
 Sollte Flaschenpost ihn schliessen, wird der Adapter ``blocked`` melden — und dann
 bleibt er blockiert, so wie Coop und Migros.
 
-Was die Antwort hergibt
------------------------
-Sauberer als jede andere Quelle im Bestand — nichts muss aus Fliesstext geraten
-werden::
+Was der Adapter jetzt tut
+-------------------------
+Er liest ein paar Seiten, verlangt von jedem Produkt ``published`` **und** ``active``
+und meldet ``blocked``, wenn er nach ``PROBE_SEITEN`` nichts Publiziertes gefunden
+hat. Das kostet wenige Sekunden pro Woche und hat einen Zweck: sollte Flaschenpost
+den Pfad je auf lebendes Sortiment umstellen, füllt sich die Quelle von selbst
+wieder. Bis dahin steht in der Übersicht ehrlich „blockiert" statt einer Zahl.
 
-    "price": {
-      "initialPrice":  {"amount": 1395},   Streichpreis in Rappen
-      "discountPrice": {"amount": 1050},   Aktionspreis, fehlt bei Regalware
-      "literPrice":    {"amount": 14.00}   erlaubt die Gegenprobe
-    }
+Der übrige Lesecode bleibt erhalten und ist geprüft — Preise in Rappen, Streichpreis,
+Literpreis als Gegenprobe, ``bottleSize`` in Zehntel-Millilitern. Er wartet nur auf
+Daten, die es wert sind.
 
-Dazu ``producer``, ``bottleSize``, ``salesUnit``, ``region``, ``grapes``.
+Zwei Dinge, die weiterhin gelten
+--------------------------------
+Die Blätterung endet bei Offset 32'000 (65 Seiten à 500), und die Reihenfolge ist
+nicht stabil: Produkte wandern zwischen den Seiten, entdoppelt wird über die SKU.
 
-Die Blätterung hat eine Decke
------------------------------
-``page`` ist der Blätterparameter — ``offset``, ``from``, ``start`` und ``skip``
-werden stillschweigend ignoriert und liefern immer dieselbe Seite. Bei
-``limit=500`` endet die Blätterung bei Offset 32'000, also nach 65 Seiten; Seite 66
-liefert nichts mehr. Von den gemeldeten 53'421 Produkten sind damit rund 61 %
-erreichbar.
-
-Die Reihenfolge ist dabei nicht stabil: ein Probedurchgang fand 640 rabattierte
-Positionen, darunter 164 Dubletten — Produkte wandern zwischen den Seiten, während
-man blättert. Entdoppelt wird über die SKU. Umgekehrt heisst das auch, dass einzelne
-Weine bei einem Durchgang durchrutschen können; über die Wochen gleicht sich das aus.
-
-Kein Jahrgang
--------------
-Die Schnittstelle nennt ihn nirgends — weder als Attribut, noch in der Adresse, noch
-im Namen. Ein Wein hat mehrere ``variants`` mit verschiedenen SKU und Preisen, die
-mit grosser Wahrscheinlichkeit Jahrgänge sind, aber unbeschriftet bleiben.
-
-Das kostet drei Dinge, und sie stehen hier, damit niemand sie später für Fehler hält:
-die **Trinkreife** entfällt (die Vinum-Tabelle rechnet je Jahrgang), der
-Vivino-Treffer erreicht bestenfalls ``wine_level`` statt ``exact``, und beim
-Zusammenführen über die Händler steht ein Flaschenpost-Wein neben demselben Wein
-eines anderen Ladens, statt mit ihm zu verschmelzen. Lieber diese Lücke als ein
-geratener Jahrgang.
+Einen **Jahrgang** nennt die Schnittstelle nirgends. Sollte sie je brauchbar werden,
+kostet das die Trinkreife (die Vinum-Tabelle rechnet je Jahrgang), begrenzt den
+Vivino-Treffer auf ``wine_level``, und verhindert das Verschmelzen mit demselben Wein
+bei anderen Händlern. Lieber diese Lücke als ein geratener Jahrgang.
 """
 
 from __future__ import annotations
@@ -92,6 +115,17 @@ GROESSE_TEILER = 10
 #: decken Rundung ab; alles darüber heisst, dass die Grössenangabe anders gemeint
 #: war als gelesen.
 TOLERANZ = 0.02
+
+#: Nach so vielen Seiten ohne ein einziges publiziertes Produkt gilt die Quelle als
+#: tot. Drei Seiten sind 1500 Produkte — bei einem Bestand, in dem 6000 geprüfte
+#: Stück ausnahmslos ausgelistet waren, reicht das für ein Urteil und kostet den
+#: Wochenlauf sechs Sekunden statt zwei Minuten.
+PROBE_SEITEN = 3
+
+#: Sprachpräfix der Produktseiten. Die Schnittstelle liefert den Slug ohne, die
+#: Webseite antwortet ohne ihn mit 404 — nachgemessen an einem Wein, den der Laden
+#: aktuell führt.
+SPRACHE = "de"
 
 
 def _de(wert: Any) -> str:
@@ -146,8 +180,20 @@ class FlaschenpostAdapter(RetailerAdapter):
             return False
         return abs(preis / liter - literpreis) <= literpreis * TOLERANZ
 
+    @staticmethod
+    def _lebt(mv: dict) -> bool:
+        """Steht das Produkt im Laden, oder ist es ausgelistet?
+
+        Die Prüfung, die von Anfang an gefehlt hat. Ohne sie kamen 477 Positionen in
+        den Bestand, deren Seiten allesamt 404 lieferten und deren „Aktionspreise"
+        aus der Vergangenheit stammten — siehe Modulkopf.
+        """
+        return bool(mv.get("published")) and bool(mv.get("active"))
+
     def _offer(self, produkt: dict) -> Offer | None:
         mv = produkt.get("masterVariant") or {}
+        if not self._lebt(mv):
+            return None
         preise = mv.get("price") or {}
         attr = mv.get("attributes") or {}
 
@@ -181,16 +227,16 @@ class FlaschenpostAdapter(RetailerAdapter):
             # Rangliste — besser als ein falscher Literpreis.
             ml = None
 
-        # Nur der Slug, ohne Query-String. Das ``url``-Feld der Schnittstelle hängt
-        # ``?_size=7500&_packaging=…&_sku=…`` an — und ``_size`` trägt dort dieselbe
-        # interne Zehntel-Milliliter-Zahl wie ``bottleSize``. Die Webseite erwartet
-        # an dieser Stelle Milliliter: mit ``_size=7500`` antwortet sie „Die
-        # angeforderte Seite existiert nicht", mit dem blossen Slug findet sie den
-        # Wein. Ungeprüft übernommen waren damit alle 477 Links tot.
-        pfad = str(mv.get("url") or "").lstrip("/").split("?")[0]
+        # Sprachpräfix davor, Query-String weg. Das ``url``-Feld der Schnittstelle
+        # liefert ``<slug>?_size=7500&_packaging=…`` — ohne ``/de/`` antwortet die
+        # Webseite mit 404, und ``_size`` trägt dort die interne Zehntel-Milliliter-
+        # Zahl, wo die Seite Milliliter erwartet. Beides ist hier korrigiert. Dass
+        # die Adressen trotzdem ins Leere führten, lag an etwas anderem — an
+        # ``_lebt``, das es damals nicht gab.
+        slug = _de(produkt.get("slug")) or str(mv.get("url") or "").lstrip("/").split("?")[0]
         return self.make_offer(
             name=voll,
-            url=f"{BASIS_URL}{pfad}" if pfad else BASIS_URL,
+            url=f"{BASIS_URL}{SPRACHE}/{slug}" if slug else BASIS_URL,
             price_text=aktion,
             reference_text=referenz,
             gebinde_text=f"{ml} ml" if ml else "",
@@ -205,16 +251,33 @@ class FlaschenpostAdapter(RetailerAdapter):
         """Nur der Vollständigkeit halber — diese Quelle liefert kein HTML."""
         return []
 
+    #: Meldung bei toter Quelle. Steht hier statt inline, weil der Test sie prüft.
+    AUSGELISTET = (
+        "Schnittstelle führt nur ausgelistete Ware "
+        "(kein Produkt published/active, Produktseiten liefern 404)"
+    )
+
     def fetch(self) -> FetchReport:
         offers: list[Offer] = []
         gesehen: set[str] = set()
         seiten = 0
+        lebend = 0
         try:
             for seite in range(1, MAX_SEITEN + 1):
                 treffer = self._seite(seite)
                 if not treffer:
                     break
                 seiten += 1
+                lebend += sum(1 for p in treffer if self._lebt(p.get("masterVariant") or {}))
+                # Früh abbrechen, wenn die Quelle tot ist. Sie ist es seit dem
+                # ersten Blick — aber geprüft wird sie weiter, damit sie sich von
+                # selbst wieder füllt, falls der Laden den Pfad umstellt.
+                if seiten >= PROBE_SEITEN and lebend == 0:
+                    return FetchReport(
+                        retailer=self.cfg.key,
+                        status="blocked",
+                        message=f"{self.AUSGELISTET}; {seiten} Seiten geprüft",
+                    )
                 for produkt in treffer:
                     # Entdoppeln über die SKU: die Reihenfolge der Schnittstelle ist
                     # nicht stabil, ein Probedurchgang fand 640 Positionen mit 164
@@ -246,6 +309,16 @@ class FlaschenpostAdapter(RetailerAdapter):
                 status="ok",
                 offers=offers,
                 message=f"{seiten} Seiten gelesen, {grund}; ohne Jahrgang",
+            )
+
+        if lebend == 0:
+            # Deckt den Fall ab, dass die Schnittstelle weniger als PROBE_SEITEN
+            # Seiten hergibt: auch dann ist eine Quelle ohne ein einziges lebendes
+            # Produkt blockiert und nicht bloss "leer".
+            return FetchReport(
+                retailer=self.cfg.key,
+                status="blocked",
+                message=f"{self.AUSGELISTET}; {seiten} Seiten geprüft",
             )
 
         return FetchReport(
