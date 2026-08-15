@@ -638,34 +638,36 @@ function buildFilters() {
   }
 }
 
-/* Die Filter lassen sich auf jeder Breite zuklappen.
-   Vorher war der Griff am Desktop per CSS ausgeblendet, und weil <details> ohne Griff
-   unerreichbar wäre, musste es dort zwangsweise offen bleiben. Der Bildschirm ist
-   zwar breit genug für das Formular — aber nicht dafür, es dauerhaft über den Weinen
-   stehen zu lassen. Wer seine Auswahl getroffen hat, will die Liste sehen.
-   Die Vorgabe bleibt, wie sie war: breit offen, schmal zu. */
+/* Die Filter starten zugeklappt — auf jeder Breite.
+   Vorher waren sie am Desktop dauerhaft offen und liessen sich nicht einmal
+   schliessen: der Griff war ab 721 px per CSS ausgeblendet, und ein <details> ohne
+   Griff muss offen bleiben, sonst wäre der Inhalt unerreichbar. Dann kam der Griff
+   zurück, und die Vorgabe blieb "breit offen". Auch das ist zu viel: mit Lauf,
+   Quelle, Sorte, Typ, Land, Region, Reife, Preis und Note steht ein halber
+   Bildschirm Formular über den Weinen, bevor der erste Wein zu sehen ist.
+
+   Zugeklappt heisst nicht unsichtbar: in der Zeile steht "Filter · 4 aktiv". Die
+   Vorauswahl bleibt damit angeschrieben, auch wenn man die Kästchen nicht sieht —
+   sonst wäre eine gefilterte Liste von einer vollständigen nicht zu unterscheiden. */
 const filterBox = document.getElementById("filterBox");
-const SCHMAL = "(max-width: 720px)";
-/* Zweiseitig: schmal wird eingeklappt, breit aufgeklappt. Einseitig gedacht bleiben
-   die Filter nach einem Wechsel von breit zu schmal offen — Drehen, Fenster ziehen —
-   und füllen den ersten Bildschirm wieder. Wer selbst geklickt hat, behält seine
-   Wahl, und zwar jetzt auch am Desktop; dort gab es vorher nichts zu wählen. */
+/* Wer selbst geklickt hat, behält seine Wahl über alle folgenden Renderdurchläufe.
+   Ohne dieses Merkmal klappte der Kasten bei jeder Filteränderung wieder zu — also
+   genau dann, wenn man ihn gerade braucht. */
 let userChoseFilters = false, programmatic = false;
 /* Am Klick festgemacht, nicht am `toggle`-Ereignis: das feuert asynchron, und ein
-   unmittelbar folgender Resize würde die Wahl sonst wieder überschreiben. */
+   unmittelbar folgendes render() würde die Wahl sonst wieder überschreiben. */
 filterBox.querySelector("summary").addEventListener("click", () => {
   userChoseFilters = true;
 });
 filterBox.addEventListener("toggle", () => { if (!programmatic) userChoseFilters = true; });
 function syncFilterBox() {
-  /* Gefragt wird die Breite, nicht mehr die gerenderte Lage der Summary — die ist
-     jetzt immer sichtbar und taugt nicht mehr als Unterscheidung. */
-  const want = userChoseFilters ? filterBox.open : !matchMedia(SCHMAL).matches;
+  /* Die Breite spielt keine Rolle mehr: zugeklappt ist überall die Vorgabe. Damit
+     entfällt auch das Nachziehen beim Drehen und Fensterziehen. */
+  const want = userChoseFilters ? filterBox.open : false;
   if (filterBox.open !== want) {
     programmatic = true; filterBox.open = want; programmatic = false;
   }
 }
-addEventListener("resize", syncFilterBox);
 syncFilterBox();
 
 function activeFilterCount() {

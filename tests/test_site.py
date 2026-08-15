@@ -385,18 +385,27 @@ def test_der_aufklapper_steht_auf_jeder_breite(doc):
     assert "#filterBox > summary { display:none" not in text, (
         "der Griff darf auf keiner Breite verschwinden"
     )
-    assert 'addEventListener("resize", syncFilterBox)' in text
 
 
-def test_die_vorgabe_bleibt_breit_offen_schmal_zu(doc):
-    """Zuklappbar heisst nicht zugeklappt. Wer die Seite öffnet, sieht die Filter —
-    am Handy weiterhin nicht, dort füllten sie den ersten Bildschirm."""
+def test_die_filter_starten_zugeklappt(doc):
+    """Auf jeder Breite. Mit Lauf, Quelle, Sorte, Typ, Land, Region, Reife, Preis und
+    Note steht sonst ein halber Bildschirm Formular über den Weinen, bevor der erste
+    Wein zu sehen ist."""
     text = doc()
     fn = text.split("function syncFilterBox()", 1)[1].split("\n}", 1)[0]
-    assert "matchMedia" in fn and "max-width: 720px" in text, (
-        "die Vorgabe muss an der Breite hängen, nicht mehr an der Sichtbarkeit des Griffs"
-    )
-    assert "!matchMedia" in fn, "breit = offen"
+    assert "matchMedia" not in fn, "die Breite darf die Vorgabe nicht mehr bestimmen"
+    assert "userChoseFilters ? filterBox.open : false" in fn
+    # Ohne das open-Attribut startet <details> zu — das ist hier die Absicht.
+    assert '<details id="filterBox">' in text
+
+
+def test_zugeklappt_heisst_nicht_unsichtbar(doc):
+    """In der Zeile steht "Filter · 4 aktiv". Ohne diese Anzeige wäre eine gefilterte
+    Liste von einer vollständigen nicht zu unterscheiden — und die Vorauswahl
+    (Rotwein, ab 4.2, bis CHF 50) versteckte sich hinter einem zugeklappten Kasten."""
+    text = doc()
+    assert 'id="filterCount"' in text
+    assert "aktiv" in text
 
 
 def test_filter_sync_works_in_both_directions(doc):
