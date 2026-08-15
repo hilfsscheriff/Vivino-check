@@ -480,6 +480,56 @@ def _farbkonflikt(retailer_name: str, type_id: int | None) -> bool:
     return haendler != quelle
 
 
+#: Farbwörter, die einen Kandidatennamen nur einfärben. Zum Bilden des Kerns, gegen
+#: den zwei Farbvarianten desselben Weins verglichen werden.
+_FARBWORTE = frozenset({
+    "rose", "rosato", "rosado", "rouge", "rosso", "tinto", "red", "rot",
+    "blanc", "bianco", "blanco", "white", "weiss", "branco", "rotwein",
+    "weisswein", "rosewein",
+})
+
+
+def _ohne_farbe(name: str) -> str:
+    """Der Name ohne sein Farbwort — „Whispering Angel Rosé" und „… Rouge" werden
+    beide zu „whispering angel"."""
+    woerter = strip_accents((name or "").lower()).replace("-", " ").split()
+    return " ".join(w for w in woerter if w.strip(".,") not in _FARBWORTE)
+
+
+def _farbe_unentscheidbar(retailer_name: str, kandidaten: list[_Cand]) -> set[str]:
+    """Kerne, bei denen Vivino denselben Wein in mehreren Farben führt.
+
+    Der Fall, an dem es auffiel: Schubi verkauft „Whispering Angel Côtes de Provence
+    AC 2025 Château d'Esclans" — laut Beschreibung „ein unwiderstehlicher Rosé". Der
+    Name nennt die Farbe nicht. Vivino führt unter demselben Namen **beide** Weine des
+    Guts, „Whispering Angel Rosé" und „Whispering Angel Rouge", und der Wein bekam die
+    Note des Roten. Nicht als Verdacht markiert, sondern als ``exact``.
+
+    Dass ausgerechnet der Rote gewann, war kein Zufall, sondern eine Schieflage im
+    Vokabular: „rouge", „rosso" und „tinto" gelten als **Farbe** und dürfen einseitig
+    fehlen, „rosé" steht dagegen bei den Qualitätsstufen und führt zur Ablehnung.
+    Beides ist für sich begründbar — Rosé ist tatsächlich ein eigenes Produkt —, aber
+    zusammen heisst es: ein Wein, dessen Name keine Farbe nennt, landet systematisch
+    beim Roten.
+
+    Hier wird nichts geraten und nichts umgedreht. Wenn der Händlername keine Farbe
+    nennt und die Quelle denselben Wein in zwei Farben führt, ist die Frage aus dem
+    Namen **nicht entscheidbar** — und dann gibt es keinen Treffer. Eine Lücke mit
+    Begründung ist brauchbar; eine Note vom falschen Wein ist es nicht.
+
+    Sagt der Händlername die Farbe, greift weiter :func:`_farbkonflikt`: der wählt
+    dann richtig aus, statt auszuschliessen.
+    """
+    if wine_style(retailer_name, None) in _FARBEN:
+        return set()
+    nach_kern: dict[str, set[str]] = {}
+    for c in kandidaten:
+        farbe = VIVINO_TYPE_IDS.get(c.type_id)
+        if farbe in _FARBEN:
+            nach_kern.setdefault(_ohne_farbe(c.name), set()).add(farbe)
+    return {kern for kern, farben in nach_kern.items() if len(farben) > 1}
+
+
 def classify(
     retailer_name: str,
     retailer_vintage: int | None,
@@ -503,6 +553,20 @@ def classify(
     # wird — ein Roter kann die Note eines Weissen nicht tragen, wie ähnlich der Name
     # auch sei.
     candidates = [c for c in candidates if not _farbkonflikt(retailer_name, c.type_id)]
+    # Führt die Quelle denselben Wein in zwei Farben und nennt der Händlername keine,
+    # ist die Zuordnung aus dem Namen nicht zu treffen — siehe _farbe_unentscheidbar.
+    unklar = _farbe_unentscheidbar(retailer_name, candidates)
+    farbnotiz = ""
+    if unklar:
+        candidates = [c for c in candidates if _ohne_farbe(c.name) not in unklar]
+        farbnotiz = (
+            " Vivino führt diesen Wein in mehreren Farben, der Händlername nennt keine "
+            "— aus dem Namen nicht entscheidbar."
+        )
+        if not candidates:
+            return VivinoResult.miss(
+                VivinoStatus.NO_ENTRY, query, farbnotiz.strip() + " Suche öffnen"
+            )
     if not candidates:
         return VivinoResult.miss(
             VivinoStatus.NO_ENTRY,
@@ -557,7 +621,7 @@ def classify(
             query,
             (
                 f"{len(candidates)} Kandidaten geprüft, keiner passt "
-                f"(nächster: '{best.name}') — Suche öffnen"
+                f"(nächster: '{best.name}').{farbnotiz} Suche öffnen"
             ),
         )
 

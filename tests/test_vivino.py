@@ -471,3 +471,71 @@ def test_der_rueckfall_hoert_auf_sobald_er_etwas_gefunden_hat():
                    "fallet dart champagne brut cuvee reserve", set())
     assert r.status.value == "wine_level", r.status
     assert geholt == ["erstes-gut"], f"zweite Gutsseite unnoetig geholt: {geholt}"
+
+
+# -- Derselbe Wein in zwei Farben ------------------------------------------
+def test_ohne_farbe_im_namen_wird_nicht_zwischen_rose_und_rot_gewaehlt():
+    """Schubi verkauft "Whispering Angel Cotes de Provence AC 2025 Chateau
+    d'Esclans" — laut Beschreibung "ein unwiderstehlicher Rose". Der Name nennt die
+    Farbe nicht.
+
+    Vivino fuehrt beide Weine des Guts, "Whispering Angel Rose" und "Whispering
+    Angel Rouge". Der Wein bekam die Note des Roten, und zwar als exact.
+
+    Dass ausgerechnet der Rote gewann, war kein Zufall: "rouge", "rosso" und "tinto"
+    gelten im Vokabular als Farbe und duerfen einseitig fehlen, "rose" steht dagegen
+    bei den Qualitaetsstufen und fuehrt zur Ablehnung. Ein Wein ohne Farbe im Namen
+    landet damit systematisch beim Roten.
+    """
+    from winecheck.ratings.vivino import _Cand, classify
+
+    def kand(name, type_id):
+        return _Cand(name=name, wine_name=name, winery="Château d'Esclans",
+                     url=f"https://www.vivino.com/de/x/w/{type_id}", year=2025,
+                     vintage_avg=4.2, vintage_count=500, wine_avg=4.2, wine_count=900,
+                     type_id=type_id)
+
+    r = classify(
+        "Whispering Angel Côtes de Provence AC 2025 Château d'Esclans", 2025, "q",
+        [kand("Château d'Esclans Whispering Angel Rosé", 4),
+         kand("Château d'Esclans Whispering Angel Rouge", 1)],
+    )
+    assert r.rating is None, "aus dem Namen ist die Farbe nicht zu entscheiden"
+    assert "Farben" in r.note
+
+
+def test_mit_farbe_im_namen_wird_richtig_gewaehlt():
+    """Sagt der Haendler die Farbe, wird ausgewaehlt statt ausgeschlossen — das ist
+    die Aufgabe von _farbkonflikt."""
+    from winecheck.ratings.vivino import _Cand, classify
+
+    def kand(name, type_id):
+        return _Cand(name=name, wine_name=name, winery="Château d'Esclans",
+                     url=f"https://www.vivino.com/de/x/w/{type_id}", year=2025,
+                     vintage_avg=4.1, vintage_count=1493, wine_avg=4.1, wine_count=9000,
+                     type_id=type_id)
+
+    r = classify(
+        "Whispering Angel Rosé Côtes de Provence AC 2025 Château d'Esclans", 2025, "q",
+        [kand("Château d'Esclans Whispering Angel Rosé", 4),
+         kand("Château d'Esclans Whispering Angel Rouge", 1)],
+    )
+    assert r.rating == 4.1
+    assert "Rosé" in (r.matched_name or "")
+
+
+def test_ein_einzelner_farbeintrag_bleibt_unangetastet():
+    """Nur wenn die Quelle wirklich zwei Farben desselben Weins fuehrt, ist die Frage
+    offen. Sonst waere die Regel ein Rueckschritt: "Cotes du Rhone" gegen "Cotes du
+    Rhone Rouge" ist derselbe Wein, und die Farbe steht dort nur der Vollstaendigkeit
+    halber."""
+    from winecheck.ratings.vivino import _Cand, classify
+
+    r = classify(
+        "Côtes du Rhône AC 2022 Guigal", 2022, "q",
+        [_Cand(name="E. Guigal Côtes du Rhône Rouge", wine_name="Côtes du Rhône Rouge",
+               winery="E. Guigal", url="https://www.vivino.com/de/x/w/1", year=2022,
+               vintage_avg=4.0, vintage_count=800, wine_avg=4.0, wine_count=5000,
+               type_id=1)],
+    )
+    assert r.rating == 4.0
