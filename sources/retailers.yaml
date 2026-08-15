@@ -151,18 +151,29 @@ retailers:
     channel: Onlineshop, Lieferung
     tier: 2
     domain: flaschenpost.ch
-    adapter: generic_html
-    enabled: false
-    status: blocked
-    urls:
-      - https://www.flaschenpost.ch/aktionen
-    verified_at: "2026-08-05"
-    blocked_by: cloudflare
-    notes: >
-      Grösster Online-Weinhändler CH. Die URL ist korrekt, liefert aber eine
-      Cloudflare-JS-Challenge ("Just a moment..."). robots.txt erlaubt /aktionen
-      ausdrücklich — die Challenge ist trotzdem eine Schutzmassnahme und wird nicht
-      umgangen.
+    adapter: flaschenpost
+    enabled: true
+    status: ok
+    urls: []
+    vat_included: true
+    price_basis: bottle
+    private_label_brands: []
+    wine_only: true
+    # Die Webseite liegt hinter Cloudflare und war darum lange blockiert. Die
+    # Produkt-API ist es nicht: /api/products antwortet mit HTTP 200 und JSON —
+    # geprüft mit ehrlichem Projekt-User-Agent, ganz ohne User-Agent und als
+    # Chrome, alle drei byteidentisch. Es gibt dort keine Bot-Erkennung, die
+    # getäuscht würde, und robots.txt sperrt /api/ nicht.
+    #
+    # Sollte der Pfad geschlossen werden, meldet der Adapter "blocked" und die
+    # Quelle ist wieder draussen — wie Coop und Migros. Nicht umgangen wird nichts.
+    note: >
+      Grösster Online-Weinhändler CH. Über die öffentliche Produkt-API gelesen,
+      nicht über die geschützte Webseite. Rund 476 Aktionsweine mit Streichpreis.
+      Die Schnittstelle nennt keinen Jahrgang — darum keine Trinkreife und bei
+      Vivino höchstens wine_level. Blätterung endet bei Offset 32'000 (61 % des
+      Katalogs).
+    verified_at: "2026-08-15"
 
   - key: moevenpick
     name: Mövenpick Wein

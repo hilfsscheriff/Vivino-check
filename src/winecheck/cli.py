@@ -21,6 +21,7 @@ import typer
 from .adapters.base import FetchReport, RetailerAdapter
 from .adapters.aktionis import AktionisAdapter
 from .adapters.denner import DennerAdapter
+from .adapters.flaschenpost import FlaschenpostAdapter
 from .adapters.gerstl import GerstlAdapter
 from .adapters.moevenpick import MoevenpickAdapter
 from .adapters.aligro import AligroAdapter
@@ -59,6 +60,7 @@ ADAPTERS: dict[str, type[RetailerAdapter]] = {
     "aktionis": AktionisAdapter,
     "aligro": AligroAdapter,
     "denner": DennerAdapter,
+    "flaschenpost": FlaschenpostAdapter,
     "gerstl": GerstlAdapter,
     "moevenpick": MoevenpickAdapter,
     "prodega": ProdegaAdapter,
