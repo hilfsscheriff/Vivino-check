@@ -458,6 +458,38 @@ class WineRow:
         return (self.vivino.country if self.vivino else "") or ""
 
     @property
+    def region(self) -> str:
+        """Anbauregion als Schlüssel, ``""`` wenn unbekannt.
+
+        Vivinos ``region_name`` ist zu fein, um damit zu rechnen: 298 verschiedene
+        Namen auf 1347 Weine, Bordeaux allein in sieben Appellationen zersplittert.
+        :mod:`winecheck.region` fasst zusammen, was preislich zusammengehört, und
+        lässt getrennt, was es nicht tut — Barolo bleibt neben Langhe stehen.
+        """
+        from .region import zuordnen
+
+        return zuordnen(self.vivino.region_name if self.vivino else "")
+
+    @property
+    def region_label(self) -> str:
+        from .region import label
+
+        return label(self.region)
+
+    @property
+    def region_spanne(self) -> str:
+        """Das übliche Preisniveau der Region als Text, z.B. „12–30".
+
+        **Gesetzte** Zahl, nicht gemessen — sie steht zur Einordnung daneben und geht
+        nicht in die Preis-Leistungs-Rechnung ein. Begründung im Kopf von
+        :mod:`winecheck.region`.
+        """
+        from .region import spanne
+
+        s = spanne(self.region)
+        return f"{s[0]:.0f}–{s[1]:.0f}" if s else ""
+
+    @property
     def style(self) -> str:
         """Sorte: rot, weiss, rose, schaumwein, suesswein oder unbekannt.
 
@@ -759,6 +791,11 @@ class WineRow:
             "typ_signale": " · ".join(self.stil.signale),
             "typ_score": _fmt_num(self.stil.score),
             "herkunft": self.herkunft,
+            "region": self.region_label,
+            "region_key": self.region,
+            # Gesetzt, nicht gemessen — siehe winecheck.region. Steht zur Einordnung
+            # daneben und geht nicht in die Preis-Leistungs-Zahl ein.
+            "region_preisspanne": self.region_spanne,
             "trinkreife": self.maturity.short if self.maturity else "",
             "trinkreife_text": self.maturity.text if self.maturity else "",
             "trinkreife_code": self.maturity.code if self.maturity else "",

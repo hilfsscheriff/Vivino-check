@@ -280,6 +280,39 @@ def _nach_sorte(gruppe, feld, note, brauchbar, teilen) -> None:
     for sorte_gruppe in teilen(gruppe, lambda w: w.get("style") or "?").values():
         if brauchbar(sorte_gruppe) >= VALUE_MIN_SAMPLE:
             _value_scores_einer_gruppe(sorte_gruppe, feld=feld, note=note)
+            _nach_region(sorte_gruppe, feld, note, brauchbar, teilen)
+
+
+def _nach_region(gruppe, feld, note, brauchbar, teilen) -> None:
+    """Vierte und feinste Ebene: die Anbauregion.
+
+    „Ein Bordeaux für CHF 10 ist viel besser als ein Primitivo für CHF 10." Das
+    stimmt, und die Rechnung wusste es nicht — sie verglich einen Wein mit allen
+    anderen seiner Machart und Sorte, ohne zu fragen, was seine Herkunft
+    normalerweise kostet. Ein günstiger Primitivo ist gewöhnlich, ein günstiger
+    Bordeaux ist ein Fund.
+
+    Eine eigene Ebene braucht es dafür, weil die Region etwas anderes trennt als Typ
+    und Sorte. Zwei kräftige Rotweine können dieselbe Machart und dieselbe Farbe
+    haben und trotzdem in ganz verschiedenen Preiswelten leben.
+
+    **Gemessen, nicht gesetzt.** Der Schwerpunkt jeder Region kommt aus dem Lauf
+    selbst — ``mean_x`` in :func:`_value_scores_einer_gruppe` ist genau das übliche
+    Preisniveau dieser Herkunft, und der Rest je Wein sagt, wie weit er darüber oder
+    darunter liegt. Die Preisspannen in :mod:`winecheck.region` sind Erfahrungswerte
+    und dienen der Anzeige; in diese Zahl gehen sie **nicht** ein. Eine gesetzte Zahl
+    still in eine Kennzahl zu rechnen wäre genau das, was dieses Projekt sonst
+    ablehnt.
+
+    Regionen ohne genug Weine im Lauf bekommen keine eigene Kurve und behalten den
+    Wert der Sorten-Ebene — dieselbe Mechanik wie überall darüber. Weine ohne
+    erkannte Region ebenso: aus dem Fehlen einer Information wird keine Erwartung
+    abgeleitet.
+    """
+    for region_gruppe in teilen(gruppe, lambda w: w.get("region") or "").items():
+        key, wines = region_gruppe
+        if key and brauchbar(wines) >= VALUE_MIN_SAMPLE:
+            _value_scores_einer_gruppe(wines, feld=feld, note=note)
 
 
 def _value_scores_einer_gruppe(

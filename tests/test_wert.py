@@ -390,3 +390,70 @@ def test_die_csv_zeigt_beide():
     from winecheck.report.csv_out import LEAD_COLUMNS
 
     assert "value_score" in LEAD_COLUMNS and "wert_score" in LEAD_COLUMNS
+
+
+# -- Die Region als vierte Ebene -------------------------------------------
+def _regionswein(preis, note, region, *, typ="kraeftig", style="rot", n=500):
+    return {"price": preis, "rating": note, "ratingCount": n,
+            "typ": typ, "style": style, "region": region, "swiss": True}
+
+
+def test_die_region_traegt_eine_eigene_kurve():
+    """"Ein Bordeaux fuer CHF 10 ist viel besser als ein Primitivo fuer CHF 10."
+
+    Zwei Regionen, gleiche Machart, gleiche Farbe, gleiche Noten — nur andere
+    Preisniveaus. Der guenstige Wein aus der teuren Region muss besser dastehen als
+    der gleich teure aus der guenstigen, weil er fuer seine Herkunft aussergewoehnlich
+    billig ist.
+    """
+    from winecheck.wert import _add_value_scores
+
+    weine = []
+    # Bordeaux: teure Region, Preise 20 bis 45
+    for i in range(14):
+        weine.append(_regionswein(20 + i * 2, 4.0, "bordeaux"))
+    # Puglia: guenstige Region, Preise 7 bis 20
+    for i in range(14):
+        weine.append(_regionswein(7 + i, 4.0, "puglia"))
+    # Die beiden Vergleichsweine, gleicher Preis und gleiche Note
+    bordeaux = _regionswein(10, 4.0, "bordeaux")
+    puglia = _regionswein(10, 4.0, "puglia")
+    weine += [bordeaux, puglia]
+
+    _add_value_scores(weine)
+    assert bordeaux["valueScoreAll"] > puglia["valueScoreAll"], (
+        "der guenstige Bordeaux muss vor dem gleich teuren Primitivo liegen"
+    )
+
+
+def test_ohne_erkannte_region_bleibt_die_groebere_ebene():
+    """Aus dem Fehlen einer Information wird keine Erwartung abgeleitet.
+
+    Dieselbe Regel wie bei "kein Stil-Typ": Weine ohne Region bekommen keine eigene
+    Kurve, sondern behalten den Wert der Sorten-Ebene.
+    """
+    from winecheck.wert import _add_value_scores
+
+    weine = [_regionswein(10 + i, 4.0, "") for i in range(20)]
+    _add_value_scores(weine)
+    assert all("valueScoreAll" in w for w in weine), "keiner darf leer bleiben"
+
+
+def test_eine_duenne_region_bekommt_keine_eigene_kurve():
+    """Drei Weine ergeben kein Preisniveau, sondern einen Zufall.
+
+    Die Schwelle ist dieselbe wie auf allen Ebenen darueber.
+    """
+    from winecheck.wert import VALUE_MIN_SAMPLE, _add_value_scores
+
+    viele = [_regionswein(10 + i, 4.0, "puglia") for i in range(20)]
+    wenige = [_regionswein(30, 4.4, "priorat") for _ in range(3)]
+    weine = viele + wenige
+    _add_value_scores(weine)
+    # Alle drei duennen Weine haben denselben Preis und dieselbe Note; kaemen sie auf
+    # eine eigene Kurve, laege ihr Rest bei genau null.
+    assert len({round(w["valueScoreAll"], 6) for w in wenige}) == 1
+    assert any(abs(w["valueScoreAll"]) > 1e-6 for w in wenige), (
+        f"drei Weine sind weniger als {VALUE_MIN_SAMPLE} — sie duerfen keine eigene "
+        f"Kurve bekommen"
+    )

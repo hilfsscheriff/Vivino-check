@@ -380,6 +380,8 @@ def _wert_scores(rows: list[WineRow]) -> None:
             # das Wertmodul für alle Aufrufer gleich — siehe wert._typ_gruppe.
             "typ": r.stil.typ,
             "style": r.style,
+            # Anbauregion als vierte Gruppierungsebene — siehe wert._nach_region.
+            "region": r.region,
             # Zwei Kennzeichen, kein Entweder-oder: ein Wein kann in beiden Welten
             # stehen, und dann zählt er zum Schweizer Handel — dort ist er zu kaufen.
             "marketplace": bool(haendler & MARKTPLATZ_QUELLEN),

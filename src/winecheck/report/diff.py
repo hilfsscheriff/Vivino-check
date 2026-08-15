@@ -62,6 +62,14 @@ def snapshot(rows: list[WineRow]) -> list[dict[str, Any]]:
             "typ_label": r.stil.label,
             "typ_stufe": r.stil.stufe,
             "typ_signale": r.stil.signale,
+            # Anbauregion: vierte Gruppierungsebene der Preis-Leistungs-Rechnung —
+            # ein Bordeaux fuer CHF 10 wird gegen Bordeaux gerechnet, nicht gegen
+            # alle kraeftigen Roten. Die Preisspanne faehrt zur Einordnung mit; sie
+            # ist gesetzt und nicht gemessen und geht in keine Zahl ein, siehe
+            # winecheck.region.
+            "region_key": r.region,
+            "region": r.region_label,
+            "region_preisspanne": r.region_spanne,
             "maturity": r.maturity.code if r.maturity else "",
             "maturity_short": r.maturity.short if r.maturity else "",
             "maturity_region": r.maturity.region_label if r.maturity else "",

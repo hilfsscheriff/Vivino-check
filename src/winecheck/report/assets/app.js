@@ -267,6 +267,12 @@ function chart(list) {
     if (p.styleLabel) h += row("Sorte", esc(p.styleLabel));
     if (p.typLabel && p.typ) h += row("Typ", esc(p.typLabel)
       + (p.typWarum ? ` <span class="meta">${esc(p.typWarum)}</span>` : ""));
+    /* Die Region ist die feinste Ebene der Preis-Leistungs-Rechnung: ein Bordeaux
+       für CHF 10 wird gegen Bordeaux gerechnet, nicht gegen alle kräftigen Roten.
+       Die Spanne daneben ist ein Erfahrungswert und geht in keine Zahl ein — sie
+       ordnet nur ein, wo der Preis dieser Flasche in ihrer Herkunft liegt. */
+    if (p.regionLabel) h += row("Region", esc(p.regionLabel)
+      + (p.regionSpanne ? ` <span class="meta">üblich CHF ${esc(p.regionSpanne)}</span>` : ""));
     if (p.maturityShort) {
       /* Woher die Auskunft stammt, gehört daneben — sonst liest sich die Vinum-Zeile
          wie eine Aussage über genau diesen Wein, obwohl sie für eine ganze Region

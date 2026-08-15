@@ -287,6 +287,12 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
         # Seite behandelt ihn wie "unbekannt", statt einen zu erfinden.
         "typ": d.get("typ") or "",
         "typLabel": d.get("typ_label") or "",
+        # Anbauregion: vierte Gruppierungsebene der Preis-Leistungs-Rechnung, und
+        # zugleich ein Filter. Die Preisspanne daneben ist gesetzt, nicht gemessen —
+        # sie ordnet ein und geht in keine Zahl ein. Siehe winecheck.region.
+        "region": d.get("region_key") or "",
+        "regionLabel": d.get("region") or "",
+        "regionSpanne": d.get("region_preisspanne") or "",
         "typWarum": " · ".join(d.get("typ_signale") or []),
         "maturity": d.get("maturity") or "",
         "maturityShort": d.get("maturity_short") or "",
@@ -310,6 +316,7 @@ _SHORT_KEYS = {
     "vivinoUrl": "vu", "retailers": "rs", "cheapest": "c", "url": "u",
     "market": "m", "bargain": "b", "style": "s", "styleLabel": "sl",
     "typ": "ty", "typLabel": "tyl", "typWarum": "tyw",
+    "region": "rg", "regionLabel": "rgl", "regionSpanne": "rgs",
     "maturity": "t", "maturityShort": "ts", "maturityRegion": "tr",
     "drinkWindow": "dw", "maturityConflict": "mc", "country": "co",
     "vintageQuality": "q", "falstaff": "f", "key": "k",
