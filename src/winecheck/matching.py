@@ -716,6 +716,7 @@ def match_wine(
         reason=reason,
         source_name=source_name,
         vintage_match=vintage_match,
+        coverage=coverage,
     )
 
 
@@ -805,6 +806,35 @@ def _konfidenz_rang(stufe: MatchConfidence) -> int:
     return _KONFIDENZ_RANG.get(stufe, len(_KONFIDENZ_RANG))
 
 
+def _sortierung(d: MatchDecision) -> tuple[float, float, int]:
+    """Sortierschlüssel unter den passenden Kandidaten. Kleiner ist besser.
+
+    **Abdeckung vor Ähnlichkeit**, und das ist der Kern. Der Ähnlichkeitswert kommt
+    von ``token_set_ratio``, und der belohnt eine Teilmenge mit der vollen Punktzahl:
+    ein Kandidat, der ein unterscheidendes Wort des Händlers einfach *weglässt*,
+    bekommt 100.
+
+    Gemessen an einem echten Fall — Händler: „Rioja DOC **Calados** del Puntido 2015
+    Viñedos de Paganos"::
+
+        Viñedos de Páganos El Puntido ....................  Score 100.0, Abdeckung 80 %
+        Viñedos de Páganos Calados del Puntido Tempranillo   Score  91.2, Abdeckung 100 %
+
+    Der richtige Wein verlor, weil er das Wort „Tempranillo" mitbringt; der falsche
+    gewann, weil ihm „Calados" fehlt — und Fehlendes kostet bei diesem Mass nichts.
+    Das sind zwei verschiedene Weine desselben Guts, El Puntido mit 12'065
+    Bewertungen der weit bekanntere. Genau so wandert eine Note zum falschen Wein.
+
+    Die Abdeckung misst das Umgekehrte: welcher Anteil der unterscheidenden Wörter
+    *des Händlers* im Kandidaten vorkommt. Sie wurde immer schon berechnet und für die
+    Vetos benutzt, nur nicht für die Auswahl.
+
+    Dann erst die Ähnlichkeit, und zuletzt die Konfidenzstufe in ihrer deklarierten
+    Reihenfolge — siehe :func:`_konfidenz_rang`.
+    """
+    return (-round(d.coverage, 3), -d.score, _konfidenz_rang(d.confidence))
+
+
 def rank_candidates(
     retailer_name: str,
     candidates: list[tuple[str, int | None, bool]],
@@ -833,7 +863,8 @@ def rank_candidates(
         if d.matched:
             hits.append(Ranked(i, d))
 
-    hits.sort(key=lambda h: (-h.decision.score, _konfidenz_rang(h.decision.confidence)))
+    # Abdeckung zuerst, dann Ähnlichkeit, dann Sicherheit — siehe :func:`_sortierung`.
+    hits.sort(key=lambda h: _sortierung(h.decision))
     ambiguous = False
     if len(hits) >= 2:
         top, second = hits[0].decision, hits[1].decision

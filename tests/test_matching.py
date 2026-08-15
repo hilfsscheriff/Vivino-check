@@ -757,3 +757,39 @@ def test_die_rangfolge_folgt_der_deklaration_im_modell():
             (MatchConfidence.EXACT, MatchConfidence.WINE_LEVEL,
              MatchConfidence.FUZZY, MatchConfidence.WINERY_LEVEL, MatchConfidence.NONE)]
     assert rang == sorted(rang), "die Stufen müssen von sicher nach unsicher aufsteigen"
+
+
+def test_abdeckung_schlaegt_aehnlichkeit():
+    """Ein Kandidat, der ein unterscheidendes Wort weglaesst, darf nicht gewinnen.
+
+    Der Aehnlichkeitswert kommt von token_set_ratio, und der belohnt eine Teilmenge
+    mit der vollen Punktzahl. Gegen "Rioja DOC Calados del Puntido 2015 Vinedos de
+    Paganos":
+
+        Vinedos de Paganos El Puntido ................ Score 100.0, Abdeckung  75 %
+        Vinedos de Paganos Calados del Puntido Temp... Score  91.2, Abdeckung 100 %
+
+    Der richtige Wein verlor, weil er "Tempranillo" mitbringt; der falsche gewann,
+    weil ihm "Calados" fehlt — Fehlendes kostet bei diesem Mass nichts. Es sind zwei
+    verschiedene Weine desselben Guts, El Puntido mit 12'065 Bewertungen der weit
+    bekanntere.
+    """
+    from winecheck.matching import rank_candidates
+    hits, _ = rank_candidates(
+        "Rioja DOC Calados del Puntido 2015 Viñedos de Paganos",
+        [
+            ("Viñedos de Páganos El Puntido", 2019, True),
+            ("Viñedos de Páganos Calados del Puntido Tempranillo", 2015, True),
+        ],
+        retailer_vintage=2015,
+    )
+    assert hits
+    assert "Calados" in (hits[0].decision.source_name or "")
+
+
+def test_die_abdeckung_steht_im_entscheid():
+    """Sie wurde immer berechnet und blieb in der Pruefung liegen."""
+    from winecheck.matching import match_wine
+    d = match_wine("Rioja DOC Calados del Puntido Viñedos de Paganos",
+                   "Viñedos de Páganos El Puntido")
+    assert 0.0 < d.coverage < 1.0, "'Calados' fehlt — die Abdeckung muss das zeigen"

@@ -228,6 +228,11 @@ class MatchDecision:
     reason: str
     source_name: str | None = None
     vintage_match: bool | None = None
+    #: Anteil der unterscheidenden Wörter des Händlernamens, die im Kandidaten
+    #: vorkommen. Wurde immer schon berechnet, blieb aber in der Prüfung liegen —
+    #: und damit fehlte der Auswahl ihr wichtigstes Merkmal. Siehe
+    #: :func:`winecheck.matching.rank_candidates`.
+    coverage: float = 0.0
 
     @property
     def needs_source_name(self) -> bool:
