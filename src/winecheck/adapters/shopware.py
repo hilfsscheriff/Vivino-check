@@ -41,6 +41,17 @@ from .base import RetailerAdapter, parse_price
 
 #: „CHF 13.90 statt CHF 15.40" — der zweite Preis ist der reguläre.
 _RE_STATT = re.compile(r"statt\s*(?:CHF|Fr\.?)?\s*([\d'’.,]+)", re.I)
+
+#: Shopware schreibt für Screenreader hin, wie viel die Seite zeigt: „Es werden 24
+#: von 74 Produkten angezeigt." Das ist die ehrlichste Quelle für den eigenen
+#: Deckungsgrad, und sie steht in jedem Theme.
+_RE_ANGEZEIGT = re.compile(r"(\d+)\s+von\s+(\d+)\s+Produkten", re.I)
+
+
+def _angezeigt_von(html: str) -> tuple[int, int]:
+    """(sichtbar, insgesamt) — (0, 0), wenn die Seite nichts dazu sagt."""
+    m = _RE_ANGEZEIGT.search(html or "")
+    return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
 #: Währung vorn („CHF 13.90") wie hinten („6,50 CHF*"). Shopware 6 stellt sie in
 #: der Standardausgabe nach, ältere Themes davor.
 _RE_PREIS = re.compile(r"(?:(?:CHF|Fr\.?)\s*([\d'’.,]+)|([\d'’.,]+)\s*(?:CHF|Fr\.?))")
@@ -105,6 +116,13 @@ class ShopwareAdapter(RetailerAdapter):
             offer = self._parse_box(box)
             if offer is not None:
                 offers.append(offer)
+
+        gezeigt, gesamt = _angezeigt_von(html)
+        if gesamt > gezeigt > 0:
+            self.melde_luecke(
+                f"Seite 1 von {-(-gesamt // gezeigt)}: {gezeigt} von {gesamt} Produkten "
+                f"sichtbar — robots.txt verbietet Query-Strings, also kein Blättern"
+            )
         return offers
 
     @staticmethod

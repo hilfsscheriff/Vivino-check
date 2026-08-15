@@ -243,6 +243,22 @@ class RetailerAdapter:
     def __init__(self, cfg: SourceConfig, fetcher: Fetcher):
         self.cfg = cfg
         self.fetcher = fetcher
+        self._hinweise: list[str] = []
+
+    def melde_luecke(self, text: str) -> None:
+        """Eine bekannte, unvermeidbare Unvollständigkeit in den Bericht schreiben.
+
+        Für Läden, bei denen die ``robots.txt`` das Blättern verbietet: Gerstl sperrt
+        ``*?p=*``, Schuler jeden Query-String. Dort sind 15 von 1307 beziehungsweise
+        17 von 54 Aktionen zu holen, und mehr wird es nicht.
+
+        Ohne diesen Weg meldet so ein Lauf ein glattes „ok" — und ein „ok" über
+        1 % des Sortiments ist die Sorte stille Falschaussage, die hier schon zweimal
+        wochenlang unbemerkt blieb: erst Mövenpicks Seitendeckel, dann Denners
+        umbenanntes Kachel-Etikett.
+        """
+        if text and text not in self._hinweise:
+            self._hinweise.append(text)
 
     def ist_wein(self, *texts: str) -> bool:
         """Vorfilterung, passend zum Sortiment des Ladens.
@@ -305,6 +321,8 @@ class RetailerAdapter:
                 report.message = _join(report.message, f"Parse-Fehler auf {candidate}: {exc}")
 
         report.offers = _dedupe_offers(offers)
+        for hinweis in self._hinweise:
+            report.message = _join(report.message, hinweis)
         if not report.offers:
             report.status = "empty"
             report.message = _join(

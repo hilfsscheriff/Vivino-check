@@ -13,6 +13,20 @@ Denner ist eine Nuxt-3-Anwendung. Die Aktionsprodukte stehen serverseitig im
 Der CMS-Endpunkt ``/api/headless/content`` liefert dagegen nur Seitenstruktur ohne
 Preise; die eigentliche Produktliste kommt im SSR-Payload. Deshalb wird das HTML
 geparst und nicht der API-Endpunkt aufgerufen.
+
+Kein Filter auf ``itemType``
+---------------------------
+Früher liess der Adapter nur ``itemType == "PRODUCT"`` durch. Denner hat die
+Weinshop-Kacheln inzwischen auf ``CONTENT_3`` umgestellt — damit fiel die gesamte
+Seite ``/de/weinshop/wein-aktionen`` durch, 21 Weine, wochenlang unbemerkt, weil der
+Lauf brav "ok" meldete: die zwei Positionen von der allgemeinen Aktionsseite genügten,
+damit nichts nach Fehler aussah.
+
+Der Wert wird darum nicht nachgepflegt, sondern gar nicht mehr gelesen. Er ist eine
+Marketing-Bezeichnung, die Denner jederzeit umbenennen kann, und er hat hier nie
+etwas aussortiert: die Auswahl trägt ``find_dicts({"sku", "attributeInfo"})``, und
+was Wein ist, entscheidet der Weinfilter darunter. Ein fest verdrahtetes
+``"CONTENT_3"`` würde beim nächsten Umbenennen genauso platzen.
 """
 
 from __future__ import annotations
@@ -34,11 +48,14 @@ class DennerAdapter(RetailerAdapter):
             return []
 
         offers: list[Offer] = []
+        gesehen: set[str] = set()
         for raw in payload.find_dicts(required_keys={"sku", "attributeInfo"}):
             product = payload.deref(raw)
             if not isinstance(product, dict):
                 continue
-            if product.get("itemType") not in (None, "PRODUCT"):
+            # Jede Kachel steht zweimal im Payload — 42 Objekte für 21 Weine.
+            sku = str(product.get("sku") or "")
+            if sku and sku in gesehen:
                 continue
             attrs = flatten_attribute_info(product)
             name = _text(attrs.get("name"))
@@ -57,14 +74,15 @@ class DennerAdapter(RetailerAdapter):
 
             price = attrs.get("priceFormatted") or attrs.get("price") or product.get("price")
             item_url = _text(attrs.get("itemUrl"))
+            if sku:
+                gesehen.add(sku)
             offers.append(
                 self.make_offer(
                     name=name,
                     url=_absolute(item_url),
                     price_text=_text(price),
                     reference_text=_text(attrs.get("insteadPriceText")),
-                    # Die Gebindegrösse steht in der Subline ("75 cl", "6 × 75 cl").
-                    gebinde_text=subline,
+                    gebinde_text=_gebinde(attrs) or subline,
                     article_no=_text(attrs.get("pimcoreId")) or product.get("sku"),
                     source_note=_promo_note(attrs),
                 )
@@ -88,6 +106,29 @@ def _absolute(path: str) -> str:
     if path.startswith("http"):
         return path
     return "https://www.denner.ch" + (path if path.startswith("/") else "/" + path)
+
+
+def _gebinde(attrs: dict[str, object]) -> str:
+    """Gebinde aus den harten Feldern statt aus der Anzeigezeile.
+
+    Denner schreibt auf der Aktionsseite den **Kartonpreis** an (29.70) und die
+    Flasche nur klein darunter ("Flasche: 4.95 statt 9.95"). Welcher der beiden
+    Preise gemeint ist, entscheidet sich am Gebinde — und genau dort war der Fehler:
+    ``nameSubline`` lautet hier "Italien, 75 cl" und verschweigt den Faktor 6, den
+    dasselbe Objekt in ``box_item_count`` mitliefert. Auf ``/de/aktionen`` steht bei
+    demselben Wein "…, 6 x 75 cl". Die Anzeigezeile ist also seitenabhängig, die
+    beiden Zahlenfelder sind es nicht.
+
+    Ohne diese Korrektur käme jeder Denner-Wein zum sechsfachen Preis in die Liste —
+    ein Scheinsieger mit umgekehrtem Vorzeichen, und schlimmer als eine Lücke.
+    """
+    karton = _text(attrs.get("box_item_count")).strip()
+    groesse = _text(attrs.get("content_size_text")).strip()
+    if not groesse:
+        return ""
+    if karton and karton not in ("", "0", "1"):
+        return f"{karton} × {groesse}"
+    return groesse
 
 
 def _promo_note(attrs: dict[str, object]) -> str:

@@ -169,3 +169,59 @@ def test_absoluter_link_bleibt_unangetastet(adapter):
         "https://www.schubiweine.ch/aktionen.html",
     )
     assert o.url == "https://www.schubiweine.ch/x.html"
+
+
+# -- Die Blätterung, die ein Jahr lang gefehlt hat -------------------------
+class _StubFetcher:
+    """Liefert eine Seite mit Pager — mehr braucht urls() nicht."""
+
+    def __init__(self, seiten):
+        bullets = "".join(
+            f'<a class="pagingbullet-list__pagingbullet" data-page="{p}">{p}</a>'
+            for p in seiten
+        )
+        self.html = f"<html><body>{bullets}</body></html>"
+        self.aufrufe = 0
+
+    def get(self, url, **kw):
+        self.aufrufe += 1
+        return type("Res", (), {"ok": True, "status_code": 200, "text": self.html})()
+
+
+def _adapter_mit(seiten):
+    from winecheck.adapters.schubi import SchubiAdapter
+    from winecheck.config import SourceConfig
+    cfg = SourceConfig(key="schubi", name="Schubi Weine", adapter="schubi",
+                       domain="schubiweine.ch",
+                       urls=["https://www.schubiweine.ch/aktionen.html"])
+    return SchubiAdapter(cfg, _StubFetcher(seiten))
+
+
+def test_alle_pager_seiten_werden_geholt():
+    """Im Docstring stand ein Jahr lang, Blättern sei nutzlos.
+
+    Der Befund stimmte — ?p=, ?limit=all und ?product_list_limit= liefern wirklich
+    immer dieselben zwölf Weine. Nur sind das alles Magento-Namen, und dieser Laden
+    blättert mit ?shop_recpage=. Drei erfolglose Versuche mit dem falschen Schlüssel
+    galten als Beweis, dass die Tür zu ist; tatsächlich lagen rund 690 Aktionen
+    dahinter.
+    """
+    u = _adapter_mit([2, 3, 4, 59]).urls()
+    assert len(u) == 59
+    assert u[0] == "https://www.schubiweine.ch/aktionen.html"
+    assert u[-1] == "https://www.schubiweine.ch/aktionen.html?shop_recpage=59"
+
+
+def test_der_pager_wird_nur_einmal_gelesen():
+    """fetch() fordert die URL-Liste zweimal an — sonst käme Seite 1 doppelt."""
+    a = _adapter_mit([2, 3])
+    a.urls(); a.urls()
+    assert a.fetcher.aufrufe == 1
+
+
+def test_ohne_pager_gilt_der_notdeckel():
+    """Lieber Anfragen für Seiten verschwenden, die es nicht gibt, als still
+    abschneiden. Dubletten fallen in der Dedup-Stufe weg; fehlende Weine sieht
+    niemand — genau so lag der Fehler bisher."""
+    from winecheck.adapters.schubi import MAX_SEITEN
+    assert len(_adapter_mit([]).urls()) == MAX_SEITEN

@@ -19,12 +19,24 @@ Es zählt, was einen Streichpreis trägt. Die Aktionsseite führt zwar ausschlie
 Aktionen, aber die Regel ist dieselbe wie bei allen anderen Läden: ohne
 Referenzpreis lässt sich Aktion nicht von Regalware unterscheiden.
 
-Umfang
-------
-Die Seite zeigt zwölf Weine, und dabei bleibt es — ``?p=2``, ``?limit=all`` und
-``?product_list_limit=36`` liefern alle dieselben zwölf. Die „702 Produkte" im
-Seitenkopf sind das Gesamtsortiment, nicht die Aktionen. Ein Blätterwerk zu bauen
-wäre also nutzlos.
+Umfang — und ein Irrtum, der ein Jahr lang im Docstring stand
+--------------------------------------------------------------
+Hier stand: „Die Seite zeigt zwölf Weine, und dabei bleibt es — ``?p=2``,
+``?limit=all`` und ``?product_list_limit=36`` liefern alle dieselben zwölf. Ein
+Blätterwerk zu bauen wäre also nutzlos."
+
+Der Befund stimmte, der Schluss nicht. Alle drei Parameter sind Magento-Namen, und
+dieser Laden blättert nicht mit Magento, sondern mit ``?shop_recpage=``. Drei
+erfolglose Versuche mit dem falschen Schlüssel wurden als Beweis gelesen, dass die
+Tür zu ist.
+
+Nachgemessen: Seite 1 und Seite 2 tragen zwölf beziehungsweise elf Weine mit **null**
+Überschneidung, der Pager nennt 59 Seiten, der Seitenkopf 702 Produkte. Es waren also
+rund 690 Aktionen unsichtbar — bei der Quelle, die im Kopf dieser Datei als „die
+sauberste im Bestand" gelobt wird.
+
+Wie viele Seiten es sind, sagt der Pager selbst (``a.pagingbullet-list__pagingbullet``
+mit ``data-page``). Eine feste Zahl stünde hier nur, bis das Sortiment wächst.
 """
 
 from __future__ import annotations
@@ -33,12 +45,17 @@ import re
 
 from selectolax.parser import HTMLParser, Node
 
+from ..fetching import Blocked
 from ..models import Offer
 from ..names import tokenize
 from .base import RetailerAdapter, absolute_url, parse_price
 
 #: „CHF 28.50", „CHF 1'250.00"
 _RE_PREIS = re.compile(r"(?:CHF|Fr\.?)\s*([\d'’.,]+)", re.I)
+
+#: Notdeckel, falls der Pager unlesbar wird. Der Laden zählt derzeit 59 Seiten;
+#: reichlich Luft nach oben ist billiger als ein stiller Abschnitt.
+MAX_SEITEN = 120
 
 
 def _text(node: Node | None) -> str:
@@ -59,6 +76,53 @@ def _enthalten(name: str, produzent: str) -> bool:
 
 class SchubiAdapter(RetailerAdapter):
     key = "schubi"
+
+    def __init__(self, cfg, fetcher):
+        super().__init__(cfg, fetcher)
+        self._letzte: dict[str, int] = {}
+
+    def urls(self) -> list[str]:
+        """Grundseiten plus Blätterung über ``?shop_recpage=``.
+
+        Die ``robots.txt`` des Hauses sperrt einzig ``/admin/`` — Query-Strings sind
+        nicht ausgenommen, dieser Weg ist also erlaubt.
+        """
+        return [u for base in self.cfg.urls for u in self._seiten(base)]
+
+    def _seiten(self, base: str) -> list[str]:
+        letzte = self._letzte_seite(base)
+        return [base, *(f"{base}?shop_recpage={p}" for p in range(2, letzte + 1))]
+
+    def _letzte_seite(self, base: str) -> int:
+        """Höchste Seitenzahl aus dem Pager.
+
+        Gemerkt, weil :meth:`RetailerAdapter.fetch` die Liste zweimal anfordert und
+        die erste Seite sonst doppelt geholt würde.
+
+        Ist der Pager unlesbar, gilt :data:`MAX_SEITEN` statt einer kleinen Zahl. Der
+        Fehler kostet dann Anfragen für Seiten, die es nicht gibt; deren Angebote sind
+        Dubletten und fallen weg. Andersherum wäre er teurer — genau andersherum lag
+        er ja bisher, und niemand hat die fehlenden 690 Weine vermisst.
+        """
+        if base in self._letzte:
+            return self._letzte[base]
+
+        letzte = MAX_SEITEN
+        try:
+            res = self.fetcher.get(base)
+        except Blocked:
+            letzte = 1                      # blockiert ist blockiert, nicht 60 Versuche
+        else:
+            if res.ok:
+                seiten = [
+                    int(roh)
+                    for a in HTMLParser(res.text).css("a.pagingbullet-list__pagingbullet")
+                    if (roh := a.attributes.get("data-page") or "").isdigit()
+                ]
+                if seiten:
+                    letzte = min(max(seiten), MAX_SEITEN)
+        self._letzte[base] = letzte
+        return letzte
 
     def parse(self, html: str, url: str) -> list[Offer]:
         tree = HTMLParser(html)

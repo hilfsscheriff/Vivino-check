@@ -71,6 +71,29 @@ def _produkte(knoten: Any) -> Iterator[dict]:
             yield from _produkte(wert)
 
 
+def _gesamtzahl(knoten: Any) -> int:
+    """Wie viele Aktionen der Laden insgesamt führt.
+
+    Angular legt neben die 15 ausgelieferten Produkte die Gesamtzahl: ein ``count``
+    direkt neben dem ``data``-Array. Auf ``/aktionen/c`` steht dort 1307, im Fliesstext
+    bestätigt durch „1 - 15 von 1307 Produkte".
+
+    Die Zahl wird nur zum Melden gebraucht — geholt werden die übrigen nicht, das
+    verböte die ``robots.txt``. Aber ein Lauf, der 15 von 1307 liest und „ok" meldet,
+    behauptet etwas Falsches über seine Vollständigkeit.
+    """
+    gefunden = 0
+    if isinstance(knoten, dict):
+        if isinstance(knoten.get("count"), int) and isinstance(knoten.get("data"), list):
+            gefunden = knoten["count"]
+        for wert in knoten.values():
+            gefunden = max(gefunden, _gesamtzahl(wert))
+    elif isinstance(knoten, list):
+        for wert in knoten:
+            gefunden = max(gefunden, _gesamtzahl(wert))
+    return gefunden
+
+
 def _name(p: dict) -> str:
     """Baut den Namen so, wie der Laden ihn selbst anzeigt.
 
@@ -113,6 +136,13 @@ class GerstlAdapter(RetailerAdapter):
             if offer is not None:
                 gesehen.add(sku)
                 offers.append(offer)
+
+        gesamt = _gesamtzahl(zustand)
+        if gesamt > len(gesehen):
+            self.melde_luecke(
+                f"{len(gesehen)} von {gesamt} Aktionen gelesen — "
+                f"robots.txt verbietet *?p=*, mehr ist ohne Blättern nicht zu holen"
+            )
         return offers
 
     def _offer(self, p: dict) -> Offer | None:
