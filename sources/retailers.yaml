@@ -528,14 +528,27 @@ retailers:
 
   - key: volg
     name: Volg
-    channel: Filiale
+    channel: Filiale und Weinshop
     tier: 2
     domain: volg.ch
-    adapter: none
-    enabled: false
-    status: via_aktionis
-    verified_at: "2026-08-06"
-    notes: Angebote kommen über den Aktionis-Aggregator.
+    adapter: volg
+    enabled: true
+    status: ok
+    urls:
+      - https://www.volg.ch/weinshop/
+    vat_included: true
+    # Fest "bottle": der angeschriebene Preis gilt je Flasche, obwohl daneben in der
+    # Beschreibung Kartonpreise stehen. Der Adapter setzt es zusätzlich selbst —
+    # hier steht es, damit die Festlegung auch im Verzeichnis sichtbar ist.
+    price_basis: bottle
+    wine_only: true
+    verified_at: "2026-08-15"
+    # Stand bisher als "kommt über Aktionis". Das war nicht falsch, aber unzuverlässig:
+    # der Aggregator lieferte diese Woche eine einzige Volg-Position, während der
+    # eigene Weinshop neun führte. Beide Wege bleiben — sie ergänzen sich.
+    notes: >
+      Eigener Weinshop mit rund neun Aktionen, ohne Blätterung. Zusätzlich laufen
+      Volg-Angebote weiterhin über den Aktionis-Aggregator ein.
 
 # Bataillard ist nach Importvolumen die Nummer 3 der Schweiz, aber Grosshandel ohne
 # Endkunden-Aktionen — bewusst nicht aufgenommen.

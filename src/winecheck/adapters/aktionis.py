@@ -41,7 +41,7 @@ from selectolax.parser import HTMLParser, Node
 
 from ..models import Offer
 from ..names import strip_accents
-from .base import RetailerAdapter, looks_like_wine, parse_price
+from .base import RetailerAdapter, kein_wein, looks_like_wine, parse_price
 
 BASE = "https://www.aktionis.ch"
 
@@ -75,6 +75,24 @@ _RE_INFO_PREFIX = re.compile(r"^\s*Mehr\s+Infos\s+über\s+", re.I)
 _RE_WS = re.compile(r"\s+")
 
 
+def _ist_weinrubrik(url: str) -> bool:
+    """Steht diese Seite schon fest in der Weinrubrik des Aggregators?
+
+    Auf ``/q/Wein`` hat Aktionis die Vorauswahl getroffen. Ein zweites Mal ein
+    Weinwort im Produktnamen zu verlangen kostet dort nur Weine, die nach ihrem Gut
+    heissen statt nach ihrer Rebsorte: „Alma de Luzon", „Opi Fantini Riserva",
+    „Mont-sur-Rolle les Etourneaux", „Edizione Tre Autoctoni Bianco" — allesamt
+    Weine, allesamt bisher verworfen.
+
+    Warum das an der Adresse hängt und nicht an ``wine_only`` in der YAML: der
+    Ausschlussfilter allein hält Coca-Cola, Pouletschnitzel und Vollmilch **nicht**
+    zurück — nachgemessen. Sollte ``/q/Wein`` je wegbrechen und der Lauf auf eine
+    allgemeine Aktionsseite ausweichen, käme mit einem pauschalen ``wine_only`` der
+    halbe Lebensmittelladen herein. Seitenweise entschieden, kann das nicht passieren.
+    """
+    return "/q/wein" in (url or "").lower()
+
+
 class AktionisAdapter(RetailerAdapter):
     key = "aktionis"
 
@@ -95,15 +113,21 @@ class AktionisAdapter(RetailerAdapter):
     def parse(self, html: str, url: str) -> list[Offer]:
         tree = HTMLParser(html)
         offers: list[Offer] = []
+        # Auf der Weinrubrik hat der Aggregator die Vorauswahl schon getroffen.
+        vorgefiltert = _ist_weinrubrik(url)
         for card in tree.css("div.card.dealtype-deal"):
-            offer = self._parse_card(card)
+            offer = self._parse_card(card, vorgefiltert=vorgefiltert)
             if offer is not None:
                 offers.append(offer)
         return offers
 
-    def _parse_card(self, card: Node) -> Offer | None:
+    def _parse_card(self, card: Node, *, vorgefiltert: bool = False) -> Offer | None:
         name = _full_name(card)
-        if not name or not looks_like_wine(name):
+        if not name:
+            return None
+        # Auf ``/q/Wein`` genügt es, dass nichts gegen Wein spricht; sonst muss ein
+        # Weinwort vorkommen. Siehe :func:`_ist_weinrubrik`.
+        if kein_wein(name) if vorgefiltert else not looks_like_wine(name):
             return None
 
         merchant = _merchant(card)

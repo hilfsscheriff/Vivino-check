@@ -29,6 +29,7 @@ from .adapters.prodega import ProdegaAdapter
 from .adapters.schubi import SchubiAdapter
 from .adapters.shopware import ShopwareAdapter
 from .adapters.vivinoshop import VivinoShopAdapter
+from .adapters.volg import VolgAdapter
 from .adapters.wineoutlet import WineOutletAdapter
 from .aggregate import (
     MIN_BEWERTET_ANTEIL,
@@ -67,6 +68,7 @@ ADAPTERS: dict[str, type[RetailerAdapter]] = {
     "schubi": SchubiAdapter,
     "shopware": ShopwareAdapter,
     "vivinoshop": VivinoShopAdapter,
+    "volg": VolgAdapter,
     "wineoutlet": WineOutletAdapter,
 }
 
