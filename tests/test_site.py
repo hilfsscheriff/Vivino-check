@@ -373,12 +373,30 @@ def test_filters_collapse_on_mobile_but_the_count_stays(doc):
     assert 'id="reset"' not in inside, "Rückweg liegt im aufklappbaren Teil"
 
 
-def test_hidden_summary_forces_the_filters_open(doc):
-    """Sonst wären die Filter am Desktop unerreichbar: kein Griff, kein Inhalt."""
+def test_der_aufklapper_steht_auf_jeder_breite(doc):
+    """Die Filter lassen sich auch am Desktop zuklappen.
+
+    Vorher war der Griff dort per CSS ausgeblendet, und weil <details> ohne Griff
+    unerreichbar wäre, musste es zwangsweise offen bleiben. Der Bildschirm ist zwar
+    breit genug für das Formular — aber nicht dafür, es mit Lauf, Quelle, Sorte, Typ,
+    Land, Region, Reife, Preis und Note dauerhaft über den Weinen stehen zu lassen.
+    """
     text = doc()
-    assert '@media (min-width: 721px) { #filterBox > summary { display:none; } }' in text
-    assert 'display === "none"' in text, "Kopplung an die gerenderte Lage fehlt"
+    assert "#filterBox > summary { display:none" not in text, (
+        "der Griff darf auf keiner Breite verschwinden"
+    )
     assert 'addEventListener("resize", syncFilterBox)' in text
+
+
+def test_die_vorgabe_bleibt_breit_offen_schmal_zu(doc):
+    """Zuklappbar heisst nicht zugeklappt. Wer die Seite öffnet, sieht die Filter —
+    am Handy weiterhin nicht, dort füllten sie den ersten Bildschirm."""
+    text = doc()
+    fn = text.split("function syncFilterBox()", 1)[1].split("\n}", 1)[0]
+    assert "matchMedia" in fn and "max-width: 720px" in text, (
+        "die Vorgabe muss an der Breite hängen, nicht mehr an der Sichtbarkeit des Griffs"
+    )
+    assert "!matchMedia" in fn, "breit = offen"
 
 
 def test_filter_sync_works_in_both_directions(doc):

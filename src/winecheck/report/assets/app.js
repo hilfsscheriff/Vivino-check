@@ -638,16 +638,18 @@ function buildFilters() {
   }
 }
 
-/* Am Desktop ist der Aufklapper ausgeblendet — dort muss <details> offen sein, sonst
-   wäre der Inhalt unerreichbar: kein Griff zum Öffnen, kein Inhalt.
-   Geprüft wird die gerenderte Lage der Summary, nicht die Media Query. Die Regel gilt
-   dann auch, wenn der Breitenwechsel anders kommt als über ein `change`-Ereignis —
-   Fenster ziehen, Drehen, Zoomen. */
+/* Die Filter lassen sich auf jeder Breite zuklappen.
+   Vorher war der Griff am Desktop per CSS ausgeblendet, und weil <details> ohne Griff
+   unerreichbar wäre, musste es dort zwangsweise offen bleiben. Der Bildschirm ist
+   zwar breit genug für das Formular — aber nicht dafür, es dauerhaft über den Weinen
+   stehen zu lassen. Wer seine Auswahl getroffen hat, will die Liste sehen.
+   Die Vorgabe bleibt, wie sie war: breit offen, schmal zu. */
 const filterBox = document.getElementById("filterBox");
+const SCHMAL = "(max-width: 720px)";
 /* Zweiseitig: schmal wird eingeklappt, breit aufgeklappt. Einseitig gedacht bleiben
    die Filter nach einem Wechsel von breit zu schmal offen — Drehen, Fenster ziehen —
    und füllen den ersten Bildschirm wieder. Wer selbst geklickt hat, behält seine
-   Wahl; die Ausnahme ist der Desktop, wo der Griff fehlt und offen sein muss. */
+   Wahl, und zwar jetzt auch am Desktop; dort gab es vorher nichts zu wählen. */
 let userChoseFilters = false, programmatic = false;
 /* Am Klick festgemacht, nicht am `toggle`-Ereignis: das feuert asynchron, und ein
    unmittelbar folgender Resize würde die Wahl sonst wieder überschreiben. */
@@ -656,8 +658,9 @@ filterBox.querySelector("summary").addEventListener("click", () => {
 });
 filterBox.addEventListener("toggle", () => { if (!programmatic) userChoseFilters = true; });
 function syncFilterBox() {
-  const hidden = getComputedStyle(filterBox.querySelector("summary")).display === "none";
-  const want = hidden ? true : (userChoseFilters ? filterBox.open : false);
+  /* Gefragt wird die Breite, nicht mehr die gerenderte Lage der Summary — die ist
+     jetzt immer sichtbar und taugt nicht mehr als Unterscheidung. */
+  const want = userChoseFilters ? filterBox.open : !matchMedia(SCHMAL).matches;
   if (filterBox.open !== want) {
     programmatic = true; filterBox.open = want; programmatic = false;
   }

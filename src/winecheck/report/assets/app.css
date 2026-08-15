@@ -147,9 +147,12 @@
   #filterBox > summary .n { color:var(--faint); letter-spacing:0; text-transform:none;
                             font-size:var(--fs-body-sm); }
   #filterBox[open] > summary { margin-bottom:10px; }
-  /* Am Desktop ist Platz — dort sind die Filter immer offen und der Aufklapper
-     wäre nur ein zusätzlicher Klick. */
-  @media (min-width: 721px) { #filterBox > summary { display:none; } }
+  /* Der Aufklapper steht auf jeder Breite. Vorher war er am Desktop ausgeblendet —
+     "dort ist Platz, der Klick wäre nur im Weg". Das stimmt für den ersten Blick und
+     nicht für die zwölf danach: mit Lauf, Quelle, Sorte, Typ, Land, Region, Reife,
+     Preis und Note füllt das Formular auch auf einem grossen Bildschirm die halbe
+     Seite, und wer seine Auswahl getroffen hat, will die Weine sehen und nicht die
+     Kästchen. Offen bleibt trotzdem die Vorgabe — siehe syncFilterBox in app.js. */
   .fine { border-top:1px solid var(--line); padding-top:15px; margin-top:16px; }
   .controls { display:flex; flex-wrap:wrap; gap:14px 26px; align-items:flex-end;
               font-size:var(--fs-body-sm); color:var(--muted); }
