@@ -405,6 +405,20 @@ function table(list) {
   const merk = fokusMerken(box);
   if (!list.length) { box.innerHTML = '<p class="empty">Kein Wein passt zu dieser Auswahl.</p>'; return; }
   const shopName = k => (D.retailers.find(r => r.key === k) || {}).name || k;
+  /* Beim Vivino-Marktplatz ist Vivino nicht der Verkaeufer, sondern der Vermittler:
+     der Link fuehrt bewusst zum Shop, der tatsaechlich liefert, weil nur dort der
+     genannte Preis steht. Dann darf die Beschriftung nicht "Vivino Aktionen" sagen —
+     wer klickt, landet auf bignens.ch und haelt den Link fuer kaputt. Steht der Shop
+     in der Adresse, wird er angeschrieben. */
+  const linkZiel = w => {
+    const name = shopName(w.cheapest);
+    let host = "";
+    try { host = new URL(w.url).hostname.replace(/^www\./, ""); } catch (e) { host = ""; }
+    if (!host) return name;
+    const eigen = (D.retailers.find(r => r.key === w.cheapest) || {}).domain || "";
+    if (eigen && (host === eigen || host.endsWith("." + eigen))) return name;
+    return `${name} → ${host}`;
+  };
   // Leere Werte sortieren immer nach unten, in beiden Richtungen. Ein Wein ohne Note
   // ist keine 0 — er würde sonst bei aufsteigender Sortierung die Liste anführen.
   const KEYS = {
@@ -446,7 +460,7 @@ function table(list) {
     const bargain = w.bargain == null ? '<span class="meta">—</span>'
       : `<span class="${w.bargain > 0 ? "good" : "bad"}">${w.bargain > 0 ? "−" : "+"}`
         + Math.abs(w.bargain).toFixed(0) + "%</span>";
-    const shop = w.url ? `<a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(shopName(w.cheapest))}</a>`
+    const shop = w.url ? `<a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(linkZiel(w))}</a>`
                        : esc(shopName(w.cheapest));
     const vs = vintageSuffix(w);
     return `<tr>

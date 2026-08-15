@@ -510,8 +510,38 @@ class WineRow:
     # -- Schnäppchen gegen den Marktpreis ----------------------------------
     @property
     def market_price(self) -> float | None:
-        """Unabhängiger Marktpreis pro 75 cl, sofern Vivino einen nennt."""
-        return self.vivino.market_price if self.vivino else None
+        """Unabhängiger Marktpreis pro 75 cl, sofern Vivino einen nennt.
+
+        **Unabhängig** heisst: nicht vom selben Shop, bei dem der Wein hier im
+        Angebot steht. Sonst vergleicht sich der Preis mit sich selbst.
+
+        Der Vivino-Marktplatz ist der Fall, an dem es auffiel: er steht als
+        ``vivino.com`` im Verzeichnis, verlinkt aber auf den Shop, der tatsächlich
+        liefert — ``bignens.ch``, ``moevenpick-wein.com``, ``vinotheque.ch``. Die
+        Ausschlussliste beim Abruf kannte nur die eingetragene Domain, und so nannte
+        Vivino genau den Preis wieder, der schon in der Zeile stand: 289 Weine, die
+        meisten mit „gegen Markt 0 %", einige mit −500 %, wo es ein anderes Gebinde
+        desselben Shops war.
+
+        Die Prüfung steht **hier** und nicht nur beim Abruf, weil sie zur Bedeutung
+        der Zahl gehört: ein Marktpreis vom eigenen Verkäufer ist keiner, gleich wie
+        alt der Cache ist.
+        """
+        preis = self.vivino.market_price if self.vivino else None
+        if preis is None:
+            return None
+        from urllib.parse import urlparse
+
+        quelle = urlparse(
+            (self.vivino.market_price_url or "") if self.vivino else ""
+        ).netloc.lower().removeprefix("www.")
+        if not quelle:
+            return preis
+        eigene = {
+            urlparse(p.url or "").netloc.lower().removeprefix("www.")
+            for p in self.prices
+        }
+        return None if quelle in eigene else preis
 
     @property
     def bargain_percent(self) -> float | None:

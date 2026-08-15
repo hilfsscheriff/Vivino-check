@@ -396,6 +396,7 @@ def build(
     # Farbe, sondern seinen Namen. Farbe bleibt für Akzent, Urteil und Gold.
     names = {r: (info.get(r) or {}).get("name") or r for r in retailers}
     channels = {r: (info.get(r) or {}).get("channel") or "" for r in retailers}
+    domains = {r: (info.get(r) or {}).get("domain") or "" for r in retailers}
 
     styles = [s for s in STYLE_LABELS if any(
         w["style"] == s for run in runs for w in run["wines"]
@@ -414,7 +415,10 @@ def build(
             for r in runs
         ],
         "retailers": [
-            {"key": r, "name": names[r], "channel": channels[r]}
+            # Die Domain gehoert dazu: beim Vivino-Marktplatz fuehrt der Link nicht
+            # zu Vivino, sondern zum Shop, der tatsaechlich liefert. Nur mit der
+            # eigenen Domain laesst sich das unterscheiden und anschreiben.
+            {"key": r, "name": names[r], "channel": channels[r], "domain": domains.get(r, "")}
             for r in retailers
         ],
         "styles": [{"key": s, "label": STYLE_LABELS[s]} for s in styles],

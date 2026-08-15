@@ -603,12 +603,32 @@ def cache_stats(cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache")) -> No
 # ------------------------------------------------------------ Serialisierung
 
 def _retailer_hosts(reg, row: WineRow) -> set[str]:
-    """Domains aller Händler, die diesen Wein anbieten."""
+    """Domains aller Händler, die diesen Wein anbieten.
+
+    Zwei Quellen, und die zweite fehlte. Die konfigurierte Domain aus der Registry
+    trifft nur, wo der Händler auch unter eigenem Namen liest. Der Vivino-Marktplatz
+    tut das nicht: er ist als ``vivino.com`` eingetragen, verlinkt aber auf den Shop,
+    der tatsächlich liefert — ``bignens.ch``, ``moevenpick-wein.com``,
+    ``vinotheque.ch``. Wird nur die Registry gefragt, steht dieser Shop nicht auf der
+    Ausschlussliste, und Vivino nennt genau seinen Preis als „Marktpreis".
+
+    Damit verglich sich der Preis mit sich selbst: 289 Weine, die meisten mit
+    „gegen Markt +0 %", einige mit −500 % — dort war es nicht einmal derselbe Betrag,
+    sondern ein anderes Gebinde desselben Shops.
+
+    Die Adresse des Angebots ist die direkteste Auskunft darüber, wer verkauft, und
+    sie kommt darum dazu.
+    """
+    from urllib.parse import urlparse
+
     hosts: set[str] = set()
     for price in row.prices:
         cfg = reg.retailers.get(price.retailer)
         if cfg and cfg.domain:
             hosts.add(cfg.domain.lower())
+        host = urlparse(price.url or "").netloc.lower().removeprefix("www.")
+        if host:
+            hosts.add(host)
     return hosts
 
 

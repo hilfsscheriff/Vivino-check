@@ -278,3 +278,53 @@ def test_plausibility_is_unknown_without_a_percent():
 def test_plausibility_reaches_the_csv():
     flat = _row_with_note(13.95, 80.86, "Marktpreis von cultwinesintl.com").to_flat()
     assert flat["bargain_plausibility"] == "questionable"
+
+
+# -- Der Marktpreis darf nicht vom eigenen Shop stammen ---------------------
+def test_marktpreis_vom_eigenen_shop_zaehlt_nicht():
+    """Sonst vergleicht sich der Preis mit sich selbst.
+
+    Der Vivino-Marktplatz ist der Fall, an dem es auffiel: er steht als vivino.com im
+    Verzeichnis, verlinkt aber auf den Shop, der tatsaechlich liefert. Die
+    Ausschlussliste beim Abruf kannte nur die eingetragene Domain, und so nannte
+    Vivino genau den Preis wieder, der schon in der Zeile stand — 289 Weine, die
+    meisten mit "gegen Markt 0 %".
+    """
+    from winecheck.models import Offer, VivinoResult, VivinoStatus
+    from winecheck.aggregate import merge_offers
+
+    o = Offer(retailer="vivinoshop", name="Provins Valais Clos Corbassières",
+              vintage=2016, price_per_bottle_incl_vat=26.70, price_raw=26.70,
+              price_raw_basis="inkl. MwSt",
+              url="https://www.bignens.ch/single-product/clos-corbassieres-valais-aoc-x/")
+    row = merge_offers([o])[0]
+    row.vivino = VivinoResult(
+        status=VivinoStatus.EXACT, query="q",
+        url="https://www.vivino.com/de/clos-corbassieres/w/1761842", note="n",
+        rating=4.3, rating_count=293, match_confidence="exact",
+        matched_name="Provins Valais Clos Corbassières 2016",
+        market_price=26.70,
+        market_price_url="http://www.bignens.ch/single-product/clos-corbassieres-valais-aoc-x/",
+    )
+    assert row.market_price is None, "derselbe Shop ist kein unabhaengiger Vergleich"
+    assert row.bargain_percent is None
+
+
+def test_marktpreis_von_einem_anderen_shop_zaehlt():
+    """Gegenprobe — sonst waere die Regel ein Rueckschritt."""
+    from winecheck.models import Offer, VivinoResult, VivinoStatus
+    from winecheck.aggregate import merge_offers
+
+    o = Offer(retailer="vivinoshop", name="Provins Valais Clos Corbassières",
+              vintage=2016, price_per_bottle_incl_vat=20.00, price_raw=20.00,
+              price_raw_basis="inkl. MwSt",
+              url="https://www.bignens.ch/single-product/x/")
+    row = merge_offers([o])[0]
+    row.vivino = VivinoResult(
+        status=VivinoStatus.EXACT, query="q", url="https://www.vivino.com/de/x/w/1",
+        note="n", rating=4.3, rating_count=293, match_confidence="exact",
+        matched_name="Provins Valais Clos Corbassières 2016",
+        market_price=26.70, market_price_url="https://www.vinotheque.ch/x/",
+    )
+    assert row.market_price == 26.70
+    assert row.bargain_percent is not None and row.bargain_percent > 0
