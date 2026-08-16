@@ -539,3 +539,31 @@ def test_ein_einzelner_farbeintrag_bleibt_unangetastet():
                type_id=1)],
     )
     assert r.rating == 4.0
+
+
+def test_der_grundwein_gewinnt_gegen_die_benannte_variante():
+    """Traegt genau einer der Kandidaten kein Farbwort, ist er der Grundwein.
+
+    Vivino fuehrt "Tenuta Ulisse Limited Edition 10 Vendemmie" (rot) und
+    "… 10 Vendemmie Bianco" (weiss). Der Haendler schreibt den ersten zeichengleich
+    an. Der Produzent benennt die Variante, nicht das Original — das ist
+    entscheidbar, und die erste Fassung der Farbregel warf es faelschlich weg.
+
+    Beim Whispering Angel ist es anders herum: dort heissen beide "… Rose" bzw.
+    "… Rouge", der blosse Name gehoert keinem von beiden. Siehe den Test darueber.
+    """
+    from winecheck.ratings.vivino import _Cand, classify
+
+    def kand(name, type_id, note):
+        return _Cand(name=name, wine_name=name, winery="Tenuta Ulisse",
+                     url=f"https://www.vivino.com/de/x/w/{type_id}", year=None,
+                     vintage_avg=None, vintage_count=0, wine_avg=note, wine_count=15663,
+                     type_id=type_id)
+
+    r = classify(
+        "Tenuta Ulisse Limited Edition 10 Vendemmie", None, "q",
+        [kand("Tenuta Ulisse Limited Edition 10 Vendemmie", 1, 4.4),
+         kand("Tenuta Ulisse Limited Edition 10 Vendemmie Bianco", 2, 4.0)],
+    )
+    assert r.rating == 4.4
+    assert "Bianco" not in (r.matched_name or "")

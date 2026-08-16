@@ -522,12 +522,36 @@ def _farbe_unentscheidbar(retailer_name: str, kandidaten: list[_Cand]) -> set[st
     """
     if wine_style(retailer_name, None) in _FARBEN:
         return set()
-    nach_kern: dict[str, set[str]] = {}
+    nach_kern: dict[str, list[_Cand]] = {}
     for c in kandidaten:
-        farbe = VIVINO_TYPE_IDS.get(c.type_id)
-        if farbe in _FARBEN:
-            nach_kern.setdefault(_ohne_farbe(c.name), set()).add(farbe)
-    return {kern for kern, farben in nach_kern.items() if len(farben) > 1}
+        if VIVINO_TYPE_IDS.get(c.type_id) in _FARBEN:
+            nach_kern.setdefault(_ohne_farbe(c.name), []).append(c)
+
+    unklar = set()
+    for kern, gruppe in nach_kern.items():
+        farben = {VIVINO_TYPE_IDS.get(c.type_id) for c in gruppe}
+        if len(farben) < 2:
+            continue
+        # Trägt genau **einer** der Kandidaten kein Farbwort, ist er der Grundwein,
+        # und der farblose Händlername meint ihn. Der Produzent benennt die Variante,
+        # nicht das Original: „Tenuta Ulisse Limited Edition 10 Vendemmie" (rot) steht
+        # neben „… 10 Vendemmie **Bianco**", und der Händler schreibt den ersten
+        # zeichengleich an.
+        #
+        # Beim Whispering Angel ist es anders herum: dort heissen beide „… Rosé"
+        # beziehungsweise „… Rouge", der blosse Name gehört keinem von beiden — und
+        # dann ist die Frage aus dem Namen wirklich offen.
+        ohne_farbwort = [c for c in gruppe if not _hat_farbwort(c.name)]
+        if len(ohne_farbwort) == 1:
+            continue
+        unklar.add(kern)
+    return unklar
+
+
+def _hat_farbwort(name: str) -> bool:
+    """Steht im Namen ein Farbwort? Siehe :func:`_farbe_unentscheidbar`."""
+    woerter = strip_accents((name or "").lower()).replace("-", " ").split()
+    return any(w.strip(".,") in _FARBWORTE for w in woerter)
 
 
 def classify(
