@@ -528,7 +528,7 @@ function table(list) {
       <td data-l="Wo kaufen">${shop}</td>
       <td data-l="gegen Markt" class="num${w.bargain == null ? " noval" : ""}">${bargain}</td>
       <td class="mehrzelle"><button class="mehr" type="button" aria-expanded="false"
-          aria-controls="${id}"><span class="sr">Angaben zu ${esc(w.name)}</span></button></td>
+          aria-controls="${id}"><span class="sr">Details zu ${esc(w.name)}</span></button></td>
     </tr>
     <tr class="det" id="${id}" hidden><td colspan="7">${detailRows(w)}</td></tr>`;
   }).join("");
@@ -557,7 +557,7 @@ function table(list) {
   }).join("");
   const rest = sorted.length - S.limit;
   box.innerHTML = `<table><thead><tr>${head}<th class="mehrzelle" scope="col">`
-    + `<span class="sr">Angaben</span></th></tr></thead><tbody>${rows}</tbody></table>`
+    + `<span class="sr">Details</span></th></tr></thead><tbody>${rows}</tbody></table>`
     + (rest > 0
         ? `<p class="more"><button type="button" id="more">Weitere ${Math.min(rest, PAGE)} anzeigen</button>`
           + `<span class="meta"> ${S.limit} von ${sorted.length} angezeigt</span></p>`

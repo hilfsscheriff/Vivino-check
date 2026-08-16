@@ -951,7 +951,7 @@ def test_zu_kleiner_vorlauf_markiert_nichts_als_neu():
 
 # ------------------------------------------------- Angaben auch in der Liste
 
-def test_die_angaben_stehen_auch_in_der_tabelle(doc):
+def test_die_details_stehen_auch_in_der_tabelle(doc):
     """Vorher nur im Mouseover des Diagramms — und den gibt es auf dem Handy nicht,
     wo das Diagramm ohnehin ausgeblendet ist.
 
@@ -966,7 +966,7 @@ def test_die_angaben_stehen_auch_in_der_tabelle(doc):
     assert 'aria-expanded="false"' in text and "aria-controls=" in text
 
 
-def test_die_angaben_haben_nur_eine_quelle(doc):
+def test_die_details_haben_nur_eine_quelle(doc):
     """Zwei Fassungen derselben Angaben laufen in diesem Projekt erfahrungsgemaess
     auseinander — darum ruft auch das Diagramm dieselbe Funktion auf."""
     text = doc()
@@ -990,3 +990,15 @@ def test_spaltentitel_tragen_eine_schrift(doc):
     # Dasselbe eine Ebene tiefer: auf dem Handy ist der Feldname ein ::before.
     kartenlabel = text.split("td[data-l]::before", 1)[1][:220]
     assert "font-family:var(--sans)" in kartenlabel
+
+
+def test_die_detailzeile_laesst_sich_auf_dem_handy_schliessen(doc):
+    """``tr { display:block }`` in der Handy-Ansicht ist eine Autoren-Regel und
+    schlaegt damit ``[hidden] { display:none }`` aus dem Browser-Standard.
+
+    Gemeldet mit "lassen sich nicht zuklicken, sind immer offen": der Knopf schaltete
+    aria-expanded brav um, sichtbar aenderte sich nichts. Am Desktop fiel es nicht
+    auf, weil ``tr`` dort kein eigenes ``display`` bekommt.
+    """
+    text = doc()
+    assert ".det[hidden] { display:none; }" in text

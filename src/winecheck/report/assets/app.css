@@ -373,10 +373,16 @@
     /* Die Detailzeile ist auf dieser Breite der eigentliche Zweck der Uebung —
        sie darf nicht wie eine weitere Weinkarte aussehen. */
     .det { border-bottom:1px solid var(--line); padding:0 0 14px; }
+    /* Und sie muss sich schliessen lassen. ``tr { display:block }`` oben ist eine
+       Autoren-Regel und schlaegt damit ``[hidden] { display:none }`` aus dem
+       Browser-Standard — die Zeile stand auf dem Handy dauerhaft offen, der Knopf
+       schaltete zwar aria-expanded um, sichtbar aenderte sich nichts. Auf dem Desktop
+       fiel es nicht auf, weil ``tr`` dort kein eigenes ``display`` bekommt. */
+    .det[hidden] { display:none; }
     .det > td { padding:0; }
     .mehrzelle { width:auto; }
     .mehr { width:100%; border-radius:6px; height:38px; }
-    .mehr::before { content:"Angaben"; font-size:var(--fs-body-sm);
+    .mehr::before { content:"Details"; font-size:var(--fs-body-sm);
                     letter-spacing:.04em; margin-right:7px; }
   }
   #tip { position:fixed; z-index:20; pointer-events:none; opacity:0;
