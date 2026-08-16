@@ -947,3 +947,46 @@ def test_zu_kleiner_vorlauf_markiert_nichts_als_neu():
     # Ein normaler Wochenwechsel darf nicht greifen: Aktionen kommen und gehen,
     # aber nicht zu zwei Dritteln.
     assert 1400 > 1524 * VERGLEICH_MIN_ANTEIL, "ein normaler Lauf darf nicht greifen"
+
+
+# ------------------------------------------------- Angaben auch in der Liste
+
+def test_die_angaben_stehen_auch_in_der_tabelle(doc):
+    """Vorher nur im Mouseover des Diagramms — und den gibt es auf dem Handy nicht,
+    wo das Diagramm ohnehin ausgeblendet ist.
+
+    Damit war ausgerechnet auf dem Geraet, mit dem man im Laden steht, weder die
+    Machart noch die Region, die Grundlage der Trinkreife, die Vergleichsgruppe der
+    Preis-Leistungs-Zahl noch die Warnung "laut Vivino, nicht beim Verkaeufer
+    geprueft" erreichbar.
+    """
+    text = doc()
+    assert "function detailRows(p)" in text, "eine Funktion fuer beide Ausgaben"
+    assert 'class="mehr"' in text and 'class="det"' in text
+    assert 'aria-expanded="false"' in text and "aria-controls=" in text
+
+
+def test_die_angaben_haben_nur_eine_quelle(doc):
+    """Zwei Fassungen derselben Angaben laufen in diesem Projekt erfahrungsgemaess
+    auseinander — darum ruft auch das Diagramm dieselbe Funktion auf."""
+    text = doc()
+    tip = text.split("const show = (el, ev) =>", 1)[1][:400]
+    assert "detailRows(p)" in tip
+
+
+def test_der_aufklapper_wird_nur_einmal_verdrahtet(doc):
+    """table() laeuft bei jeder Filteraenderung; ohne Merkmal stapeln sich die
+    Zuhoerer und ein Klick klappt die Zeile auf und sofort wieder zu."""
+    text = doc()
+    assert "box.dataset.wired" in text
+
+
+def test_spaltentitel_tragen_eine_schrift(doc):
+    """Die Spaltenklassen richten die Datenzellen aus; im Kopf haben sie nichts zu
+    suchen. th.num erbte die Monoschrift, und damit standen die sechs Titel in zwei
+    Schriftarten und scheinbar drei Groessen nebeneinander."""
+    text = doc()
+    assert "th.num, th.pl { font-family:var(--sans)" in text
+    # Dasselbe eine Ebene tiefer: auf dem Handy ist der Feldname ein ::before.
+    kartenlabel = text.split("td[data-l]::before", 1)[1][:220]
+    assert "font-family:var(--sans)" in kartenlabel

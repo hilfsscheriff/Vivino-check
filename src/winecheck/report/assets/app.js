@@ -270,52 +270,8 @@ function chart(list) {
     .filter(j => Math.abs(at[j].x - at[i].x) <= 5 && Math.abs(at[j].y - at[i].y) <= 5);
   const show = (el, ev) => {
     const i = +el.dataset.i, p = pts[i]; if (!p) return;
-    const row = (k, v) => `<div class="r"><span class="k">${k}</span><span>${v}</span></div>`;
     const cluster = clusterOf(i).filter(j => j !== i);
-    let h = `<span class="n">${esc(p.name)}${vintageSuffix(p)}</span>`;
-    h += row("Vivino", p.rating.toFixed(1) + "/5" + (p.ratingCount ? ` (${p.ratingCount})` : ""));
-    if (p.fuzzy) h += row("Achtung", `<span class="warn">Namensabgleich unbestätigt`
-      + (p.matchedName ? ` — gefunden: „${esc(p.matchedName)}"` : "") + `</span>`);
-    if (p.styleLabel) h += row("Sorte", esc(p.styleLabel));
-    if (p.typLabel && p.typ) h += row("Typ", esc(p.typLabel)
-      + (p.typWarum ? ` <span class="meta">${esc(p.typWarum)}</span>` : ""));
-    /* Die Region ist die feinste Ebene der Preis-Leistungs-Rechnung: ein Bordeaux
-       für CHF 10 wird gegen Bordeaux gerechnet, nicht gegen alle kräftigen Roten.
-       Die Spanne daneben ist ein Erfahrungswert und geht in keine Zahl ein — sie
-       ordnet nur ein, wo der Preis dieser Flasche in ihrer Herkunft liegt. */
-    if (p.regionLabel) h += row("Region", esc(p.regionLabel)
-      + (p.regionSpanne ? ` <span class="meta">üblich CHF ${esc(p.regionSpanne)}</span>` : ""));
-    if (p.maturityShort) {
-      /* Woher die Auskunft stammt, gehört daneben — sonst liest sich die Vinum-Zeile
-         wie eine Aussage über genau diesen Wein, obwohl sie für eine ganze Region
-         gilt. Vivinos Fenster ist jahrgangsgenau und steht in Klammern dahinter. */
-      let m = "<b>" + esc(p.maturityShort) + "</b>";
-      if (p.drinkWindow) m += ` <span class="meta">Vivino ${esc(p.drinkWindow)}</span>`;
-      h += row("Trinkreife", m);
-      if (p.maturityRegion) h += row("Grundlage", `<span class="meta">${esc(p.maturityRegion)}</span>`);
-      /* Sind sich die beiden Quellen uneinig, steht das da. Beide behalten ihre
-         Stimme; wer es liest, entscheidet selbst. Das ist mehr wert, als wenn eine
-         von beiden stillschweigend gewinnt. */
-      if (p.maturityConflict) h += row("uneinig", `<span class="warn">${esc(p.maturityConflict)}</span>`);
-    }
-    if (valueOf(p) != null) h += row("Preis-Leistung", valueText(p)
-      + (valueBezug(p) ? ` <span class="meta">${esc(valueBezug(p))}</span>` : ""));
-    h += row("Preis/75cl", chf(p.price));
-    if (gebindeText(p)) h += row("Abnahme", `<span class="warn">${esc(gebindeText(p))}</span>`);
-    /* Beim Marktplatz gehört die Herkunft des Preises dazu: Vivino vermittelt, verkauft
-       wird von Dritten, und der Betrag stammt aus Vivinos Angebotsdaten. In einer
-       Stichprobe von zwölf stand er bei vier nicht auf der Verkäuferseite. Hier im
-       Tooltip und nicht in der Zeile — 625 von 1459 Weinen betrifft es, in der Liste
-       wäre es Rauschen, beim Nachsehen ist es die Antwort. */
-    if (p.cheapest === "vivinoshop")
-      h += row("Preisquelle", `<span class="warn">laut Vivino, nicht beim Verkäufer geprüft</span>`);
-    h += row("Händler", esc((D.retailers.find(r => r.key === p.cheapest) || {}).name || p.cheapest));
-    if (p.bargain != null) {
-      const c = p.bargain > 0 ? "good" : "bad";
-      h += row("gegen Markt", `<span class="${c}">${p.bargain > 0 ? "−" : "+"}`
-        + Math.abs(p.bargain).toFixed(0) + "%</span>");
-    }
-    if (p.falstaff != null) h += row("Falstaff", p.falstaff.toFixed(0) + "/100");
+    let h = `<span class="n">${esc(p.name)}${vintageSuffix(p)}</span>` + detailRows(p);
     // Verdeckte Nachbarn benennen, sonst weiss man nicht, dass sie da sind.
     if (cluster.length) {
       h += `<div class="also"><b>${cluster.length} weitere${cluster.length === 1 ? "r" : ""}`
@@ -413,8 +369,80 @@ function fokusZurueck(box, merk) {
   if (b) { if (!b.hasAttribute("tabindex")) b.setAttribute("tabindex", "-1"); b.focus(); }
 }
 
+/* Die Angaben zu einem Wein, an einer Stelle.
+   Vorher standen sie nur im Mouseover des Diagramms — und den gibt es auf dem Handy
+   nicht, wo das Diagramm ohnehin ausgeblendet ist. Damit war ausgerechnet auf dem
+   Geraet, mit dem man im Laden steht, weder die Machart noch die Region, die
+   Trinkreife-Grundlage, die Vergleichsgruppe der Preis-Leistungs-Zahl noch die
+   Warnung "laut Vivino, nicht beim Verkaeufer geprueft" zu sehen.
+   Eine Funktion fuer beide Ausgaben: zwei Fassungen derselben Angaben laufen in
+   diesem Projekt erfahrungsgemaess auseinander. */
+function detailRows(p) {
+  const row = (k, v) => `<div class="r"><span class="k">${k}</span><span>${v}</span></div>`;
+  let h = "";
+  h += row("Vivino", p.rating.toFixed(1) + "/5" + (p.ratingCount ? ` (${p.ratingCount})` : ""));
+  if (p.fuzzy) h += row("Achtung", `<span class="warn">Namensabgleich unbestätigt`
+    + (p.matchedName ? ` — gefunden: „${esc(p.matchedName)}"` : "") + `</span>`);
+  if (p.styleLabel) h += row("Sorte", esc(p.styleLabel));
+  if (p.typLabel && p.typ) h += row("Typ", esc(p.typLabel)
+    + (p.typWarum ? ` <span class="meta">${esc(p.typWarum)}</span>` : ""));
+  /* Die Region ist die feinste Ebene der Preis-Leistungs-Rechnung: ein Bordeaux
+     für CHF 10 wird gegen Bordeaux gerechnet, nicht gegen alle kräftigen Roten.
+     Die Spanne daneben ist ein Erfahrungswert und geht in keine Zahl ein — sie
+     ordnet nur ein, wo der Preis dieser Flasche in ihrer Herkunft liegt. */
+  if (p.regionLabel) h += row("Region", esc(p.regionLabel)
+    + (p.regionSpanne ? ` <span class="meta">üblich CHF ${esc(p.regionSpanne)}</span>` : ""));
+  if (p.maturityShort) {
+    /* Woher die Auskunft stammt, gehört daneben — sonst liest sich die Vinum-Zeile
+       wie eine Aussage über genau diesen Wein, obwohl sie für eine ganze Region
+       gilt. Vivinos Fenster ist jahrgangsgenau und steht in Klammern dahinter. */
+    let m = "<b>" + esc(p.maturityShort) + "</b>";
+    if (p.drinkWindow) m += ` <span class="meta">Vivino ${esc(p.drinkWindow)}</span>`;
+    h += row("Trinkreife", m);
+    if (p.maturityRegion) h += row("Grundlage", `<span class="meta">${esc(p.maturityRegion)}</span>`);
+    /* Sind sich die beiden Quellen uneinig, steht das da. Beide behalten ihre
+       Stimme; wer es liest, entscheidet selbst. Das ist mehr wert, als wenn eine
+       von beiden stillschweigend gewinnt. */
+    if (p.maturityConflict) h += row("uneinig", `<span class="warn">${esc(p.maturityConflict)}</span>`);
+  }
+  if (valueOf(p) != null) h += row("Preis-Leistung", valueText(p)
+    + (valueBezug(p) ? ` <span class="meta">${esc(valueBezug(p))}</span>` : ""));
+  h += row("Preis/75cl", chf(p.price));
+  if (gebindeText(p)) h += row("Abnahme", `<span class="warn">${esc(gebindeText(p))}</span>`);
+  /* Beim Marktplatz gehört die Herkunft des Preises dazu: Vivino vermittelt, verkauft
+     wird von Dritten, und der Betrag stammt aus Vivinos Angebotsdaten. In einer
+     Stichprobe von zwölf stand er bei vier nicht auf der Verkäuferseite. Hier im
+     Tooltip und nicht in der Zeile — 625 von 1459 Weinen betrifft es, in der Liste
+     wäre es Rauschen, beim Nachsehen ist es die Antwort. */
+  if (p.cheapest === "vivinoshop")
+    h += row("Preisquelle", `<span class="warn">laut Vivino, nicht beim Verkäufer geprüft</span>`);
+  h += row("Händler", esc((D.retailers.find(r => r.key === p.cheapest) || {}).name || p.cheapest));
+  if (p.bargain != null) {
+    const c = p.bargain > 0 ? "good" : "bad";
+    h += row("gegen Markt", `<span class="${c}">${p.bargain > 0 ? "−" : "+"}`
+      + Math.abs(p.bargain).toFixed(0) + "%</span>");
+  }
+  if (p.falstaff != null) h += row("Falstaff", p.falstaff.toFixed(0) + "/100");
+  return h;
+}
+
 function table(list) {
   const box = document.getElementById("table");
+  /* Einmal verdrahtet, nicht bei jedem Neuzeichnen: table() laeuft bei jeder
+     Filteraenderung, und die Zuhoerer wuerden sich sonst stapeln. Der Kasten selbst
+     bleibt bestehen, nur sein Inhalt wird ersetzt — darum haelt das Merkmal. */
+  if (!box.dataset.wired) {
+    box.dataset.wired = "1";
+    box.addEventListener("click", e => {
+      const b = e.target.closest(".mehr");
+      if (!b) return;
+      const det = document.getElementById(b.getAttribute("aria-controls"));
+      if (!det) return;
+      const offen = b.getAttribute("aria-expanded") === "true";
+      b.setAttribute("aria-expanded", String(!offen));
+      det.hidden = offen;
+    });
+  }
   const merk = fokusMerken(box);
   if (!list.length) { box.innerHTML = '<p class="empty">Kein Wein passt zu dieser Auswahl.</p>'; return; }
   const shopName = k => (D.retailers.find(r => r.key === k) || {}).name || k;
@@ -455,7 +483,7 @@ function table(list) {
     if (typeof x === "string") return S.dir * x.localeCompare(y, "de");
     return S.dir * (x - y);
   });
-  const rows = sorted.slice(0, S.limit).map(w => {
+  const rows = sorted.slice(0, S.limit).map((w, i) => {
     const vivino = w.rating != null
       ? `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener">${w.rating.toFixed(1)}/5</a>`
         + (w.ratingCount ? ` <span class="meta">(${w.ratingCount})</span>` : "")
@@ -476,6 +504,12 @@ function table(list) {
     const shop = w.url ? `<a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(linkZiel(w))}</a>`
                        : esc(shopName(w.cheapest));
     const vs = vintageSuffix(w);
+    /* Jede Zeile laesst sich aufklappen. Die Angaben dahinter — Machart, Region,
+       Grundlage der Trinkreife, Vergleichsgruppe der Preis-Leistungs-Zahl, Herkunft
+       des Preises — standen vorher nur im Mouseover des Diagramms. Auf dem Handy ist
+       das Diagramm ausgeblendet und Hover gibt es nicht: dort war nichts davon
+       erreichbar, ausgerechnet auf dem Geraet, mit dem man im Laden steht. */
+    const id = `det-${i}`;
     return `<tr>
       <td data-l="Wein"><span class="wine">${esc(w.name)}</span>
         ${vs ? `<span class="meta">${vs}</span>` : ""}
@@ -493,7 +527,10 @@ function table(list) {
         gebindeText(w) ? `<br><span class="gebinde">${esc(gebindeText(w))}</span>` : ""}</td>
       <td data-l="Wo kaufen">${shop}</td>
       <td data-l="gegen Markt" class="num${w.bargain == null ? " noval" : ""}">${bargain}</td>
-    </tr>`;
+      <td class="mehrzelle"><button class="mehr" type="button" aria-expanded="false"
+          aria-controls="${id}"><span class="sr">Angaben zu ${esc(w.name)}</span></button></td>
+    </tr>
+    <tr class="det" id="${id}" hidden><td colspan="7">${detailRows(w)}</td></tr>`;
   }).join("");
   const COLS = [
     ["name", "Wein", ""], ["value", "Preis-Leistung", "num"], ["rating", "Vivino", ""],
@@ -519,7 +556,8 @@ function table(list) {
       + `<button type="button" class="sortbtn" data-col="${k}">${esc(label)}${arrow}</button></th>`;
   }).join("");
   const rest = sorted.length - S.limit;
-  box.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`
+  box.innerHTML = `<table><thead><tr>${head}<th class="mehrzelle" scope="col">`
+    + `<span class="sr">Angaben</span></th></tr></thead><tbody>${rows}</tbody></table>`
     + (rest > 0
         ? `<p class="more"><button type="button" id="more">Weitere ${Math.min(rest, PAGE)} anzeigen</button>`
           + `<span class="meta"> ${S.limit} von ${sorted.length} angezeigt</span></p>`

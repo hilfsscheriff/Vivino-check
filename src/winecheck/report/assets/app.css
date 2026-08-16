@@ -289,6 +289,35 @@
   th .sortbtn:hover { color:var(--accent); }
   th.sorted { color:var(--ink); }
   th.num .sortbtn { width:100%; text-align:right; }
+  /* Die Spaltenklassen richten die **Datenzellen** aus; im Kopf haben sie nichts zu
+     suchen. ``th.num`` erbte die Monoschrift aus ``.num``, und damit standen die sechs
+     Spaltentitel in zwei Schriftarten und scheinbar drei Groessen nebeneinander —
+     "WEIN" und "VIVINO" schmal serifenlos, "PREIS/75CL" und "GEGEN MARKT" breit in
+     Mono. Ein Kopf ist eine Beschriftung, keine Zahl. */
+  th.num, th.pl { font-family:var(--sans); font-size:var(--fs-label);
+                  font-variant-numeric:normal; }
+
+  /* Aufklappbare Zeile: dieselben Angaben, die das Diagramm im Mouseover zeigt.
+     Auf dem Handy ist das Diagramm ausgeblendet und Hover gibt es nicht — dort war
+     das die einzige Luecke zwischen den beiden Ansichten. */
+  /* Nur fuer Bildschirmleser. Der Aufklapp-Knopf traegt sonst gar keinen Namen —
+     ein nacktes Dreieck ist als "Schaltfläche" angesagt und sagt nichts darueber,
+     welcher Wein sich da oeffnet. */
+  .sr { position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+        overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; }
+  .mehrzelle { width:1%; padding-left:0; }
+  .mehr { background:none; border:1px solid var(--line-strong); border-radius:999px;
+          cursor:pointer; color:var(--muted); width:var(--control-h);
+          height:var(--control-h); min-width:34px; min-height:34px; padding:0;
+          display:inline-flex; align-items:center; justify-content:center; }
+  .mehr::after { content:"▾"; font-size:1.1em; line-height:1; transition:transform .15s; }
+  .mehr[aria-expanded="true"]::after { transform:rotate(180deg); }
+  .mehr:hover { border-color:var(--accent); color:var(--accent); }
+  .det > td { padding:0 9px 15px; border-bottom:1px solid var(--line); }
+  .det .r { display:flex; justify-content:space-between; gap:14px;
+            padding:3px 0; font-size:var(--fs-body-sm); }
+  .det .k { color:var(--faint); flex:none; }
+  .det .r > span:last-child { text-align:right; }
   .tblnote { font-size:var(--fs-body-sm); color:var(--muted); margin:0 0 14px; }
   .chartnote { font-size:var(--fs-body-sm); color:var(--muted); margin:0 0 10px;
                max-width:78ch; }
@@ -319,9 +348,14 @@
     tbody { display:block; }
     tr { display:block; border-bottom:1px solid var(--line); padding:14px 0; }
     td { display:block; border:0; padding:2px 0; text-align:left; }
+    /* Dieselbe Regel wie beim Spaltenkopf, eine Ebene tiefer: der Feldname erbte die
+       Schrift seiner Zelle, und damit stand "PREIS/75CL" in Mono neben "WO KAUFEN" in
+       Optima — in derselben Karte, untereinander. Ein Name ist ein Name, gleich
+       welche Art Wert daneben steht. */
     td[data-l]::before { content:attr(data-l) " "; color:var(--faint);
-                         font-size:var(--fs-label); letter-spacing:.1em;
-                         text-transform:uppercase; }
+                         font-family:var(--sans); font-size:var(--fs-label);
+                         letter-spacing:.1em; text-transform:uppercase;
+                         font-variant-numeric:normal; }
     /* In der Tabelle hält ein "—" die Spalte ausgerichtet. In der Kartenansicht
        gibt es keine Spalte mehr — dort ist es nur eine Zeile ohne Inhalt, und
        beim Marktpreis betrifft das die Mehrheit der Weine. */
@@ -336,6 +370,14 @@
     /* Das Diagramm braucht Breite, die es hier nicht hat. Die Liste ist auf dieser
        Breite die vollständigere Ansicht. */
     .chart { display:none; }
+    /* Die Detailzeile ist auf dieser Breite der eigentliche Zweck der Uebung —
+       sie darf nicht wie eine weitere Weinkarte aussehen. */
+    .det { border-bottom:1px solid var(--line); padding:0 0 14px; }
+    .det > td { padding:0; }
+    .mehrzelle { width:auto; }
+    .mehr { width:100%; border-radius:6px; height:38px; }
+    .mehr::before { content:"Angaben"; font-size:var(--fs-body-sm);
+                    letter-spacing:.04em; margin-right:7px; }
   }
   #tip { position:fixed; z-index:20; pointer-events:none; opacity:0;
          transition:opacity .1s; max-width:320px; background:var(--bg);
