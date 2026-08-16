@@ -89,6 +89,18 @@ const valueText = w => {
   const v = valueOf(w);
   return (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(2);
 };
+/* Wogegen gerechnet wurde. Ohne diese Angabe sieht die Zahl willkuerlich aus:
+   gemeldet an zwei Weinen mit derselben Note 4.4, bei denen der teurere die bessere
+   Preis-Leistung trug. Beide richtig gerechnet — nur gegen verschiedene Gruppen:
+   CHF 27 gegen fruchtsuesse Rote mit einem Schnitt von CHF 18.42, CHF 28.50 gegen
+   straffe Rioja mit CHF 24.68. Der zweite ist relativ zu seinesgleichen guenstiger. */
+const EBENEN = { region: "Region", sorte: "Sorte", typ: "Typ", gesamt: "alle Weine" };
+const valueBezug = w => {
+  const b = (S.src === "alle" ? w.valueScoreAllBezug : w.valueScoreBezug);
+  if (!b || !b.n) return "";
+  const wo = EBENEN[b.ebene] || "vergleichbare";
+  return `gegen ${b.n} vergleichbare (${wo}), Ø CHF ${Number(b.preis).toFixed(2)} · Ø Note ${Number(b.note).toFixed(2)}`;
+};
 
 function currentRun() { return D.runs.find(r => r.id === S.run) || D.runs[0]; }
 
@@ -286,7 +298,8 @@ function chart(list) {
          von beiden stillschweigend gewinnt. */
       if (p.maturityConflict) h += row("uneinig", `<span class="warn">${esc(p.maturityConflict)}</span>`);
     }
-    if (valueOf(p) != null) h += row("Preis-Leistung", valueText(p));
+    if (valueOf(p) != null) h += row("Preis-Leistung", valueText(p)
+      + (valueBezug(p) ? ` <span class="meta">${esc(valueBezug(p))}</span>` : ""));
     h += row("Preis/75cl", chf(p.price));
     if (gebindeText(p)) h += row("Abnahme", `<span class="warn">${esc(gebindeText(p))}</span>`);
     /* Beim Marktplatz gehört die Herkunft des Preises dazu: Vivino vermittelt, verkauft

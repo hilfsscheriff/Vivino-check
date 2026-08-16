@@ -325,6 +325,12 @@ _SHORT_KEYS = {
     # beide hinweg. Welche angezeigt wird, entscheidet der Quellenfilter.
     "valueScore": "vs",
     "valueScoreAll": "vsa",
+    # Wogegen gerechnet wurde: Ebene, Gruppengroesse und deren mittlerer Preis.
+    # Ohne diese Angabe ist die Zahl nicht nachpruefbar und sieht willkuerlich aus —
+    # gemeldet an zwei Weinen mit derselben Note, bei denen der teurere die bessere
+    # Preis-Leistung trug. Richtig gerechnet, nur gegen verschiedene Gruppen.
+    "valueScoreBezug": "vsb",
+    "valueScoreAllBezug": "vsab",
     # Kennzeichnung der Quellenart — siehe MARKTPLATZ_QUELLEN.
     "marketplace": "mp",
     "swiss": "ch",

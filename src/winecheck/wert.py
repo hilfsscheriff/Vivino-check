@@ -265,10 +265,10 @@ def _je_typ(wines: list[dict[str, Any]], feld: str, note) -> None:
         # der Grund, aus dem sie innerhalb der Typen die zweite Ebene ist. „Kein Typ"
         # bleibt dabei kein Typ: eine gemeinsame Kurve über alle typlosen Weine gibt es
         # weiterhin, sie wird nur dort verfeinert, wo eine Sorte die Fallzahl trägt.
-        _nach_sorte(rest, feld, note, brauchbar, teilen)
+        _nach_sorte(rest, feld, note, brauchbar, teilen, ebene="gesamt")
 
 
-def _nach_sorte(gruppe, feld, note, brauchbar, teilen) -> None:
+def _nach_sorte(gruppe, feld, note, brauchbar, teilen, ebene="typ") -> None:
     """Erst die gröbere Ebene für alle, dann die feinere für die Zellen, die sie tragen.
 
     Die Reihenfolge ist der Trick: jeder Wein bekommt am Ende den feinsten Wert, den seine
@@ -276,10 +276,10 @@ def _nach_sorte(gruppe, feld, note, brauchbar, teilen) -> None:
     dabei die **ganze** übergeordnete Gruppe, nicht die Sammlung der übrigen dünnen Zellen
     — drei Weisse gegen vier Rosés gerechnet wäre keine Erwartung, sondern ein Zufall.
     """
-    _value_scores_einer_gruppe(gruppe, feld=feld, note=note)
+    _value_scores_einer_gruppe(gruppe, feld=feld, note=note, ebene=ebene)
     for sorte_gruppe in teilen(gruppe, lambda w: w.get("style") or "?").values():
         if brauchbar(sorte_gruppe) >= VALUE_MIN_SAMPLE:
-            _value_scores_einer_gruppe(sorte_gruppe, feld=feld, note=note)
+            _value_scores_einer_gruppe(sorte_gruppe, feld=feld, note=note, ebene="sorte")
             _nach_region(sorte_gruppe, feld, note, brauchbar, teilen)
 
 
@@ -312,11 +312,11 @@ def _nach_region(gruppe, feld, note, brauchbar, teilen) -> None:
     for region_gruppe in teilen(gruppe, lambda w: w.get("region") or "").items():
         key, wines = region_gruppe
         if key and brauchbar(wines) >= VALUE_MIN_SAMPLE:
-            _value_scores_einer_gruppe(wines, feld=feld, note=note)
+            _value_scores_einer_gruppe(wines, feld=feld, note=note, ebene="region")
 
 
 def _value_scores_einer_gruppe(
-    wines: list[dict[str, Any]], *, feld: str = "valueScore", note=None
+    wines: list[dict[str, Any]], *, feld: str = "valueScore", note=None, ebene: str = ""
 ) -> None:
     """Trägt in jeden Wein ein, wie weit seine Note über dem Preisniveau liegt.
 
@@ -364,4 +364,16 @@ def _value_scores_einer_gruppe(
         count = w.get("ratingCount") or 0
         damping = count / (count + VALUE_RATING_ANCHOR)
         w[feld] = (wirksam(w["rating"]) - expected) * damping
+        # Wogegen gerechnet wurde. Ohne diese Angabe ist die Zahl nicht nachprüfbar,
+        # und sie sieht dann willkürlich aus: gemeldet an zwei Weinen mit derselben
+        # Note 4.4 — der teurere hatte die bessere Preis-Leistung. Richtig gerechnet,
+        # aber gegen verschiedene Gruppen: CHF 27 gegen fruchtsüsse Rote mit einem
+        # Schnitt von CHF 18.42, CHF 28.50 gegen straffe Rioja mit CHF 24.68. Der
+        # zweite ist relativ zu seinesgleichen der günstigere.
+        w[feld + "Bezug"] = {
+            "ebene": ebene,
+            "n": len(sample),
+            "preis": round(10 ** mean_x, 2),
+            "note": round(mean_y, 2),
+        }
 
