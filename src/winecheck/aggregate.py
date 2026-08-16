@@ -161,10 +161,24 @@ def attach_maturity(rows: list[WineRow], table=None) -> list[WineRow]:
         bis = row.vivino.drink_until if row.vivino else None
 
         if match is not None:
-            # Vinum bleibt führend. Vivinos Fenster wird mitgeführt, damit ein
-            # Widerspruch sichtbar wird, statt dass eine der beiden Quellen
-            # stillschweigend gewinnt.
             match.vivino_von, match.vivino_bis = von, bis
+            # Vivino führt, wo es ein Fenster nennt.
+            #
+            # Hier stand lange „Vinum bleibt führend", begründet mit der Sorgfalt der
+            # Tabelle. Die beiden beantworten aber verschiedene Fragen: die Tabelle
+            # sagt, wie sich Rioja-Crianza eines Jahrgangs im Allgemeinen entwickelt,
+            # Vivino sagt es über genau diese Flasche. Eine Regel für eine ganze
+            # Region und Weinart ist die gröbere Auskunft, auch wenn sie sorgfältig
+            # gemacht ist.
+            #
+            # Die Tabelle wird nicht verworfen: ihr Urteil wandert in ``vinum_code``
+            # und steht bei Widerspruch als „uneinig" daneben — dieselbe Anzeige wie
+            # bisher, nur mit vertauschten Rollen.
+            vivino_code = fenster_code(von, bis, heute)
+            if vivino_code and vivino_code != match.code:
+                match.vinum_code = match.code
+                match.code = vivino_code
+                match.quelle = "vivino"
         elif fenster_code(von, bis, heute):
             # Die Tabelle schweigt — meist, weil die Region nicht zu erkennen war
             # oder sie das Gebiet nicht führt. Dann trägt Vivino die Auskunft

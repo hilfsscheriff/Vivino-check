@@ -632,13 +632,27 @@ class Match:
     #: sichtbar bleibt, worauf die Auskunft beruht.
     stil: str = ""
 
-    # -- Zweite Meinung ----------------------------------------------------
-    #: Vivinos Trinkfenster für genau diesen Wein und Jahrgang. Ersetzt die
-    #: Vinum-Auskunft nicht, sondern steht daneben — ausser die Tabelle schweigt,
-    #: dann trägt Vivino die Auskunft allein (``quelle == "vivino"``).
+    # -- Die zwei Quellen --------------------------------------------------
+    #: Vivinos Trinkfenster für genau **diesen** Wein und **diesen** Jahrgang.
+    #:
+    #: Es führt, wo es vorliegt. Das war lange umgekehrt — „Vinum bleibt führend" —,
+    #: und die Begründung war die Sorgfalt der Tabelle. Nur beantworten die beiden
+    #: verschiedene Fragen: die Vinum-Tabelle sagt, wie sich Rioja-Crianza eines
+    #: Jahrgangs im Allgemeinen entwickelt, Vivino sagt es über diese Flasche. Eine
+    #: Regel für eine ganze Region und Weinart ist die gröbere Auskunft, auch wenn
+    #: sie sorgfältig gemacht ist.
+    #:
+    #: Verworfen wird die Tabelle nicht: widersprechen sich die beiden, steht das als
+    #: „uneinig" daneben, nur mit vertauschten Rollen. Und wo Vivino schweigt — bei
+    #: Weinen ohne Jahrgang oder ohne Eintrag —, trägt die Tabelle die Auskunft
+    #: weiterhin allein.
     vivino_von: int | None = None
     vivino_bis: int | None = None
+    #: Wer die Auskunft in :attr:`code` trägt: ``"vivino"`` oder ``"vinum"``.
     quelle: str = "vinum"
+    #: Das Urteil der Tabelle, wenn Vivino sie überstimmt hat. Leer, wenn die Tabelle
+    #: selbst führt oder gar nichts zu sagen hatte.
+    vinum_code: str = ""
 
     @property
     def fenster(self) -> str:
@@ -651,16 +665,20 @@ class Match:
     def widerspruch(self) -> str:
         """Sagen die beiden Quellen Verschiedenes?
 
-        Beide behalten ihre Stimme; hier steht nur, dass sie sich uneinig sind.
-        Wer das liest, kann selbst entscheiden — und das ist mehr wert, als wenn
-        eine der beiden stillschweigend gewinnt.
+        Beide behalten ihre Stimme; hier steht nur, dass sie sich uneinig sind. Wer
+        das liest, kann selbst entscheiden — und das ist mehr wert, als wenn eine der
+        beiden stillschweigend gewinnt.
+
+        Die Rollen sind vertauscht, seit Vivino führt: hier steht jetzt die Tabelle
+        als zweite Stimme, samt der Zeile, auf der ihr Urteil beruht. Ohne diese
+        Herkunft wäre „Vinum: kann liegen" eine Behauptung ohne Absender — die
+        Auskunft gilt für eine ganze Region und Weinart, nicht für diese Flasche.
         """
-        if self.quelle != "vinum" or not self.fenster:
+        if not self.vinum_code or self.vinum_code == self.code:
             return ""
-        anderer = fenster_code(self.vivino_von, self.vivino_bis, _heute())
-        if not anderer or anderer == self.code:
-            return ""
-        return f"Vivino: {MATURITY_SHORT.get(anderer, anderer)} ({self.fenster})"
+        woher = f"{display_region(self.region)} {self.wine_type}".strip()
+        label = MATURITY_SHORT.get(self.vinum_code, self.vinum_code)
+        return f"Vinum: {label}" + (f" ({woher})" if woher else "")
 
     @property
     def short(self) -> str:

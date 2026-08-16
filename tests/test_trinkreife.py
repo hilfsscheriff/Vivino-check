@@ -315,3 +315,87 @@ def test_die_regel_zieht_nur_herunter_nie_hinauf():
     m = t.lookup("Mottura Stilio Primitivo di Manduria", 2014)
     assert m.code == "m", "eine Abwärtskorrektur darf keine Aufwertung werden"
     assert m.stil == ""
+
+
+# ------------------------------------------------- Zwei Quellen, eine Auskunft
+#
+# Bis heute deckte kein Test dieses Zusammenspiel ab. Die Regel "Vinum bleibt
+# fuehrend" stand nur als Kommentar im Code, und als sie umgedreht wurde, blieb die
+# ganze Testsuite gruen — sie haette den Wechsel nicht bemerkt.
+
+def _zeile(vinum_code, von, bis, jahrgang=2020):
+    """Eine Weinzeile mit Vinum-Urteil und Vivino-Fenster, durch attach_maturity."""
+    from winecheck.aggregate import attach_maturity, merge_offers
+    from winecheck.models import Offer, VivinoResult, VivinoStatus
+    from winecheck.trinkreife import Match
+
+    o = Offer(retailer="x", name="Rioja Reserva Testwein", vintage=jahrgang,
+              price_per_bottle_incl_vat=20.0, price_raw=20.0, price_raw_basis="inkl. MwSt")
+    row = merge_offers([o])[0]
+    row.vivino = VivinoResult(
+        status=VivinoStatus.EXACT, query="q", url="u", note="n",
+        rating=4.2, rating_count=300, match_confidence="exact",
+        drink_from=von, drink_until=bis,
+    )
+
+    class _Tabelle:
+        entries = [object()]
+
+        def lookup(self, name, vintage, stil_name=""):
+            if vinum_code is None:
+                return None
+            return Match(code=vinum_code, region="rioja", wine_type="Crianza",
+                         vintage=jahrgang)
+
+    attach_maturity([row], _Tabelle())
+    return row.maturity
+
+
+def test_vivino_fuehrt_wo_es_ein_fenster_nennt():
+    """Die beiden beantworten verschiedene Fragen.
+
+    Die Vinum-Tabelle sagt, wie sich Rioja-Crianza eines Jahrgangs im Allgemeinen
+    entwickelt; Vivino sagt es ueber genau diese Flasche. Eine Regel fuer eine ganze
+    Region und Weinart ist die groebere Auskunft, auch wenn sie sorgfaeltig gemacht
+    ist.
+    """
+    # Die Tabelle sagt "g" (lagern), Vivino nennt 2023-2035 — 2026 liegt in der
+    # ersten Haelfte, also "k" (kann liegen, wird noch besser).
+    m = _zeile("g", 2023, 2035)
+    assert m.quelle == "vivino"
+    assert m.code == "k"
+    assert m.short == "kann liegen"
+
+
+def test_die_tabelle_behaelt_ihre_stimme():
+    """Verworfen wird sie nicht — sie steht als "uneinig" daneben, mit der Zeile,
+    auf der ihr Urteil beruht. Ohne diese Herkunft waere es eine Behauptung ohne
+    Absender."""
+    m = _zeile("g", 2023, 2035)
+    assert m.widerspruch.startswith("Vinum:")
+    assert "Rioja" in m.widerspruch or "rioja" in m.widerspruch.lower()
+    assert "Crianza" in m.widerspruch
+
+
+def test_bei_einigkeit_steht_kein_widerspruch():
+    m = _zeile("k", 2023, 2035)
+    assert m.widerspruch == ""
+    assert m.code == "k"
+
+
+def test_ohne_vivino_fenster_fuehrt_die_tabelle():
+    """Bei Weinen ohne Jahrgang oder ohne Vivino-Eintrag traegt sie die Auskunft
+    weiterhin allein — das ist die Mehrheit."""
+    m = _zeile("g", None, None)
+    assert m.quelle == "vinum"
+    assert m.code == "g"
+    assert m.widerspruch == ""
+
+
+def test_ohne_tabelleneintrag_traegt_vivino_allein():
+    """Unveraendert: schweigt die Tabelle, ist Vivinos Fenster die einzige Auskunft,
+    und die Grundlage sagt das auch."""
+    m = _zeile(None, 2023, 2035)
+    assert m is not None and m.quelle == "vivino"
+    assert "Vivino" in m.region_label
+    assert m.widerspruch == ""
