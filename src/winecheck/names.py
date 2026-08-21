@@ -130,7 +130,21 @@ DISCRIMINATING = {
     # dass eines dieser Wörter auf **beiden** Seiten steht: die Regel kostet nur die
     # falschen Zuordnungen und einen Grenzfall (Krone Borealis, der immer Jahrgangswein
     # ist und beim Händler ohne "Vintage" steht). Diesen Preis ist sie wert.
-    "vintage", "tawny", "colheita", "lbv", "crusted", "ruby", "garrafeira",
+    # "colheita" und "ruby" standen hier und sind gemessen wieder heraus:
+    #
+    # "Colheita" heisst Lese. Bei Port ist es ein Stil, auf Stillwein-Etiketten die
+    # Jahrgangsangabe — im Bestand kommt es fünfmal vor, fünfmal als Jahrgangswort
+    # eines Stillweins und keinmal an einem Port. Gesperrt hätte es nur die
+    # legitime Richtung ("Duorum Colheita Douro" gegen "Duorum Douro").
+    #
+    # "Ruby Cabernet" ist eine eigene Rebsorte (Carignan × Cabernet Sauvignon),
+    # verbreitet in Kalifornien und Südafrika und genau im hier beobachteten
+    # Preissegment. Als Sperrwort verlor "Ruby Cabernet, Kalifornien" seine ganze
+    # Identität: die Suchabfrage war danach leer. Nutzen im Bestand: null Vorkommen.
+    #
+    # Ruby gegen Tawny bleibt getrennt, denn "tawny" sperrt einseitig; und Ruby
+    # gegen Vintage über "vintage".
+    "vintage", "tawny", "lbv", "crusted", "garrafeira",
     # Ausbau
     "barrique", "barricato", "oak", "unfiltered", "unfiltriert", "naturale",
     "passito", "appassimento", "ripasso", "amarone", "recioto", "solera",
@@ -480,6 +494,23 @@ def distinctive_tokens(text: str) -> list[str]:
 
 
 
+#: Stilwörter, die als **Anker** nichts taugen, in die **Suchabfrage** aber gehören.
+#:
+#: :func:`is_distinctive` beantwortet zwei Fragen mit einer Antwort: "taugt das Wort
+#: als Identitätsanker?" und "wird danach gesucht?". Bei Qualitätsstufen stimmt beides
+#: — "Riserva" trägt keine Identität und muss nicht in die Abfrage. Bei den
+#: Portwein-Stilen widerspricht es sich: dort ist der Stil das *einzige* Wort, das die
+#: vier Produkte eines Hauses trennt.
+#:
+#: Gemessen: ohne diese Menge fielen "Quevedo Tawny Port", "Dow's Crusted Port" und
+#: "Croft LBV Port" alle auf die Abfrage "<Produzent> port" zusammen. Vivino sortiert
+#: nach Note, gibt den bestbewerteten Stil zurück, und die Sperre lehnt ihn danach
+#: korrekt ab — Ergebnis: eine Lücke, obwohl der richtige Wein existiert und nur nicht
+#: gesucht wurde. Mit der Menge sperrt der Stil weiterhin den falschen Wein und
+#: findet zugleich den richtigen.
+STIL_IN_ABFRAGE = frozenset({"vintage", "tawny", "lbv", "crusted", "garrafeira"})
+
+
 def query_tokens(text: str) -> list[str]:
     """Unterscheidende Tokens **für die Suche** — Klammerinhalte zählen mit.
 
@@ -489,7 +520,8 @@ def query_tokens(text: str) -> list[str]:
     sonst rechnet der Matcher **uns** an, was wir selbst ergänzt haben, und stuft einen
     Volltreffer auf „unbestätigt" herunter.
     """
-    return [t for t in tokenize(text, keep_alias=True) if is_distinctive(t)]
+    return [t for t in tokenize(text, keep_alias=True)
+            if is_distinctive(t) or t in STIL_IN_ABFRAGE]
 
 
 def discriminating_tokens(tokens: list[str]) -> set[str]:

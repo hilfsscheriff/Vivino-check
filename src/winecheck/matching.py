@@ -161,18 +161,26 @@ def _similarity(a: _Prepared, b: _Prepared) -> float:
 _DEFAULT_DOSAGE = frozenset({"brut"})
 
 
-#: „Vintage" ist zweierlei, und die Richtung entscheidet.
+#: „Vintage" wird **nicht** nachsichtig behandelt, in keiner Richtung.
 #:
-#: Steht es nur in der **Quelle**, ist es der Produktname einer eigenen Abfüllung:
-#: „Piper-Heidsieck Vintage Brut" neben dem Cuvée Brut, „Quevedo Vintage Port" neben
-#: dem White Port. Dann ist es ein anderer Wein, und die Sperre greift.
+#: Hier stand eine Ausnahme: steht „Vintage" nur beim Händler und führt die Quelle
+#: einen Jahrgang, sollte nicht gesperrt werden. Gedacht war sie für „Vintage Brut
+#: 2015 Champagne Blanc de Blancs (Pol Roger)" gegen „Pol Roger Blanc de Blancs
+#: Champagne 2015" — dort beschreibt das Wort wirklich nur den Jahrgang, und zwei
+#: solche Champagner verloren ihre 4.3.
 #:
-#: Steht es nur beim **Händler** und die Quelle nennt einen Jahrgang, beschreibt es
-#: genau diesen Jahrgang und unterscheidet nichts: Mövenpick schreibt „Vintage Brut
-#: 2015 Champagne Blanc de Blancs (Pol Roger)", Vivino führt denselben Wein als „Pol
-#: Roger Blanc de Blancs Champagne 2015". Zwei solche Champagner verloren dabei ihre
-#: 4.3 — deshalb diese Ausnahme, gebaut wie die für die Standard-Dosage darunter.
-_JAHRGANGSWORT = frozenset({"vintage"})
+#: Sie riss aber genau den Fehler wieder auf, gegen den die Sperre gebaut wurde, nur
+#: spiegelbildlich: „Kopke Vintage Porto 2016" gegen „Kopke Porto 2016" wurde zum
+#: exakten Treffer, ebenso Warre's, Quinta do Noval, Taylor's und „Piper-Heidsieck
+#: Vintage Brut 2012" gegen den Standard-Brut. Ein deklarierter Vintage-Port kostet
+#: ein Mehrfaches seines jahrgangslosen Geschwisters — er darf dessen Note nicht
+#: erben.
+#:
+#: Paarweise ist der Unterschied nicht zu erkennen: „Pol Roger Blanc de Blancs
+#: Champagne 2015" und „Kopke Porto 2016" haben dieselbe Bauform (Wein plus Jahr).
+#: Was sie trennt, ist Weltwissen — dass Pol Rogers Blanc de Blancs nur als
+#: Jahrgangswein existiert. Solange das nicht im Namen steht, gilt die Regel des
+#: Projekts: zwei Lücken sind billiger als eine falsche Note.
 
 
 def _qualifier_veto(retailer: _Prepared, source: _Prepared) -> str | None:
@@ -187,12 +195,6 @@ def _qualifier_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     if not andere_dosage:
         only_source -= _DEFAULT_DOSAGE
         only_retailer -= _DEFAULT_DOSAGE
-    # Nach der Dosage, nicht davor: bei "Vintage Brut 2015 Champagne Blanc de Blancs"
-    # stünde sonst noch "Brut" in der Differenz, und die Ausnahme griffe nie. Und nur
-    # wenn "Vintage" der *einzige* Unterschied ist — ein zweites einseitiges Wort
-    # ("Reserve", "Grand") bleibt ein zweiter Wein.
-    if only_retailer == _JAHRGANGSWORT and source.vintage is not None:
-        only_retailer = set()
     if only_source:
         return f"{_pretty(only_source)} nur in der Quell-Bezeichnung — anderer Wein"
     if only_retailer:

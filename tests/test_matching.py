@@ -835,41 +835,46 @@ def test_tawny_ist_nicht_ruby():
                           "Quinta do Noval Ruby Port").matched
 
 
-def test_vintage_beim_haendler_sperrt_nicht_wenn_die_quelle_einen_jahrgang_fuehrt():
-    """Mövenpick schreibt „Vintage Brut 2015 Champagne Blanc de Blancs (Pol Roger)".
+def test_der_vintage_port_erbt_nicht_die_note_des_jahrgangslosen_geschwisters():
+    """Die Gegenrichtung, an der eine Ausnahme scheiterte, die hier einmal stand.
 
-    Vivino führt denselben Wein als „Pol Roger Blanc de Blancs Champagne 2015". Hier
-    beschreibt „Vintage" genau diesen Jahrgang und unterscheidet nichts — zwei solche
-    Champagner verloren dabei ihre 4.3.
+    Erlaubt man ein einseitiges „Vintage" beim Händler, sobald die Quelle einen
+    Jahrgang führt, wird „Kopke Vintage Porto 2016" gegen „Kopke Porto 2016" zum
+    exakten Treffer — und ein deklarierter Vintage-Port kostet ein Mehrfaches seines
+    jahrgangslosen Geschwisters.
     """
     from winecheck.matching import match_wine
-    d = match_wine(
-        "Vintage Brut 2015 Champagne Blanc de Blancs (Pol Roger)",
-        "Pol Roger Blanc de Blancs Champagne 2015",
-        retailer_vintage=2015, source_vintage=2015, source_has_vintage_rating=True,
-    )
-    assert d.matched, d.reason
+    for haendler, quelle, jahr in (
+        ("Kopke Vintage Porto 2016", "Kopke Porto 2016", 2016),
+        ("Warre's Vintage Port 2017", "Warre's Port 2017", 2017),
+        ("Champagne Piper-Heidsieck Vintage Brut 2012",
+         "Piper-Heidsieck Brut Champagne 2012", 2012),
+    ):
+        d = match_wine(haendler, quelle, retailer_vintage=jahr, source_vintage=jahr,
+                       source_has_vintage_rating=True)
+        assert not d.matched, f"{haendler} -> {quelle}: {d.reason}"
 
 
-def test_die_richtung_entscheidet_beim_vintage():
-    """Nur in der *Quelle* bleibt „Vintage" ein eigener Wein — sonst wäre die
-    Portwein-Korrektur wieder aufgerissen.
+def test_der_preis_dieser_regel_zwei_pol_roger_ohne_note():
+    """Was die Strenge kostet, steht hier — damit es niemand für einen Fehler hält.
 
-    „Quevedo Vintage Port" trägt bei Vivino einen Jahrgang; ohne die Richtungsprüfung
-    würde die Ausnahme greifen und der White Port bekäme wieder dessen Note.
+    Mövenpick führt „Vintage Brut 2015 Champagne Blanc de Blancs (Pol Roger)", Vivino
+    denselben Wein als „Pol Roger Blanc de Blancs Champagne 2015". Das ist wirklich
+    derselbe Wein, und er verliert seine 4.3.
+
+    Paarweise ist dieser Fall von „Kopke Vintage Porto" oben nicht zu unterscheiden:
+    beide Male steht links ein Name mit „Vintage", rechts derselbe Name mit Jahr. Was
+    sie trennt, ist Weltwissen — Pol Rogers Blanc de Blancs gibt es nur als
+    Jahrgangswein. Solange das nicht im Namen steht, gilt die Regel des Projekts:
+    lieber zwei Lücken als eine falsche Note.
     """
     from winecheck.matching import match_wine
-    assert not match_wine(
-        "White Port Quevedo Porto DOC", "Quevedo Vintage Port 2016",
-        source_vintage=2016, source_has_vintage_rating=True,
-    ).matched
-
-
-def test_ohne_jahrgang_in_der_quelle_bleibt_die_sperre():
-    """Trägt die Quelle keinen Jahrgang, ist „Vintage" beim Händler kein Beiwort,
-    sondern der Hinweis auf eine andere Abfüllung."""
-    from winecheck.matching import match_wine
-    assert not match_wine("Champagne Y Vintage Brut", "Champagne Y Brut").matched
+    d = match_wine("Vintage Brut 2015 Champagne Blanc de Blancs (Pol Roger)",
+                   "Pol Roger Blanc de Blancs Champagne 2015",
+                   retailer_vintage=2015, source_vintage=2015,
+                   source_has_vintage_rating=True)
+    assert not d.matched
+    assert "Vintage" in d.reason
 
 
 def test_ein_zweiter_unterschied_sperrt_weiterhin():
