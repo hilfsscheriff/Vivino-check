@@ -183,10 +183,25 @@ function chart(list) {
     g += `<line class="grid" x1="${sx(v)}" y1="${T}" x2="${sx(v)}" y2="${T+ph}"/>`
        + `<text class="tick" x="${sx(v)}" y="${T+ph+17}" text-anchor="middle">${v}</text>`;
   }
-  for (let i = 0; i <= 4; i++) {
-    const v = y0 + i * (y1 - y0) / 4;
+  /* Notenlinien auf runden Werten, nicht auf vier gleichen Teilen der Datenspanne.
+     Vorher: `y0 + i * (y1 - y0) / 4`, beschriftet mit `toFixed(1)`. Bei einer engen
+     Spanne — gefiltert bleiben oft nur Noten zwischen 4.1 und 4.4 — liegen die Linien
+     damit auf 4.10, 4.175, 4.25, 4.325, 4.40. Angeschrieben stand «4.1, 4.2, 4.3,
+     4.3, 4.4»: zweimal 4.3, und keine einzige Linie auf einer Note, die es gibt.
+     Gemeldet mit «Notenpunkte sitzen nicht auf den Notenlinien» — und die Punkte
+     sassen richtig, die Beschriftung log.
+     Vivino weist Noten in Zehnteln aus; die Leiter beginnt darum bei 0.05. */
+  /* Nur Schritte, die sich in ihrer eigenen Auflösung exakt anschreiben lassen.
+     0.25 fehlt bewusst: eine Linie auf 4.25 wäre als «4.3» beschriftet — dieselbe
+     gerundete Lüge, nur kleiner. */
+  const NOTENSTUFEN = [0.05, 0.1, 0.2, 0.5, 1];
+  const schritt = NOTENSTUFEN.find(s => (y1 - y0) / s <= 6) ?? 1;
+  const dez = schritt < 0.1 ? 2 : 1;
+  const erste = Math.ceil((y0 - 1e-9) / schritt) * schritt;
+  for (let k = 0; erste + k * schritt <= y1 + 1e-9; k++) {
+    const v = erste + k * schritt;
     g += `<line class="grid" x1="${L}" y1="${sy(v)}" x2="${L+pw}" y2="${sy(v)}"/>`
-       + `<text class="tick" x="${L-7}" y="${sy(v)+4}" text-anchor="end">${v.toFixed(1)}</text>`;
+       + `<text class="tick" x="${L-7}" y="${sy(v)+4}" text-anchor="end">${v.toFixed(dez)}</text>`;
   }
   /* Trendlinie: die Note, die man für diesen Preis üblicherweise bekommt. Aus dem
      Lauf geschätzt, nicht geraten — dieselbe Regression, aus der der

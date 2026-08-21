@@ -1002,3 +1002,25 @@ def test_die_detailzeile_laesst_sich_auf_dem_handy_schliessen(doc):
     """
     text = doc()
     assert ".det[hidden] { display:none; }" in text
+
+
+def test_notenlinien_liegen_auf_runden_werten(doc):
+    """Vorher vier gleiche Teile der Datenspanne, beschriftet mit toFixed(1).
+
+    Bei enger Spanne — gefiltert bleiben oft nur Noten zwischen 4.1 und 4.4 — lagen
+    die Linien auf 4.10, 4.175, 4.25, 4.325, 4.40. Angeschrieben stand «4.1, 4.2,
+    4.3, 4.3, 4.4»: zweimal 4.3, und keine einzige Linie auf einer Note, die es
+    gibt. Gemeldet mit "Notenpunkte sitzen nicht auf den Notenlinien" — die Punkte
+    sassen richtig, die Beschriftung log.
+    """
+    text = doc()
+    assert "NOTENSTUFEN" in text
+    # Auf die Schleife pruefen, nicht auf den Ausdruck: der steht als Zitat im
+    # Kommentar daneben, damit nachvollziehbar bleibt, was ersetzt wurde.
+    assert "for (let i = 0; i <= 4; i++)" not in text, (
+        "die alte Aufteilung in vier gleiche Teile darf nicht zurueck"
+    )
+    # 0.25 waere als «4.3» fuer eine Linie auf 4.25 angeschrieben — dieselbe
+    # gerundete Luege, nur kleiner.
+    stufen = text.split("const NOTENSTUFEN = ", 1)[1].split("]", 1)[0]
+    assert "0.25" not in stufen
