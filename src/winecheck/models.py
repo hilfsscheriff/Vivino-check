@@ -389,38 +389,56 @@ class RetailerPrice:
     def gesamtpreis(self) -> float | None:
         """Was tatsächlich zu zahlen ist. Bei der Einzelflasche derselbe Betrag.
 
-        Der Rohpreis ist der Kassenbetrag — aber nur, wenn bekannt ist, **was** er
-        meint. Ist ``roh_ist_gebinde`` unbekannt (Eintrag aus einem Lauf vor dieser
-        Unterscheidung), wird der Betrag aus dem *normierten* Preis zurückgerechnet:
+        **Die Zahlen entscheiden, nicht das Merkmal.** ``roh_ist_gebinde`` sagt, ob
+        ``price_raw`` das Gebinde oder die Flasche meint — und hat an einem Tag zweimal
+        das Falsche gesagt: erst fehlte es im Cache und wurde als ``False`` gelesen,
+        dann stand das falsche ``False`` in ``rated.json`` und überlebte die
+        Korrektur. Beide Male stand der sechsfache Betrag auf der Seite (CHF 358.20
+        für einen Karton zu 59.70, CHF 1740 für einen zu 289.98).
 
-            Preis je 75 cl × Stückzahl × Flaschengrösse / 75 cl
+        Nachrechnen geht ohne jedes Merkmal, weil zwei Grössen bekannt sind:
 
-        Das ist exakt und braucht keine Annahme über den Rohpreis. Hier stand vorher
-        ``price_per_bottle_incl_vat * units`` ohne den Grössenfaktor, und der fehlte
-        sichtbar: ein 6er-Karton à 37.5 cl stand mit CHF 228 statt 114 da.
+            Flasche = Preis je 75 cl × Flaschengrösse / 75 cl
+            Gebinde = Flasche × Stückzahl
 
-        Und hier stand danach ``price_raw * units``, sobald ``roh_ist_gebinde`` falsch
-        war — was ein fehlendes Feld ebenfalls ergibt. Für 76 Kartonangebote mit
-        Kartonpreis im Rohfeld wurde daraus der sechs- bis vierundzwanzigfache Betrag.
-        Beide Fehler gingen in dieselbe Richtung wie beim ersten Mal: ein zu hoher
-        Betrag ist harmloser als ein zu tiefer, aber falsch ist er trotzdem.
+        Passt ``price_raw`` zu einer der beiden, ist damit *erwiesen*, was er meint —
+        und der Rohpreis wird genommen, weil er der Kassenbetrag auf den Rappen ist.
+        Passt er zu keiner (Netto-Preise bei Prodega etwa), gilt das gerechnete
+        Gebinde. Das Merkmal entscheidet nur noch, wenn gar nichts zu rechnen ist.
         """
         einheiten = self.units or 1
-        if self.price_raw is not None and self.roh_ist_gebinde is not None:
-            betrag = self.price_raw if self.roh_ist_gebinde \
-                else self.price_raw * einheiten
-            if self.vat_added:
-                from .prices import VAT_ALCOHOL
+        pro_flasche = self.price_per_bottle_incl_vat
+        # Der Rohpreis wird zuerst auf **brutto** gebracht: bei Prodega ist er netto
+        # angeschrieben, die Kandidaten unten sind es nie. Ohne diesen Schritt passte
+        # er zu keinem, und die gerundete Rechnung gewann mit zwei Rappen Abweichung.
+        roh = self.price_raw
+        if roh is not None and self.vat_added:
+            from .prices import VAT_ALCOHOL
 
-                betrag *= 1 + VAT_ALCOHOL
-            return round(betrag + 1e-9, 2)
+            roh *= 1 + VAT_ALCOHOL
+        if pro_flasche is not None:
+            from .prices import REFERENCE_ML
 
-        if self.price_per_bottle_incl_vat is None:
+            flasche = pro_flasche * ((self.bottle_ml or REFERENCE_ML) / REFERENCE_ML)
+            gebinde = flasche * einheiten
+            if roh is not None:
+                # Zwei Rappen Spielraum plus ein Prozent: der normierte Preis ist auf
+                # zwei Stellen gerundet, und das summiert sich über die Stückzahl.
+                if abs(roh - gebinde) <= max(0.05, gebinde * 0.01):
+                    return round(roh + 1e-9, 2)
+                if einheiten > 1 and abs(roh - flasche) <= max(0.05, flasche * 0.01):
+                    return round(roh * einheiten + 1e-9, 2)
+            # Der Rohpreis passt zu keiner der beiden Grössen. Ist die Flaschengrösse
+            # bekannt, ist die Rechnung verlässlich und gilt — der Rohpreis ist dann
+            # etwas anderes (ein Netto-Preis etwa). Ist sie *unbekannt*, kann die
+            # Rechnung selbst schief sein, weil sie 75 cl annimmt; dann entscheidet
+            # das Merkmal über den Rohpreis.
+            if self.bottle_ml is not None or roh is None:
+                return round(gebinde + 1e-9, 2)
+
+        if roh is None:
             return None
-        from .prices import REFERENCE_ML
-
-        faktor = (self.bottle_ml or REFERENCE_ML) / REFERENCE_ML
-        return round(self.price_per_bottle_incl_vat * einheiten * faktor + 1e-9, 2)
+        return round((roh if self.roh_ist_gebinde else roh * einheiten) + 1e-9, 2)
 
 
 @dataclass

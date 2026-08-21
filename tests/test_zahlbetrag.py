@@ -32,6 +32,9 @@ def _preis(roh, text, *, units_danach=None):
         price_confidence=n.confidence,
         units=units_danach if units_danach is not None else n.units,
         roh_ist_gebinde=n.roh_ist_gebinde, vat_added=n.vat_added,
+        # Wie in aggregate.py: ohne die Flaschengrösse kann der Zahlbetrag nicht
+        # nachgerechnet werden, und der Test prüfte eine Umgebung, die es nicht gibt.
+        bottle_ml=n.bottle_ml,
     )
 
 
