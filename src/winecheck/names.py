@@ -64,7 +64,12 @@ PACKAGING_NOISE = {
     "karton", "kartons", "harass", "kiste", "caisse", "tray", "pack", "gebinde",
     "cl", "ml", "dl", "lt", "liter", "litre", "magnumflasche", "stk", "stuck",
     "neu", "aktion", "angebot", "sale", "rabatt", "statt", "nur", "jetzt",
-    "trinkreif", "jahrgang", "vintage", "millesime",
+    "trinkreif", "jahrgang", "millesime",
+    # "vintage" stand hier und ist bewusst weg: bei Port, Madeira und Champagne ist
+    # es nicht das Etikett für die Jahreszahl, sondern der **Stil** — und damit das
+    # Produkt. Gemessen an allen 1987 damals gespeicherten Zuordnungen kostet der
+    # Wechsel genau fünf Treffer, davon vier falsche Weine (siehe DISCRIMINATING).
+    # "jahrgang" und "millesime" bleiben: die bezeichnen nie ein Produkt.
     # Verpackungsmaterial. "Montagne Vin Rouge PET" wäre sonst über das Token "pet"
     # spezifisch genug geworden und hätte die Note eines Burgunders geerbt.
     "pet", "tetra", "dose", "bib", "beutel", "pouch", "glas", "schraubverschluss",
@@ -112,6 +117,20 @@ DISCRIMINATING = {
     # Rosé ist ein eigenes Produkt und steht praktisch nie in einem Appellationsnamen —
     # anders als "Rosso"/"Bianco", die unten als reine Farbtokens behandelt werden.
     "rose", "rosato", "rosado", "blush", "novello", "nouveau",
+    # Stile des aufgespriteten Weins. Bei Port und Madeira ist der Stil das Produkt:
+    # derselbe Produzent führt einen weissen Apéritif-Port, einen Ruby, einen Tawny und
+    # einen deklarierten Vintage — verschiedene Weine zu Preisen, die um ein Vielfaches
+    # auseinanderliegen. Der Name unterscheidet sie durch genau ein Wort.
+    #
+    # Aufgefallen an "White Port" von Quevedo: er bekam die 4.1 aus 308 Bewertungen von
+    # "Quevedo **Vintage** Port". Die Nachmessung über alle 1987 damals zugeordneten
+    # Weine zeigte fünf weitere derselben Bauart — "Piper-Heidsieck" (der Standard-Brut)
+    # trug die Note der Jahrgangs-Cuvée, "VZ Van Zellers" die des Van Zellers Vintage,
+    # "Pêgo Port" die des Quinta do Pégo Vintage. Kein einziger Treffer beruhte darauf,
+    # dass eines dieser Wörter auf **beiden** Seiten steht: die Regel kostet nur die
+    # falschen Zuordnungen und einen Grenzfall (Krone Borealis, der immer Jahrgangswein
+    # ist und beim Händler ohne "Vintage" steht). Diesen Preis ist sie wert.
+    "vintage", "tawny", "colheita", "lbv", "crusted", "ruby", "garrafeira",
     # Ausbau
     "barrique", "barricato", "oak", "unfiltered", "unfiltriert", "naturale",
     "passito", "appassimento", "ripasso", "amarone", "recioto", "solera",

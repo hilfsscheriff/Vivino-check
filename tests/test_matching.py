@@ -793,3 +793,43 @@ def test_die_abdeckung_steht_im_entscheid():
     d = match_wine("Rioja DOC Calados del Puntido Viñedos de Paganos",
                    "Viñedos de Páganos El Puntido")
     assert 0.0 < d.coverage < 1.0, "'Calados' fehlt — die Abdeckung muss das zeigen"
+
+
+# -- Portwein: der Stil ist das Produkt ------------------------------------
+def test_white_port_ist_nicht_vintage_port():
+    """Gemeldet über DIVO: „White Port" von Quevedo trug die 4.1 aus 308 Bewertungen
+    von „Quevedo **Vintage** Port".
+
+    Derselbe Produzent führt einen weissen Apéritif-Port und einen deklarierten
+    Vintage — verschiedene Weine, deren Preise um ein Vielfaches auseinanderliegen.
+    Geteilt waren nur „Quevedo" und „Port"; „White" gegen „Vintage" fiel weg, weil
+    „vintage" als Etikett für die Jahreszahl aus dem Namen gestrichen wurde.
+    """
+    from winecheck.matching import match_wine
+    d = match_wine("White Port Quevedo Porto DOC", "Quevedo Vintage Port")
+    assert not d.matched
+    assert "Vintage" in d.reason
+
+
+def test_der_standard_brut_ist_nicht_die_jahrgangs_cuvee():
+    """Dieselbe Bauart bei Champagne: „Piper-Heidsieck" trug die 4.2 der Vintage-Cuvée.
+
+    Bei Schaumwein wie bei Port bezeichnet „Vintage" keine Jahreszahl, sondern eine
+    eigene Abfüllung.
+    """
+    from winecheck.matching import match_wine
+    assert not match_wine("Champagne Piper Heidsieck",
+                          "Piper-Heidsieck Vintage Brut Champagne").matched
+
+
+def test_beidseitiger_vintage_bleibt_ein_treffer():
+    """Die Regel darf nur einseitige Nennungen sperren, sonst kostet sie die richtigen."""
+    from winecheck.matching import match_wine
+    assert match_wine("Quevedo Vintage Port 2016", "Quevedo Vintage Port").matched
+
+
+def test_tawny_ist_nicht_ruby():
+    """Die Stile trennen sich untereinander genauso — auch ohne Jahrgangsfrage."""
+    from winecheck.matching import match_wine
+    assert not match_wine("Quinta do Noval Tawny Port",
+                          "Quinta do Noval Ruby Port").matched
