@@ -848,7 +848,14 @@ def _offer_from_payload(d: dict) -> Offer:
         vintage=d.get("vintage"),
         price_per_bottle_incl_vat=d.get("price_per_bottle_incl_vat"),
         price_raw=d.get("price_raw"), price_raw_basis=d.get("price_raw_basis") or "",
-        price_confidence=PriceConfidence(d.get("price_confidence") or "high"),
+        # Fehlt die Angabe, gilt der Preis als **unsicher** und nicht als sicher.
+        # Heute fehlt sie in keinem der 2951 gespeicherten Angebote, die Änderung ist
+        # also wirkungslos — sie ist die Lehre aus zwei Fehlern desselben Tages:
+        # "roh_ist_gebinde" und "vat_added" fehlten, wurden als der jeweils
+        # günstigste Fall gelesen, und die Seite trug den sechsfachen Zahlbetrag.
+        # Ein unsicherer Preis fällt aus der Rangliste — eine Lücke statt eines
+        # Scheinsiegers, wie es die Regel dieses Projekts verlangt.
+        price_confidence=PriceConfidence(d.get("price_confidence") or "low"),
         reference_price=d.get("reference_price"),
         discount_percent=d.get("discount_percent"),
         discount_plausibility=DiscountPlausibility(d.get("discount_plausibility") or "unknown"),
