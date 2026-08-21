@@ -161,6 +161,20 @@ def _similarity(a: _Prepared, b: _Prepared) -> float:
 _DEFAULT_DOSAGE = frozenset({"brut"})
 
 
+#: „Vintage" ist zweierlei, und die Richtung entscheidet.
+#:
+#: Steht es nur in der **Quelle**, ist es der Produktname einer eigenen Abfüllung:
+#: „Piper-Heidsieck Vintage Brut" neben dem Cuvée Brut, „Quevedo Vintage Port" neben
+#: dem White Port. Dann ist es ein anderer Wein, und die Sperre greift.
+#:
+#: Steht es nur beim **Händler** und die Quelle nennt einen Jahrgang, beschreibt es
+#: genau diesen Jahrgang und unterscheidet nichts: Mövenpick schreibt „Vintage Brut
+#: 2015 Champagne Blanc de Blancs (Pol Roger)", Vivino führt denselben Wein als „Pol
+#: Roger Blanc de Blancs Champagne 2015". Zwei solche Champagner verloren dabei ihre
+#: 4.3 — deshalb diese Ausnahme, gebaut wie die für die Standard-Dosage darunter.
+_JAHRGANGSWORT = frozenset({"vintage"})
+
+
 def _qualifier_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     """Qualitätsstufen müssen auf beiden Seiten gleich sein."""
     r_q = discriminating_tokens(retailer.tokens)
@@ -173,6 +187,12 @@ def _qualifier_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     if not andere_dosage:
         only_source -= _DEFAULT_DOSAGE
         only_retailer -= _DEFAULT_DOSAGE
+    # Nach der Dosage, nicht davor: bei "Vintage Brut 2015 Champagne Blanc de Blancs"
+    # stünde sonst noch "Brut" in der Differenz, und die Ausnahme griffe nie. Und nur
+    # wenn "Vintage" der *einzige* Unterschied ist — ein zweites einseitiges Wort
+    # ("Reserve", "Grand") bleibt ein zweiter Wein.
+    if only_retailer == _JAHRGANGSWORT and source.vintage is not None:
+        only_retailer = set()
     if only_source:
         return f"{_pretty(only_source)} nur in der Quell-Bezeichnung — anderer Wein"
     if only_retailer:

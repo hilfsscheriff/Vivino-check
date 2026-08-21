@@ -833,3 +833,49 @@ def test_tawny_ist_nicht_ruby():
     from winecheck.matching import match_wine
     assert not match_wine("Quinta do Noval Tawny Port",
                           "Quinta do Noval Ruby Port").matched
+
+
+def test_vintage_beim_haendler_sperrt_nicht_wenn_die_quelle_einen_jahrgang_fuehrt():
+    """Mövenpick schreibt „Vintage Brut 2015 Champagne Blanc de Blancs (Pol Roger)".
+
+    Vivino führt denselben Wein als „Pol Roger Blanc de Blancs Champagne 2015". Hier
+    beschreibt „Vintage" genau diesen Jahrgang und unterscheidet nichts — zwei solche
+    Champagner verloren dabei ihre 4.3.
+    """
+    from winecheck.matching import match_wine
+    d = match_wine(
+        "Vintage Brut 2015 Champagne Blanc de Blancs (Pol Roger)",
+        "Pol Roger Blanc de Blancs Champagne 2015",
+        retailer_vintage=2015, source_vintage=2015, source_has_vintage_rating=True,
+    )
+    assert d.matched, d.reason
+
+
+def test_die_richtung_entscheidet_beim_vintage():
+    """Nur in der *Quelle* bleibt „Vintage" ein eigener Wein — sonst wäre die
+    Portwein-Korrektur wieder aufgerissen.
+
+    „Quevedo Vintage Port" trägt bei Vivino einen Jahrgang; ohne die Richtungsprüfung
+    würde die Ausnahme greifen und der White Port bekäme wieder dessen Note.
+    """
+    from winecheck.matching import match_wine
+    assert not match_wine(
+        "White Port Quevedo Porto DOC", "Quevedo Vintage Port 2016",
+        source_vintage=2016, source_has_vintage_rating=True,
+    ).matched
+
+
+def test_ohne_jahrgang_in_der_quelle_bleibt_die_sperre():
+    """Trägt die Quelle keinen Jahrgang, ist „Vintage" beim Händler kein Beiwort,
+    sondern der Hinweis auf eine andere Abfüllung."""
+    from winecheck.matching import match_wine
+    assert not match_wine("Champagne Y Vintage Brut", "Champagne Y Brut").matched
+
+
+def test_ein_zweiter_unterschied_sperrt_weiterhin():
+    """Die Ausnahme gilt nur, wenn „Vintage" der einzige einseitige Zusatz ist."""
+    from winecheck.matching import match_wine
+    assert not match_wine(
+        "Champagne X Vintage Reserve 2012", "Champagne X 2012",
+        retailer_vintage=2012, source_vintage=2012, source_has_vintage_rating=True,
+    ).matched
