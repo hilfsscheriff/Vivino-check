@@ -1,0 +1,74 @@
+"""Eine beendete Aktion darf nicht in den Bericht.
+
+Aktionis schreibt die Gültigkeit in die Karte (``<span class="card-date">20.08.2026 -
+26.08.2026</span>``). Der Adapter las sie, machte daraus aber nur eine Notiz und
+filterte nichts. Listet der Aggregator eine beendete Aktion weiter — und er listet
+sie mitunter —, trug sie einen Preis in den Bericht, den es an der Kasse nicht mehr
+gibt.
+
+Geprüft wird nur das **Ende**: eine Aktion, die morgen beginnt, ist eine gültige
+Auskunft. Und ohne lesbares Datum wird nichts ausgeschlossen — ein fehlendes Feld
+darf keinen Wein kosten.
+"""
+
+from datetime import date
+
+import pytest
+from selectolax.parser import HTMLParser
+
+from winecheck.adapters.aktionis import AktionisAdapter, _ist_abgelaufen
+from winecheck.config import SourceConfig
+
+HEUTE = date(2026, 8, 21)
+
+
+def _karte(datum: str | None) -> "object":
+    inneres = f'<span class="card-date">{datum}</span>' if datum is not None else ""
+    html = (
+        '<div class="card dealtype-deal">'
+        '<a href="/deals/irgendein-wein"><div class="card-merchant"><img alt="Coop"></div>'
+        '<div class="card-price"><span class="price-new">9.95</span>'
+        '<span class="price-old">14.95</span></div>'
+        '<div class="card-image"><img alt="Barolo DOCG 2020 – Rotwein, Italien (0.75l)"></div>'
+        f"{inneres}</a></div>"
+    )
+    return HTMLParser(html).css_first("div.card.dealtype-deal")
+
+
+@pytest.mark.parametrize("datum,erwartet", [
+    ("20.08.2026 - 26.08.2026", False),   # läuft noch
+    ("13.08.2026 - 21.08.2026", False),   # endet heute — heute gilt sie
+    ("06.08.2026 - 20.08.2026", True),    # gestern beendet
+    ("01.07.2026 - 15.07.2026", True),    # lange vorbei
+    ("25.08.2026 - 31.08.2026", False),   # beginnt erst
+    ("bis 26.08.2026", False),
+    ("bis 19.08.2026", True),
+    ("", False),                          # kein Datum: nicht ausschliessen
+    (None, False),                        # kein Feld: nicht ausschliessen
+    ("Datum unklar", False),
+    ("32.13.2026 - 40.99.2026", False),   # unlesbar: nicht ausschliessen
+])
+def test_nur_beendete_aktionen_fallen_heraus(datum, erwartet):
+    assert _ist_abgelaufen(_karte(datum), heute=HEUTE) is erwartet
+
+
+def test_der_adapter_meldet_die_uebersprungenen():
+    """Stillschweigend weglassen wäre so schlecht wie mitnehmen.
+
+    Ein Lauf, der die Hälfte des Sortiments als abgelaufen verwirft, muss das
+    ausweisen — sonst sieht er aus wie ein vollständiger.
+    """
+    cfg = SourceConfig(key="aktionis", name="Aktionis", adapter="aktionis",
+                       domain="aktionis.ch", vat_included=True)
+    a = AktionisAdapter(cfg, fetcher=None)
+    karten = "".join(
+        '<div class="card dealtype-deal">'
+        f'<a href="/deals/wein-{i}"><div class="card-merchant"><img alt="Coop"></div>'
+        '<div class="card-price"><span class="price-new">9.95</span></div>'
+        f'<div class="card-image"><img alt="Barolo DOCG 20{20 + i} – Rotwein, Italien (0.75l)"></div>'
+        f'<span class="card-date">01.08.2026 - {datum}</span></a></div>'
+        for i, datum in enumerate(("26.08.2026", "20.08.2026", "19.08.2026"))
+    )
+    offers = a.parse(f"<html><body>{karten}</body></html>", "https://www.aktionis.ch/q/Wein")
+    assert len(offers) == 1, [o.name for o in offers]
+    assert any("abgelaufener Aktion" in h for h in a._hinweise), a._hinweise

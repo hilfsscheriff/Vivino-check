@@ -36,6 +36,7 @@ werden nicht angefasst.
 from __future__ import annotations
 
 import re
+from datetime import date
 
 from selectolax.parser import HTMLParser, Node
 
@@ -115,10 +116,16 @@ class AktionisAdapter(RetailerAdapter):
         offers: list[Offer] = []
         # Auf der Weinrubrik hat der Aggregator die Vorauswahl schon getroffen.
         vorgefiltert = _ist_weinrubrik(url)
+        abgelaufen = 0
         for card in tree.css("div.card.dealtype-deal"):
+            if _ist_abgelaufen(card):
+                abgelaufen += 1
+                continue
             offer = self._parse_card(card, vorgefiltert=vorgefiltert)
             if offer is not None:
                 offers.append(offer)
+        if abgelaufen:
+            self.melde_luecke(f"{abgelaufen} Karten mit abgelaufener Aktion übersprungen")
         return offers
 
     def _parse_card(self, card: Node, *, vorgefiltert: bool = False) -> Offer | None:
@@ -221,6 +228,35 @@ def _merchant(card: Node) -> str | None:
 def _price(card: Node, selector: str) -> float | None:
     node = card.css_first(selector)
     return parse_price(_clean(node.text())) if node else None
+
+
+#: Das Ende der Gültigkeit aus ``"20.08.2026 - 26.08.2026"`` oder ``"bis 26.08.2026"``.
+_RE_BIS = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{4})\s*$")
+
+
+def _ist_abgelaufen(card: Node, heute: date | None = None) -> bool:
+    """Läuft die Aktion dieser Karte schon nicht mehr?
+
+    Das Datum stand bisher nur in der Notiz (:func:`_validity`) und filterte nichts.
+    Ein Aggregator, der eine beendete Aktion noch listet, hätte sie damit in den
+    Bericht getragen — mit einem Preis, den es an der Kasse nicht mehr gibt. Das ist
+    die falsche Zahl, die dieses Projekt vermeidet.
+
+    Nur das **Ende** wird geprüft, nicht der Beginn: eine Aktion, die morgen anfängt,
+    ist eine gültige Auskunft, eine gestern beendete nicht. Ohne lesbares Datum wird
+    nicht ausgeschlossen — ein fehlendes Feld darf keinen Wein kosten.
+    """
+    node = card.css_first("span.card-date")
+    if node is None:
+        return False
+    m = _RE_BIS.search(_clean(node.text()))
+    if not m:
+        return False
+    try:
+        ende = date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+    except ValueError:
+        return False
+    return ende < (heute or date.today())
 
 
 def _validity(card: Node) -> str:
