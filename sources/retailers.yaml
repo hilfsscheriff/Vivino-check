@@ -33,6 +33,7 @@ retailers:
     # sind binnen Stunden tot (gemessen: 9 von 11), waehrend diese Adressen bleiben.
     aktionsseiten:
       standard: "https://www.coop.ch/de/weine/aktionen/c/SPECIAL_OFFERS_WINE"
+      rotwein: "https://www.coop.ch/de/weine/alle-weine/rotweine/c/m_0223?q=%3Arelevance%3AspecialOfferFacet%3Atrue"
       weisswein: "https://www.coop.ch/de/weine/aktionen/aktionen-weisswein/c/SPECIAL_OFFERS_M_0235?q=:relevance:specialOfferFacet:true&sort=relevance&pageSize=58"
       champagner: "https://www.coop.ch/de/weine/aktionen/aktionen-champagner/c/SPECIAL_OFFERS_M_3051?q=%3Arelevance%3AspecialOfferFacet%3Atrue&sort=relevance&pageSize=58"
     urls:
