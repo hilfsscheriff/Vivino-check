@@ -550,6 +550,56 @@ retailers:
       Eigener Weinshop mit rund neun Aktionen, ohne Blätterung. Zusätzlich laufen
       Volg-Angebote weiterhin über den Aktionis-Aggregator ein.
 
+  - key: divo
+    name: DIVO
+    channel: Onlineshop, Lieferung
+    tier: 3
+    domain: divo.ch
+    adapter: gabweb
+    enabled: true
+    status: ok
+    urls:
+      # Alle Aktionen auf einer Seite: ?page=2 liefert dieselben 22 Positionen
+      # zurueck, und die Facettenzaehler der Seite (Farbe, Land) summieren auf
+      # genau 22. Es gibt hier nichts zu blaettern.
+      - https://www.divo.ch/de/sortiment.html?promotions=true
+    # Die Seite weist unter der Liste "Die Preise sind in CHF und inkl. MwSt." aus.
+    vat_included: true
+    # Vorgabe; der Adapter setzt je Produkt "pack", wo nur der Karton kaufbar ist.
+    price_basis: bottle
+    # Reiner Weinhaendler. Der Adapter entscheidet ueber die Warengruppe des Shops
+    # und braucht die Wortliste nur fuer unbekannte Gruppen.
+    wine_only: true
+    verified_at: "2026-08-21"
+    notes: >
+      Winzerweine aus Frankreich, Italien, Spanien, Griechenland und Genf, die
+      sonst nirgends im Bestand auftauchen. robots.txt sperrt nur /neos/. Jede
+      Produktkachel traegt ihr vollstaendiges JSON im Alpine-Attribut, samt
+      Flaschengroesse, Kartonmenge, Referenzpreis und Produzent.
+
+  - key: alloboissons
+    name: Allo Boissons
+    channel: Onlineshop, Lieferung
+    tier: 2
+    domain: alloboissons.ch
+    adapter: gabweb
+    enabled: true
+    status: ok
+    urls:
+      - https://www.alloboissons.ch/de/sortiment.html?promotions=true
+    vat_included: true
+    price_basis: bottle
+    # Ausdruecklich NICHT wine_only: hier liegen Bier, Evian und Eistee zwischen den
+    # Weinen. Der Adapter trennt ueber die Warengruppe der Plattform; die Wortliste
+    # greift nur, wo eine Gruppe unbekannt ist, und dort ist sie die richtige Huerde.
+    wine_only: false
+    verified_at: "2026-08-21"
+    notes: >
+      Getraenkehandel auf derselben Plattform wie DIVO, darum derselbe Adapter.
+      Rund ein Dutzend Weinaktionen (Wallis, Waadt, Tessin) neben Bier und
+      Alkoholfreiem. Verkauft nur ganze Kartons: der Zahlbetrag ist der Kartonpreis,
+      der Vergleichspreis die Flasche daraus.
+
 # Bataillard ist nach Importvolumen die Nummer 3 der Schweiz, aber Grosshandel ohne
 # Endkunden-Aktionen — bewusst nicht aufgenommen.
 
