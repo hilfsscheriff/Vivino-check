@@ -37,11 +37,12 @@ from __future__ import annotations
 
 import re
 from datetime import date
+from urllib.parse import parse_qsl, quote, urlsplit, urlunsplit
 
 from selectolax.parser import HTMLParser, Node
 
 from ..models import Offer
-from ..names import strip_accents
+from ..names import query_tokens, strip_accents
 from .base import RetailerAdapter, kein_wein, looks_like_wine, parse_price
 
 BASE = "https://www.aktionis.ch"
@@ -194,11 +195,17 @@ class AktionisAdapter(RetailerAdapter):
         seiten = self.haendler_seiten.get(merchant) or {}
         if not seiten:
             return ""
+        # Mit Suchtext ist die Farbseite überflüssig — die Suche isoliert den Wein
+        # ohnehin —, und die allgemeine Aktionsseite ist die *geprüfte* Kombination:
+        # dort wurde nachgesehen, dass der Freitext greift. Ohne Suchtext bleibt die
+        # Farbseite die genauere Landung.
+        suchtext = _suchtext(name)
+        standard = seiten.get("standard", "")
+        if suchtext and standard:
+            return _mit_suchtext(standard, suchtext)
         klein = name.lower()
-        for farbe, url in seiten.items():
-            if farbe != "standard" and farbe in klein:
-                return url
-        return seiten.get("standard", "")
+        return next((url for farbe, url in seiten.items()
+                     if farbe != "standard" and farbe in klein), standard)
 
 
 
@@ -296,3 +303,49 @@ def _validity(card: Node) -> str:
 
 def _clean(text: str | None) -> str:
     return _RE_WS.sub(" ", (text or "")).strip()
+
+#: So viele unterscheidende Wörter gehen in die Freitextsuche des Händlers.
+#:
+#: Zwei bis drei treffen; der ganze Kartenname trifft nichts. Geprüft an Coops
+#: Aktionsliste: "costasera masi" ergibt die zwei Jahrgänge des Amarone Costasera,
+#: "brigaldara cavolo" genau einen Wein. Mehr Wörter engen eine UND-Suche zu weit ein.
+SUCHWORTE_MAX = 3
+
+
+def _suchtext(name: str) -> str:
+    """Die unterscheidenden Wörter des Weins für die Suche beim Händler.
+
+    Genommen wird nur der Teil **vor** dem Gedankenstrich: dahinter stehen bei
+    Aktionis Farbe, Land und Volumen ("… – Rotwein, Italien (0.75l)"), und das ist
+    Coops Produktname nicht. Davor steht er wörtlich, denn Aktionis übernimmt ihn.
+
+    Dieselben Wörter, mit denen das Werkzeug Vivino befragt — die Auswahl ist dort
+    seit langem darauf getrimmt, Produzent und Cuvée zu behalten und Region,
+    Rebsorte und Qualitätsstufe wegzulassen.
+    """
+    kopf = name.split("–")[0].split(" - ")[0]
+    return " ".join(query_tokens(kopf)[:SUCHWORTE_MAX])
+
+
+def _mit_suchtext(url: str, suchtext: str) -> str:
+    """Den Suchtext in den ``q``-Parameter der Händlerseite einsetzen.
+
+    Coop läuft auf SAP Hybris, und dort ist der erste Abschnitt von ``q`` die
+    Freitextsuche: ``q=<Text>:relevance:specialOfferFacet:true``. Ohne ihn zeigt der
+    Link auf die ganze Aktionsliste — gemeldet als "coop zeigt nur dahin und nicht
+    auf die effektive Aktion". Mit ihm bleibt die Liste, aber sie enthält nur noch
+    diesen Wein.
+
+    Die vorhandenen Parameter bleiben stehen (``sort``, ``pageSize``), und kodiert
+    wird wie in der geprüften Adresse: Leerzeichen als ``%20``, Doppelpunkte als
+    ``%3A``.
+    """
+    if not suchtext:
+        return url
+    teile = urlsplit(url)
+    vorhanden = parse_qsl(teile.query, keep_blank_values=True)
+    alt_q = next((v for k, v in vorhanden if k == "q"), ":relevance:specialOfferFacet:true")
+    rest = alt_q.split(":", 1)[1] if ":" in alt_q else "relevance"
+    paare = [("q", f"{suchtext}:{rest}")] + [(k, v) for k, v in vorhanden if k != "q"]
+    query = "&".join(f"{k}={quote(v, safe='')}" for k, v in paare)
+    return urlunsplit((teile.scheme, teile.netloc, teile.path, query, teile.fragment))
