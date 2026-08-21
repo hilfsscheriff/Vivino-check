@@ -716,9 +716,24 @@ function buildFilters() {
   // Ohne Farbpunkt: der Händler trägt hier keine Farbe, nur seinen Namen.
   /* Nur die Händler der gewählten Welt: "Vivino Aktionen" in der Liste der
      Schweizer Händler wäre ein Filter, der nie einen Treffer ergibt. */
-  D.retailers.filter(r => S.src === "alle" || (r.key === "vivinoshop") === (S.src === "mp"))
-    .forEach(r => anh(sh, chipMitZahl(
-      r.name, r.key, S.shop.has(r.key), nShop.get(r.key) || 0, toggle(S.shop, r.key))));
+  const sichtbar = D.retailers.filter(
+    r => S.src === "alle" || (r.key === "vivinoshop") === (S.src === "mp"));
+  sichtbar.forEach(r => anh(sh, chipMitZahl(
+    r.name, r.key, S.shop.has(r.key), nShop.get(r.key) || 0, toggle(S.shop, r.key))));
+  /* Wer keinen Treffer hat, bekommt keinen Chip — sonst stünde dort ein Knopf, der
+     nichts tut. Ungenannt bleibt er aber auch nicht: ein neu dazugekommener Laden
+     sieht sonst aus wie ein Fehler in der Liste. Gemeldet wurde genau das, als DIVO
+     dazukam und unter der Vorauswahl (Rotwein, Note ab 4.2, bis CHF 50) keinen
+     einzigen Wein hatte — der Laden führt vor allem Weissweine ohne Vivino-Eintrag. */
+  const stumm = sichtbar
+    .filter(r => !(nShop.get(r.key) || 0) && !S.shop.has(r.key))
+    .map(r => r.name);
+  if (stumm.length) {
+    const zeile = document.createElement("p");
+    zeile.className = "keinetreffer";
+    zeile.textContent = "ohne Treffer in dieser Auswahl: " + stumm.join(", ");
+    sh.append(zeile);
+  }
 
   if (vorher) {
     const zurueck = document.querySelector(`.chip[data-chip="${CSS.escape(vorher)}"]`);

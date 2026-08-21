@@ -130,6 +130,13 @@
           cursor:pointer; min-height:var(--control-h); }
   .chip[aria-pressed="true"] { background:var(--accent); border-color:var(--accent);
                                color:var(--bg); font-weight:600; }
+  /* Händler, die es gibt, die in der laufenden Auswahl aber keinen Wein haben.
+     Als Zeile statt als toter Filter: ein Chip mit Null wäre ein Knopf, der nichts
+     tut, ein fehlender Chip aber sieht aus wie ein Fehler. Genau so gemeldet, als
+     DIVO neu dazukam und unter der Vorauswahl (Rotwein, Note ab 4.2, bis CHF 50)
+     keinen einzigen Wein hatte. */
+  .keinetreffer { flex-basis:100%; color:var(--faint); font-size:var(--fs-label);
+                  line-height:1.55; margin:2px 0 0; }
   .chip .n { color:var(--faint); font-family:var(--mono); font-size:var(--fs-label);
              font-variant-numeric:tabular-nums; }
   .chip[aria-pressed="true"] .n { color:var(--bg); opacity:.85; }
