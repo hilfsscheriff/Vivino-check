@@ -198,11 +198,18 @@ class Cache:
         if status == "blocked":
             if retry_failed:
                 return None
-            # Blockaden bis zum vermerkten Retry-Zeitpunkt halten.
+            # Bis zum vermerkten Zeitpunkt halten — und ohne Vermerk einen Tag.
+            #
+            # Vorher stand die Ein-Tage-Grenze **hinter** der Vermerkprüfung und
+            # überstimmte sie: eine Sperre mit Retry in drei Tagen wurde nach einem Tag
+            # wieder angefragt, also genau dann nicht respektiert, wenn die Quelle eine
+            # Frist genannt hat. Der Deckel bleibt, aber weiter oben: eine unplausibel
+            # ferne Frist darf einen Wein nicht auf Monate aussperren.
             retry_at = row["retry_after"]
-            if retry_at and _in_past(retry_at):
-                return None
-            if age_days > 1:
+            if retry_at:
+                if _in_past(retry_at) or age_days > TTL_PREIS_TAGE:
+                    return None
+            elif age_days > 1:
                 return None
         elif status in SOFT_MISS_STATUSES:
             if retry_failed or age_days > TTL_SOFT_MISS_DAYS:
@@ -331,6 +338,41 @@ class Cache:
         if not row:
             return None, []
         return int(row["id"]), json.loads(row["snapshot"] or "[]")
+
+    def haendler_unter(self, source_key: str) -> set[str]:
+        """Welche Händler liegen unter diesem Adapter-Schlüssel?
+
+        Gebraucht beim Leeren: der Aggregator Aktionis bucht seine Funde unter
+        ``aktionis``, die Angebote gehören aber Coop, Denner, Otto's, Volg und SPAR —
+        und ``rate`` legte zeitweise unter dem Händlerschlüssel ab. Wer nur den
+        Adapter-Schlüssel leert, lässt diese Zeilen stehen; sie altern nie aus und
+        stehen weiter als aktuelle Aktion im Report.
+        """
+        aus: set[str] = set()
+        for row in self.conn.execute(
+            "SELECT payload FROM offers WHERE source_key=?", (source_key,)
+        ):
+            try:
+                h = (json.loads(row["payload"]) or {}).get("retailer")
+            except json.JSONDecodeError:
+                continue
+            if h:
+                aus.add(str(h))
+        return aus
+
+    def lauf_zeiten(self, *, limit: int = 40) -> dict[str, float]:
+        """``{Kennung: Startzeit}`` — ohne die Schnappschüsse zu laden.
+
+        ``all_runs`` liest die Spalte ``snapshot`` mit, und die trägt den ganzen Lauf
+        als JSON in einer Zelle (2.67 MB bei 2206 Weinen). Wer nur wissen will, welcher
+        Lauf älter ist, holte damit bis zu hundert Megabyte und parste sie.
+        """
+        return {
+            str(r["id"]): r["started_at"]
+            for r in self.conn.execute(
+                "SELECT id, started_at FROM runs ORDER BY id DESC LIMIT ?", (limit,)
+            )
+        }
 
     def all_runs(self, *, limit: int = 20) -> list[dict[str, Any]]:
         """Alle gespeicherten Läufe, neuester zuerst — Grundlage für die Webseite."""

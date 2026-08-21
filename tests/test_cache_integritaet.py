@@ -123,3 +123,39 @@ def test_das_juengste_angebot_wird_gemeldet(cache):
     assert cache.juengstes_angebot() is None
     cache.put_offer("denner", "Wein", 2022, {"retailer": "denner"})
     assert cache.juengstes_angebot() is not None
+
+
+def test_erzwungenes_neuladen_leert_auch_die_haendler_darunter(cache):
+    """Der Aggregator bucht unter seinem eigenen Schluessel, die Angebote gehoeren
+    aber Coop, Denner, Otto's, Volg und SPAR. Wer nur den Adapter-Schluessel leert,
+    laesst diese Zeilen stehen — sie altern nie aus und stehen weiter als aktuelle
+    Aktion im Report."""
+    cache.put_offer("aktionis", "Wein A", 2022, {"retailer": "coop"})
+    cache.put_offer("coop", "Wein A", 2022, {"retailer": "coop"})
+    cache.put_offer("denner", "Wein B", 2022, {"retailer": "denner"})
+    assert cache.haendler_unter("aktionis") == {"coop"}
+    for key in {"aktionis"} | cache.haendler_unter("aktionis"):
+        cache.clear_offers(key)
+    assert {o.get("retailer") for o in cache.all_offers()} == {"denner"}
+
+
+def test_eine_blockade_haelt_bis_zum_vermerkten_zeitpunkt(cache):
+    """Vorher ueberstimmte eine Ein-Tage-Grenze den Vermerk: eine Sperre mit Retry in
+    drei Tagen wurde nach einem Tag wieder angefragt — also genau dann nicht
+    respektiert, wenn die Quelle eine Frist genannt hat."""
+    import time as t
+    cache.put_rating("vivino", "Gesperrt", 2022, {"rating": None}, status="blocked",
+                     retry_after=t.strftime("%Y-%m-%dT%H:%M:%S",
+                                            t.localtime(t.time() + 3 * 86400)))
+    # Zwei Tage alt machen — unter der alten Regel waere der Eintrag verfallen.
+    cache.conn.execute("UPDATE ratings SET fetched_at=?", (t.time() - 2 * 86400,))
+    cache.conn.commit()
+    assert cache.get_rating("vivino", "Gesperrt", 2022) is not None
+
+
+def test_eine_blockade_ohne_vermerk_gilt_einen_tag(cache):
+    import time as t
+    cache.put_rating("vivino", "Gesperrt", 2022, {"rating": None}, status="blocked")
+    cache.conn.execute("UPDATE ratings SET fetched_at=?", (t.time() - 2 * 86400,))
+    cache.conn.commit()
+    assert cache.get_rating("vivino", "Gesperrt", 2022) is None

@@ -118,12 +118,18 @@ def _lauf_aelter(neu: str, alt: str, cache_path: Path) -> bool:
     Verglichen wird über die Startzeit im Cache. Kennt der eigene Cache den
     ausgelieferten Lauf nicht, stammt er aus einem anderen Klon — dann sagt die Zeit
     nichts, und es bleibt beim Grössenvergleich.
+
+    Das ist der häufige Fall, und darum trägt der Grössenvergleich die Sperre fast
+    allein: die Lauf-Kennungen der beiden Klone sind unabhängige AUTOINCREMENT-Zahlen,
+    und derselbe Wert bedeutet in beiden Caches etwas anderes. Der Altersvergleich
+    greift nur innerhalb eines Klons — dort, wo jemand eine ältere Momentaufnahme
+    ausliefern will.
     """
     if not neu or not alt or neu == alt:
         return False
     cache = Cache.open(cache_path)
     try:
-        zeiten = {str(r["id"]): r["started_at"] for r in cache.all_runs(limit=40)}
+        zeiten = cache.lauf_zeiten(limit=40)
     finally:
         cache.close()
     if neu not in zeiten or alt not in zeiten:
@@ -187,7 +193,12 @@ def fetch(
             if not cfg.enabled and keys is None:
                 continue
             if refresh_prices:
-                cache.clear_offers(cfg.key)
+                # Auch die Händler darunter, nicht nur den Adapter-Schlüssel. Der
+                # Erfolgspfad weiter unten tut das längst; hier fehlte es, und damit
+                # blieben beim erzwungenen Neuladen die Aggregator-Angebote stehen —
+                # gemessen 96 Zeilen unter coop, denner, ottos, volg und spar.
+                for key in {cfg.key} | cache.haendler_unter(cfg.key):
+                    cache.clear_offers(key)
             adapter = _adapter_for(cfg, fetcher)
             if adapter is None:
                 _echo(f"  {cfg.key:<14} übersprungen — kein Adapter ({cfg.status})")
