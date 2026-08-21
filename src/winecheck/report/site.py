@@ -499,6 +499,14 @@ def build(
     doc = doc.replace("__GOOD_PRICE__", f"{GOOD_PRICE_MAX:g}")
     doc = doc.replace("__SOURCE_PAGE__", html.escape(SOURCE_PAGE))
     doc = doc.replace("__STAMP__", html.escape(datetime_ch()))
+    # Maschinenlesbare Kennung des ausgelieferten Laufs. Sie ist die Grundlage der
+    # Sperre in ``cli.site``: eine gebaute Seite darf keine ersetzen, die aus einem
+    # neueren oder deutlich vollstaendigeren Lauf stammt. Als Kommentar und nicht im
+    # Payload, damit die Pruefung eine 1.6-MB-Datei nicht parsen muss.
+    doc = doc.replace(
+        "__KENNUNG__",
+        f"<!-- winecheck lauf={_neuester_lauf(runs)} weine={_weinzahl(runs)} -->",
+    )
     doc = doc.replace("__MARK__", SVG_MARK)
     p.write_text(doc, encoding="utf-8")
 
@@ -524,7 +532,18 @@ def _asset(name: str) -> str:
     return (_ASSETS / name).read_text(encoding="utf-8")
 
 
+def _neuester_lauf(runs) -> str:
+    """Kennung des neuesten ausgelieferten Laufs, oder ``?``."""
+    return str((runs[0] if runs else {}).get("id") or "?")
+
+
+def _weinzahl(runs) -> int:
+    """Weine im neuesten ausgelieferten Lauf."""
+    return len((runs[0] if runs else {}).get("wines") or [])
+
+
 _TEMPLATE = r"""<!doctype html>
+__KENNUNG__
 <html lang="de">
 <head>
 <meta charset="utf-8">

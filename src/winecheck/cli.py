@@ -80,6 +80,55 @@ ADAPTERS: dict[str, type[RetailerAdapter]] = {
 #: Aktionskarussell erlebt, sondern einen kaputten Lauf.
 VERGLEICH_MIN_ANTEIL = 0.66
 
+#: So viel kleiner darf eine neu gebaute Seite höchstens sein als die vorhandene,
+#: bevor ``site`` abbricht — als Anteil.
+#:
+#: 90 %: eine Quelle, die eine Woche ausfällt, kostet selten mehr. Ein Klon mit
+#: veraltetem Cache verliert deutlich mehr — am 21.08. wären es 2206 gegen 2531
+#: Weine gewesen, also 87 %.
+SEITE_MIN_ANTEIL = 0.90
+
+#: Kennung, die jede gebaute Seite trägt: ``<!-- winecheck lauf=… weine=… -->``.
+_RE_SEITEN_KENNUNG = None  # spät gesetzt, siehe _seiten_kennung
+
+
+def _seiten_kennung(pfad: Path) -> tuple[str, int] | None:
+    """``(Lauf-Kennung, Weinzahl)`` einer vorhandenen Seite, oder ``None``.
+
+    Gelesen wird nur der Anfang der Datei: die Kennung steht direkt hinter
+    ``<!doctype html>``, und die Seite ist 1.6 MB gross.
+    """
+    import re
+
+    if not pfad.exists():
+        return None
+    try:
+        with pfad.open("r", encoding="utf-8") as f:
+            kopf = f.read(4096)
+    except OSError:
+        return None
+    m = re.search(r"<!--\s*winecheck lauf=(\S+) weine=(\d+)\s*-->", kopf)
+    return (m.group(1), int(m.group(2))) if m else None
+
+
+def _lauf_aelter(neu: str, alt: str, cache_path: Path) -> bool:
+    """Ist der Lauf ``neu`` älter als der Lauf ``alt``?
+
+    Verglichen wird über die Startzeit im Cache. Kennt der eigene Cache den
+    ausgelieferten Lauf nicht, stammt er aus einem anderen Klon — dann sagt die Zeit
+    nichts, und es bleibt beim Grössenvergleich.
+    """
+    if not neu or not alt or neu == alt:
+        return False
+    cache = Cache.open(cache_path)
+    try:
+        zeiten = {str(r["id"]): r["started_at"] for r in cache.all_runs(limit=40)}
+    finally:
+        cache.close()
+    if neu not in zeiten or alt not in zeiten:
+        return False
+    return zeiten[neu] < zeiten[alt]
+
 DEFAULT_CACHE = Path("cache/winecheck.sqlite")
 STATE_DIR = Path("state")
 
@@ -449,6 +498,10 @@ def site(
         help="wie viele Läufe die Seite anbieten soll; Standard 1 (nur der aktuelle)",
     ),
     title: str = typer.Option("Schweizer Weinaktionen", "--title"),
+    trotzdem: bool = typer.Option(
+        False, "--trotzdem",
+        help="eine neuere oder vollständigere Seite überschreiben (siehe SEITE_MIN_ANTEIL)",
+    ),
 ) -> None:
     """Statische Webseite bauen — für GitHub Pages oder zum Mitnehmen aufs Handy.
 
@@ -529,6 +582,45 @@ def site(
             "hatVorlauf": bekannt is not None,
             "wines": wines,
         })
+
+    # -- Sperre gegen das Überschreiben einer besseren Seite ----------------
+    #
+    # ``docs/index.html`` ist ein Bauartefakt im Git, damit GitHub Pages es
+    # ausliefert. Jeder Klon kann es aus **seinem** Cache neu schreiben, und wer
+    # zuletzt pusht, gewinnt. Zwei Klone gibt es hier: das Arbeitsverzeichnis und
+    # ~/winecheck, aus dem der Wochenlauf läuft — mit getrennten Caches.
+    #
+    # Am 21.08. stand ein Commit bereit, der die veröffentlichte Seite von 2531 auf
+    # 2206 Weine zurückgesetzt hätte: der Wochenlauf hatte frisch alle Quellen
+    # gelesen, das Arbeitsverzeichnis kannte nur den älteren Bestand. Aufgefallen ist
+    # das beim Nachsehen, nicht durch eine Prüfung — und beim nächsten Mal fällt es
+    # niemandem auf.
+    #
+    # Verglichen wird gegen die Kennung, die die vorhandene Seite selbst trägt.
+    # Verweigert wird, wenn der neue Lauf älter ist oder deutlich weniger Weine
+    # trägt. ``--trotzdem`` hebt die Sperre auf; sie soll schützen, nicht blockieren.
+    ziel = out / "index.html"
+    vorhanden = _seiten_kennung(ziel)
+    if vorhanden and not trotzdem:
+        alt_lauf, alt_weine = vorhanden
+        neu_lauf = str(history[0].get("id") or "")
+        neu_weine = len(history[0].get("wines") or [])
+        aelter = _lauf_aelter(neu_lauf, alt_lauf, cache_path)
+        viel_kleiner = alt_weine and neu_weine < alt_weine * SEITE_MIN_ANTEIL
+        if aelter or viel_kleiner:
+            grund = (
+                f"der Lauf ist älter als der ausgelieferte"
+                if aelter else
+                f"nur {neu_weine} Weine gegen {alt_weine} in der ausgelieferten Seite"
+            )
+            _echo(
+                f"Abgebrochen: {grund}.\n"
+                f"  Die vorhandene Seite stammt aus einem anderen Klon — der Wochenlauf "
+                f"läuft aus ~/winecheck mit eigenem Cache.\n"
+                f"  Dort neu bauen, oder mit --trotzdem überschreiben.",
+                err=True,
+            )
+            raise typer.Exit(1)
 
     out.mkdir(parents=True, exist_ok=True)
     # GitHub Pages würde den Ordner sonst durch Jekyll schicben.

@@ -415,6 +415,25 @@ def _shop_name(url: str) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
+_ZUORDNUNG: dict[str, Any] | None = None
+
+
+def _zuordnung(name: str):
+    """Geprüfte Zuordnung für diesen Händlernamen, oder ``None``.
+
+    Einmal je Prozess gelesen: ``rate`` läuft über tausende Weine, und die Datei
+    ändert sich dabei nicht.
+    """
+    global _ZUORDNUNG
+    if _ZUORDNUNG is None:
+        from ..zuordnung import laden
+
+        _ZUORDNUNG = laden()
+    from ..zuordnung import finde
+
+    return finde(name, _ZUORDNUNG)
+
+
 def _host_matches(url: str, hosts: set[str]) -> bool:
     """Gehört die Preis-URL zu einem der ausgeschlossenen Händler?"""
     host = _shop_name(url)
@@ -1007,6 +1026,29 @@ class VivinoAdapter:
     ) -> VivinoResult:
         """Immer ein Ergebnis mit Status, Query und klickbarer URL."""
         query = build_query(name, vintage)
+
+        # Geprüfte Zuordnung zuerst — sie steht über Cache und Suche.
+        #
+        # Sie ist der Weg für Weine, deren richtiger Vivino-Eintrag über keinen
+        # automatischen Pfad erreichbar ist: die Such-API gibt ihn nicht aus und die
+        # Weingutseite listet ihn nicht. Ohne diesen Vorrang bliebe eine Note vom
+        # falschen Wein stehen, und zwar dauerhaft, weil der Cache sie festhält.
+        #
+        # Siehe :mod:`winecheck.zuordnung` — dort steht auch, was hier nicht stehen
+        # darf.
+        eintrag = _zuordnung(name)
+        if eintrag is not None and eintrag.ohne_note:
+            return VivinoResult(
+                status=VivinoStatus.TOO_FEW_RATINGS,
+                query=query,
+                url=eintrag.url,
+                note=(
+                    f"Vivino führt diesen Wein ohne verwertbare Note "
+                    f"(geprüft {eintrag.geprueft_am}) — {eintrag.grund}"
+                ),
+                matched_name=eintrag.name,
+                checked_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+            )
 
         if self.cache is not None:
             cached = self.cache.get_rating(

@@ -1,0 +1,49 @@
+# Geprüfte Zuordnungen, wo Vivinos Suche den richtigen Wein nicht hergibt.
+#
+# WOZU
+# Vivinos Suchindex hat Löcher. Das ist im Adapter schon an zwei Stellen vermerkt:
+# „Fallet Dart Champagne Brut Cuvée de Réserve" hat 533 Bewertungen und ist über
+# keine Schreibweise zu finden — dafür gibt es den Rückfall über die Weingutseite.
+# Manchmal reicht auch der nicht.
+#
+# Dann bleiben zwei Möglichkeiten: eine Note vom falschen Wein, oder eine
+# nachgeprüfte Eintragung hier. Diese Datei ist die zweite.
+#
+# WAS HIER STEHEN DARF
+# Nur Nachgeprüftes, mit Beleg. Jeder Eintrag nennt die Vivino-Adresse, unter der
+# die Aussage zu sehen ist, und das Datum der Prüfung. Was hier steht, ist eine
+# Beobachtung — keine Schätzung, keine Vermutung, keine Rundung.
+#
+# Kein Ersatz für einen besseren Matcher: wer hier einen Wein einträgt, weil der
+# Abgleich ihn *falsch* zuordnet, behandelt ein Symptom. Diese Liste ist für die
+# Fälle, in denen die Auskunft bei Vivino selbst nicht auffindbar ist.
+#
+# FORMEN
+#   ohne_note: true   Der richtige Wein ist bei Vivino geführt, trägt aber keine
+#                     verwertbare Note. Dann gibt es hier keine — und die Adresse
+#                     steht daneben, damit man selbst nachsehen kann.
+version: 1
+
+zuordnungen:
+  - name: Rocca di Frassinello la Rocca Maremma Toscana DOC
+    haendler: caratello
+    ohne_note: true
+    url: https://www.vivino.com/de/rocca-di-frassinello-la-rocca-maremma-toscana/w/14033263
+    geprueft_am: "2026-08-21"
+    grund: >
+      Der Wein ist bei Vivino unter /w/14033263 geführt und trägt
+      ratings_count 0 (status BelowThreshold) — auf Jahrgangs- wie auf Weinebene.
+      Der Eintrag ist über keinen automatischen Weg erreichbar: die Such-API gibt
+      ihn unter keiner Schreibweise aus, und die Weingutseite listet ihn nicht
+      (27 Weine, keiner davon).
+
+      Ohne diese Zeile bekam der Wein die Note des gleichnamigen Hauptweins
+      „Rocca di Frassinello Maremma Toscana" (/w/11745, 4.2 aus 4658
+      Bewertungen) — ein anderer Wein. Davor war es „Baffonero" mit 4.5, der
+      Spitzenwein des Guts für rund CHF 200.
+
+      Lexikalisch ist der Fall nicht zu lösen: der Weinname „La Rocca"
+      wiederholt das erste Wort des Gutsnamens, und nach Normalisierung sind
+      Händlername und Sammeleintrag identisch. Zwei Erkennungsregeln geprüft,
+      beide verworfen — eine traf 173 von 1451 Treffern, die meisten davon
+      richtig.
