@@ -813,15 +813,28 @@ def _retailer_hosts(reg, row: WineRow) -> set[str]:
 
 
 def _offer_payload(o: Offer) -> dict:
+    """Ein Angebot für den Cache. **Jedes** Feld von :class:`Offer` gehört hierher.
+
+    Die Liste ist von Hand geführt und war darum eine Falle: ``roh_ist_gebinde`` und
+    ``vat_added`` kamen neu ins Modell, aber nicht hierher — und damit wirkte die
+    Zahlbetrags-Rechnung nur im Speicher. Über den Cache, also im Bericht und auf der
+    Seite, fiel sie auf den alten Rückfall zurück und wies für einen Wein, den es nur
+    im Sechserkarton zu CHF 87 gibt, CHF 522 aus.
+
+    ``tests/test_offer_ablage.py`` vergleicht diese Liste mit den Feldern des Modells
+    und schlägt an, wenn wieder eines fehlt.
+    """
     return {
         "retailer": o.retailer, "name": o.name, "url": o.url, "vintage": o.vintage,
+        "producer": o.producer, "region": o.region, "country": o.country,
         "price_per_bottle_incl_vat": o.price_per_bottle_incl_vat,
         "price_raw": o.price_raw, "price_raw_basis": o.price_raw_basis,
         "price_confidence": o.price_confidence.value,
         "reference_price": o.reference_price, "discount_percent": o.discount_percent,
         "discount_plausibility": o.discount_plausibility.value,
         "is_private_label": o.is_private_label, "bottle_ml": o.bottle_ml,
-        "units": o.units, "article_no": o.article_no, "fetched_at": o.fetched_at,
+        "units": o.units, "roh_ist_gebinde": o.roh_ist_gebinde, "vat_added": o.vat_added,
+        "article_no": o.article_no, "fetched_at": o.fetched_at,
         "source_note": o.source_note,
         "critic_scores": o.critic_scores,
     }
@@ -840,7 +853,12 @@ def _offer_from_payload(d: dict) -> Offer:
         discount_percent=d.get("discount_percent"),
         discount_plausibility=DiscountPlausibility(d.get("discount_plausibility") or "unknown"),
         is_private_label=bool(d.get("is_private_label")),
+        producer=d.get("producer"), region=d.get("region"), country=d.get("country"),
         bottle_ml=d.get("bottle_ml"), units=d.get("units"),
+        # Ohne diese zwei rechnet ``gesamtpreis`` den Kartonpreis noch einmal mal
+        # sechs. Alte Einträge tragen sie nicht; ``False`` ist dort der bisherige Stand.
+        roh_ist_gebinde=bool(d.get("roh_ist_gebinde")),
+        vat_added=bool(d.get("vat_added")),
         article_no=d.get("article_no"), fetched_at=d.get("fetched_at"),
         source_note=d.get("source_note") or "",
         critic_scores=d.get("critic_scores") or {},
