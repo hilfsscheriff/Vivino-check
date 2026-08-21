@@ -276,6 +276,17 @@ class NormalizedPrice:
     units: int | None = None
     vat_added: bool = False
     note: str = ""
+    #: Ist ``price_raw`` der Preis für das **ganze Gebinde** oder für eine Flasche?
+    #:
+    #: Diese eine Auskunft fehlte, und ohne sie war der Zahlbetrag nicht zu bilden. Der
+    #: Klammertext hilft nicht — er schreibt „Karton 6" in beiden Fällen, und im Bericht
+    #: steht sonst nur der auf 750 ml **normierte** Preis.
+    #:
+    #: Ein Merkmal statt eines fertigen Betrags, weil zwei Adapter ``units`` erst
+    #: **nach** dem Normalisieren setzen (aligro, vivinoshop: Preis je Flasche, Abnahme
+    #: im Sechserpack). Ein gespeicherter Betrag wäre dort veraltet, das Merkmal bleibt
+    #: richtig.
+    roh_ist_gebinde: bool = False
 
     @property
     def usable_for_ranking(self) -> bool:
@@ -307,6 +318,11 @@ class Offer:
     is_private_label: bool = False
     bottle_ml: int | None = None
     units: int | None = None
+    #: Ob ``price_raw`` das ganze Gebinde meint — siehe NormalizedPrice.
+    roh_ist_gebinde: bool = False
+    #: Wurde beim Normalisieren MwSt aufgeschlagen? Dann traegt ``price_raw`` sie nicht,
+    #: und der Zahlbetrag muss sie ergaenzen.
+    vat_added: bool = False
     article_no: str | None = None
     fetched_at: str | None = None
     source_note: str = ""
@@ -322,6 +338,8 @@ class Offer:
         self.price_confidence = p.confidence
         self.bottle_ml = p.bottle_ml
         self.units = p.units
+        self.roh_ist_gebinde = p.roh_ist_gebinde
+        self.vat_added = p.vat_added
         if p.note:
             self.source_note = (self.source_note + " " + p.note).strip()
 
@@ -345,10 +363,39 @@ class RetailerPrice:
     #: da, kaufen kann man ihn nur als Sechserkiste zu CHF 272.82. Wer den Einzelpreis
     #: sucht, findet ihn nicht und hält die Zeile für falsch.
     units: int | None = None
+    #: Ob ``price_raw`` das ganze Gebinde meint — siehe
+    #: :attr:`NormalizedPrice.roh_ist_gebinde`.
+    roh_ist_gebinde: bool = False
+    #: Wurde beim Normalisieren MwSt aufgeschlagen? Dann trägt ``price_raw`` sie nicht.
+    vat_added: bool = False
 
     @property
     def gesamtpreis(self) -> float | None:
-        """Was tatsächlich zu zahlen ist. Bei der Einzelflasche derselbe Betrag."""
+        """Was tatsächlich zu zahlen ist. Bei der Einzelflasche derselbe Betrag.
+
+        Gerechnet wird auf dem **Rohpreis**, nicht auf dem normierten: ob der Rohpreis
+        das Gebinde oder die Flasche meint, sagt ``roh_ist_gebinde``.
+
+        Hier stand ``price_per_bottle_incl_vat * (self.units or 1)``. Der linke Faktor
+        ist aber der auf 750 ml **normierte** Preis. Bei Flaschen, die nicht 75 cl
+        haben, war das Produkt darum nicht der Kassenbetrag, und der Fehler ging in
+        beide Richtungen: ein 6er-Karton à 37.5 cl stand mit CHF 228 statt 114 da, ein
+        6er-Karton Literflaschen mit CHF 14.88 statt 19.80. Der zweite Fall ist der
+        schlimmere — ein zu niedrig ausgewiesener Zahlbetrag lockt zu einem Kauf, der
+        teurer ist als angeschrieben.
+
+        Der Rückfall bleibt für Einträge aus älteren Läufen, die das Feld nicht
+        tragen: dort ist die alte Rechnung immer noch die beste verfügbare, und bei
+        75-cl-Flaschen — der Mehrheit — ist sie richtig.
+        """
+        if self.price_raw is not None:
+            betrag = self.price_raw if self.roh_ist_gebinde \
+                else self.price_raw * (self.units or 1)
+            if self.vat_added:
+                from .prices import VAT_ALCOHOL
+
+                betrag *= 1 + VAT_ALCOHOL
+            return round(betrag + 1e-9, 2)
         if self.price_per_bottle_incl_vat is None:
             return None
         return self.price_per_bottle_incl_vat * (self.units or 1)

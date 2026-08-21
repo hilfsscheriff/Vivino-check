@@ -278,6 +278,7 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
         "cheapest": cheapest,
         # Wie viele Flaschen man nehmen muss. Nur gesetzt, wenn es mehr als eine ist.
         "units": d.get("units") if (d.get("units") or 1) > 1 else None,
+        "gebindeGesamt": d.get("gebinde_gesamt") if (d.get("units") or 1) > 1 else None,
         "url": urls.get(cheapest) or next(iter(urls.values()), ""),
         "market": d.get("market_price"),
         "bargain": d.get("bargain_percent"),
@@ -337,7 +338,7 @@ _SHORT_KEYS = {
     # Ausblendbare Rebsorten, siehe AUSBLENDBARE_SORTEN.
     "grapes": "g",
     # Abnahmemenge: 6 heisst „nur als Sechserkiste zu haben".
-    "units": "uq",
+    "units": "uq", "gebindeGesamt": "ug",
     # 1 = stand im Vorlauf noch nicht da. Nur gesetzt, wenn es einen Vorlauf zum
     # Vergleichen gibt — beim ersten Lauf ist kein Wein "neu", sondern alle sind es,
     # und dann sagt die Kennzeichnung nichts.

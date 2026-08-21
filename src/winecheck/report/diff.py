@@ -90,6 +90,12 @@ def snapshot(rows: list[WineRow]) -> list[dict[str, Any]]:
             # CHF 45.47 stand da, kaufen kann man nur sechs zu CHF 272.82.
             "units": next((pr.units for pr in r.prices
                            if pr.price_per_bottle_incl_vat == r.best_price), None),
+            # Der Zahlbetrag, nicht die Zutaten dafuer. Die Seite hat ihn vorher selbst
+            # gerechnet — `w.price * w.units` — und `w.price` ist der auf 750 ml
+            # normierte Preis. Bei Flaschen, die nicht 75 cl haben, war das der falsche
+            # Betrag, in beide Richtungen. Siehe RetailerPrice.gesamtpreis.
+            "gebinde_gesamt": next((pr.gesamtpreis for pr in r.prices
+                                    if pr.price_per_bottle_incl_vat == r.best_price), None),
             "urls": {p.retailer: p.url for p in r.prices if p.url},
             "value_score": r.value_score,
             "wert_score": r.wert_score,

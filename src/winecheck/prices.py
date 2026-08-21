@@ -262,6 +262,8 @@ def normalize_price(
 
     basis_desc = _describe_basis(units, ml, vat_included, text)
     return NormalizedPrice(
+        # Nur hier ist bekannt, ob der Rohbetrag das Gebinde oder die Flasche meint.
+        roh_ist_gebinde=effective_units > 1,
         price_per_bottle_incl_vat=value,
         price_raw=amount,
         price_raw_basis=basis_desc,

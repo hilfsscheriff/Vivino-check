@@ -69,6 +69,9 @@ def merge_offers(offers: list[Offer]) -> list[WineRow]:
                     discount_percent=o.discount_percent,
                     discount_plausibility=o.discount_plausibility,
                     units=o.units,
+                    # Beide gehören zum Zahlbetrag: siehe RetailerPrice.gesamtpreis.
+                    roh_ist_gebinde=o.roh_ist_gebinde,
+                    vat_added=o.vat_added,
                 )
             )
         _attach_critic_scores(row, group)

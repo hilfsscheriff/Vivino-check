@@ -82,8 +82,16 @@ const valueOf = w => (S.src === "alle" ? w.valueScoreAll : w.valueScore);
    Gemeldet mit den Worten „preis finde ich nicht": Pio Cesare Barolo 2016 stand mit
    CHF 45.47 da, zu haben ist er nur als Sechserkiste zu CHF 272.82. 7 Prozent der
    Marktplatzangebote sind Kisten. */
-const gebindeText = w => (w.units > 1)
-  ? `nur ${w.units}er-Gebinde, zusammen ${chf(w.price * w.units)}` : "";
+/* Der Zahlbetrag kommt mitgeliefert, er wird hier nicht mehr gerechnet.
+   Vorher stand `w.price * w.units`, und `w.price` ist der auf 750 cl normierte Preis.
+   Bei Flaschen, die nicht 75 cl haben, war das der falsche Betrag — und der Fehler
+   ging in beide Richtungen: ein 6er-Karton à 37.5 cl stand mit CHF 228 statt 114 da,
+   ein 6er-Karton Literflaschen mit CHF 14.88 statt 19.80. Der zweite Fall ist der
+   schlimmere: ein zu niedrig ausgewiesener Zahlbetrag lockt zu einem Kauf, der teurer
+   ist als angeschrieben. Nur dort, wo der Betrag mitkommt, wird er genannt. */
+const gebindeText = w => (w.units > 1 && w.gebindeGesamt != null)
+  ? `nur ${w.units}er-Gebinde, zusammen ${chf(w.gebindeGesamt)}`
+  : (w.units > 1 ? `nur ${w.units}er-Gebinde` : "");
 const valueText = w => {
   if (valueOf(w) == null) return '<span class="meta">—</span>';
   const v = valueOf(w);
