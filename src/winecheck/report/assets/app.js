@@ -403,7 +403,20 @@ function fokusZurueck(box, merk) {
 function detailRows(p) {
   const row = (k, v) => `<div class="r"><span class="k">${k}</span><span>${v}</span></div>`;
   let h = "";
-  h += row("Vivino", p.rating.toFixed(1) + "/5" + (p.ratingCount ? ` (${p.ratingCount})` : ""));
+  /* Nicht jeder Wein hat eine Note, und diese Funktion wird aus zwei Richtungen
+     gerufen: das Diagramm zeigt nur bewertete Weine, die Tabelle alle. Ungeprüft riss
+     ``p.rating.toFixed`` die ganze Darstellung — und zwar mitten im Neuzeichnen, mit
+     dem heimtückischsten Ergebnis: der Zähler stand schon auf der neuen Auswahl, die
+     Tabelle noch auf der alten. Es sah aus, als filtere die Seite falsch.
+     Aufgefallen ist es am Händlerfilter DIVO, dessen Weine grösstenteils keinen
+     Vivino-Eintrag haben — und der nur zu sehen ist, wenn man die Notengrenze
+     aufhebt. Unter der Vorauswahl (Note ab 4.2) trägt jeder Wein eine Note, darum
+     blieb der Fehler verdeckt. */
+  h += row("Vivino", p.rating != null
+    ? p.rating.toFixed(1) + "/5" + (p.ratingCount ? ` (${p.ratingCount})` : "")
+    : p.wineryRating != null
+      ? `<span class="meta">nur Produzenten-Ø ${p.wineryRating.toFixed(1)}/5</span>`
+      : `<span class="meta">keine Fremdbewertung verfügbar</span>`);
   if (p.fuzzy) h += row("Achtung", `<span class="warn">Namensabgleich unbestätigt`
     + (p.matchedName ? ` — gefunden: „${esc(p.matchedName)}"` : "") + `</span>`);
   if (p.styleLabel) h += row("Sorte", esc(p.styleLabel));
