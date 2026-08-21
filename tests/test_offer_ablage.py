@@ -77,15 +77,71 @@ def test_der_zahlbetrag_ueberlebt_den_cache():
     assert p.gesamtpreis == 87.00
 
 
-def test_alte_eintraege_ohne_die_neuen_felder_bleiben_lesbar():
-    """Ein Cache aus einer früheren Fassung darf nicht platzen.
+def test_ein_fehlendes_feld_heisst_unbekannt_und_nicht_false():
+    """Ein Cache aus einer früheren Fassung darf nicht platzen — und nicht lügen.
 
-    Dort fehlen die Felder; ``False`` ist der bisherige Stand und für Flaschenpreise
-    — die grosse Mehrheit — die richtige Annahme.
+    Hier stand ``assert o.roh_ist_gebinde is False`` mit der Begründung, das sei „für
+    Flaschenpreise die richtige Annahme". Sie war falsch: bei Coop, Denner und Aktionis
+    trägt der Rohpreis den **Karton**, und die Zahlbetrags-Rechnung multiplizierte ihn
+    ein zweites Mal mit der Stückzahl. 76 Weine standen mit dem Sechs- bis
+    Vierundzwanzigfachen da; gemeldet wurde ein Primitivo mit CHF 358.20 statt 59.70.
+
+    Ein fehlendes Feld heisst darum ``None`` — unbekannt —, und ``gesamtpreis``
+    rechnet dann aus dem normierten Preis zurück, statt zu raten.
     """
     alt = _offer_payload(_vollstaendig())
     for feld in ("roh_ist_gebinde", "vat_added", "producer", "region", "country"):
         alt.pop(feld)
     o = _offer_from_payload(alt)
-    assert o.roh_ist_gebinde is False and o.vat_added is False
+    assert o.roh_ist_gebinde is None
+    assert o.vat_added is False
     assert o.name.startswith("Mòmò")
+
+
+
+def _preis(**kw):
+    from winecheck.models import RetailerPrice
+    grund = dict(retailer="coop", price_per_bottle_incl_vat=9.95, price_raw=59.70,
+                 price_raw_basis="Karton 6, inkl. MwSt", url="", units=6,
+                 price_confidence=PriceConfidence.HIGH, bottle_ml=750)
+    grund.update(kw)
+    return RetailerPrice(**grund)
+
+
+def test_gemeldeter_fall_der_primitivo_kostet_59_70_nicht_358_20():
+    """Gemeldet an „Puglia IGT Primitivo Negroamaro Elettra Giordano 6x 75cl".
+
+    Die Seite wies CHF 358.20 aus. Der Karton kostet CHF 59.70, die Flasche darin
+    CHF 9.95. Der Rohpreis war schon der Kartonpreis — das Feld dazu fehlte im
+    Cache-Eintrag, und ``False`` als Standard hat ihn noch einmal versechsfacht.
+    """
+    assert _preis(roh_ist_gebinde=None).gesamtpreis == 59.70
+
+
+def test_bei_bekanntem_gebinde_gilt_der_rohpreis():
+    """Frisch geholte Angebote tragen das Merkmal — dann ist der Rohpreis der Betrag."""
+    assert _preis(roh_ist_gebinde=True).gesamtpreis == 59.70
+    assert _preis(roh_ist_gebinde=False, price_raw=9.95).gesamtpreis == 59.70
+
+
+def test_halbe_flaschen_im_karton_werden_nicht_doppelt_gerechnet():
+    """6 × 37.5 cl zu CHF 19 je Flasche: der normierte Preis ist 38, zu zahlen 114.
+
+    Ohne den Grössenfaktor stünden hier 228 — der Fehler, der dieser Rechnung
+    ursprünglich zugrunde lag.
+    """
+    p = _preis(roh_ist_gebinde=None, price_per_bottle_incl_vat=38.0,
+               price_raw=114.0, bottle_ml=375)
+    assert p.gesamtpreis == 114.0
+
+
+def test_ohne_flaschengroesse_wird_75cl_angenommen():
+    """Der Rückfall im Rückfall: keine Grösse bekannt, also die Referenzgrösse."""
+    p = _preis(roh_ist_gebinde=None, bottle_ml=None)
+    assert p.gesamtpreis == 59.70
+
+
+def test_die_einzelflasche_bleibt_ihr_eigener_betrag():
+    p = _preis(roh_ist_gebinde=None, units=1, price_per_bottle_incl_vat=15.20,
+               price_raw=15.20)
+    assert p.gesamtpreis == 15.20

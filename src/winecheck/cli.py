@@ -855,9 +855,11 @@ def _offer_from_payload(d: dict) -> Offer:
         is_private_label=bool(d.get("is_private_label")),
         producer=d.get("producer"), region=d.get("region"), country=d.get("country"),
         bottle_ml=d.get("bottle_ml"), units=d.get("units"),
-        # Ohne diese zwei rechnet ``gesamtpreis`` den Kartonpreis noch einmal mal
-        # sechs. Alte Einträge tragen sie nicht; ``False`` ist dort der bisherige Stand.
-        roh_ist_gebinde=bool(d.get("roh_ist_gebinde")),
+        # ``None`` bleibt ``None``: ein fehlendes Feld heisst "unbekannt", nicht
+        # "Flaschenpreis". Als ``bool()`` gelesen wurde daraus ``False``, und
+        # ``gesamtpreis`` multiplizierte den Kartonpreis ein zweites Mal mit der
+        # Stückzahl — 76 Weine standen mit dem Sechs- bis Vierundzwanzigfachen da.
+        roh_ist_gebinde=d.get("roh_ist_gebinde"),
         vat_added=bool(d.get("vat_added")),
         article_no=d.get("article_no"), fetched_at=d.get("fetched_at"),
         source_note=d.get("source_note") or "",

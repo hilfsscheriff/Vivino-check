@@ -69,9 +69,13 @@ def merge_offers(offers: list[Offer]) -> list[WineRow]:
                     discount_percent=o.discount_percent,
                     discount_plausibility=o.discount_plausibility,
                     units=o.units,
-                    # Beide gehören zum Zahlbetrag: siehe RetailerPrice.gesamtpreis.
+                    # Alle drei gehören zum Zahlbetrag: siehe RetailerPrice.gesamtpreis.
+                    # Die Flaschengrösse trägt den Rückfall, wenn ``roh_ist_gebinde``
+                    # unbekannt ist — ohne sie stünde ein 6er-Karton à 37.5 cl
+                    # doppelt zu hoch da.
                     roh_ist_gebinde=o.roh_ist_gebinde,
                     vat_added=o.vat_added,
+                    bottle_ml=o.bottle_ml,
                 )
             )
         _attach_critic_scores(row, group)

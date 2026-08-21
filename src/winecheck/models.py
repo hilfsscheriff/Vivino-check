@@ -319,7 +319,11 @@ class Offer:
     bottle_ml: int | None = None
     units: int | None = None
     #: Ob ``price_raw`` das ganze Gebinde meint — siehe NormalizedPrice.
-    roh_ist_gebinde: bool = False
+    #:
+    #: ``None`` heisst „unbekannt" und kommt nur aus dem Cache: Einträge aus Läufen vor
+    #: der Einführung dieses Feldes tragen es nicht. Frisch geholte Angebote haben
+    #: immer ``True`` oder ``False``, weil :meth:`apply_price` es setzt.
+    roh_ist_gebinde: bool | None = None
     #: Wurde beim Normalisieren MwSt aufgeschlagen? Dann traegt ``price_raw`` sie nicht,
     #: und der Zahlbetrag muss sie ergaenzen.
     vat_added: bool = False
@@ -365,40 +369,58 @@ class RetailerPrice:
     units: int | None = None
     #: Ob ``price_raw`` das ganze Gebinde meint — siehe
     #: :attr:`NormalizedPrice.roh_ist_gebinde`.
-    roh_ist_gebinde: bool = False
+    #:
+    #: **Drei** Zustände, und der dritte ist der Grund: ``None`` heisst „unbekannt".
+    #: Vorher war das Feld ein einfaches ``bool`` mit Standard ``False``, und ein
+    #: Eintrag aus einem Lauf vor seiner Einführung las sich damit als „der Rohpreis
+    #: ist der Flaschenpreis". Für Kartonangebote von Coop, Denner und Aktionis war
+    #: genau das falsch: der Rohpreis ist dort der Kartonpreis, und die Rechnung
+    #: multiplizierte ihn ein zweites Mal mit der Stückzahl. 76 Weine standen so mit
+    #: dem Sechs- bis Vierundzwanzigfachen da — der Mövenpick Asinone mit CHF 1740
+    #: statt 289.98. Gemeldet wurde er als „Preis falsch", und er war es.
+    roh_ist_gebinde: bool | None = None
     #: Wurde beim Normalisieren MwSt aufgeschlagen? Dann trägt ``price_raw`` sie nicht.
     vat_added: bool = False
+    #: Flaschengrösse in Millilitern. Nötig, um bei unbekanntem ``roh_ist_gebinde``
+    #: den Kassenbetrag aus dem **normierten** Preis zurückzurechnen.
+    bottle_ml: int | None = None
 
     @property
     def gesamtpreis(self) -> float | None:
         """Was tatsächlich zu zahlen ist. Bei der Einzelflasche derselbe Betrag.
 
-        Gerechnet wird auf dem **Rohpreis**, nicht auf dem normierten: ob der Rohpreis
-        das Gebinde oder die Flasche meint, sagt ``roh_ist_gebinde``.
+        Der Rohpreis ist der Kassenbetrag — aber nur, wenn bekannt ist, **was** er
+        meint. Ist ``roh_ist_gebinde`` unbekannt (Eintrag aus einem Lauf vor dieser
+        Unterscheidung), wird der Betrag aus dem *normierten* Preis zurückgerechnet:
 
-        Hier stand ``price_per_bottle_incl_vat * (self.units or 1)``. Der linke Faktor
-        ist aber der auf 750 ml **normierte** Preis. Bei Flaschen, die nicht 75 cl
-        haben, war das Produkt darum nicht der Kassenbetrag, und der Fehler ging in
-        beide Richtungen: ein 6er-Karton à 37.5 cl stand mit CHF 228 statt 114 da, ein
-        6er-Karton Literflaschen mit CHF 14.88 statt 19.80. Der zweite Fall ist der
-        schlimmere — ein zu niedrig ausgewiesener Zahlbetrag lockt zu einem Kauf, der
-        teurer ist als angeschrieben.
+            Preis je 75 cl × Stückzahl × Flaschengrösse / 75 cl
 
-        Der Rückfall bleibt für Einträge aus älteren Läufen, die das Feld nicht
-        tragen: dort ist die alte Rechnung immer noch die beste verfügbare, und bei
-        75-cl-Flaschen — der Mehrheit — ist sie richtig.
+        Das ist exakt und braucht keine Annahme über den Rohpreis. Hier stand vorher
+        ``price_per_bottle_incl_vat * units`` ohne den Grössenfaktor, und der fehlte
+        sichtbar: ein 6er-Karton à 37.5 cl stand mit CHF 228 statt 114 da.
+
+        Und hier stand danach ``price_raw * units``, sobald ``roh_ist_gebinde`` falsch
+        war — was ein fehlendes Feld ebenfalls ergibt. Für 76 Kartonangebote mit
+        Kartonpreis im Rohfeld wurde daraus der sechs- bis vierundzwanzigfache Betrag.
+        Beide Fehler gingen in dieselbe Richtung wie beim ersten Mal: ein zu hoher
+        Betrag ist harmloser als ein zu tiefer, aber falsch ist er trotzdem.
         """
-        if self.price_raw is not None:
+        einheiten = self.units or 1
+        if self.price_raw is not None and self.roh_ist_gebinde is not None:
             betrag = self.price_raw if self.roh_ist_gebinde \
-                else self.price_raw * (self.units or 1)
+                else self.price_raw * einheiten
             if self.vat_added:
                 from .prices import VAT_ALCOHOL
 
                 betrag *= 1 + VAT_ALCOHOL
             return round(betrag + 1e-9, 2)
+
         if self.price_per_bottle_incl_vat is None:
             return None
-        return self.price_per_bottle_incl_vat * (self.units or 1)
+        from .prices import REFERENCE_ML
+
+        faktor = (self.bottle_ml or REFERENCE_ML) / REFERENCE_ML
+        return round(self.price_per_bottle_incl_vat * einheiten * faktor + 1e-9, 2)
 
 
 @dataclass
