@@ -224,15 +224,40 @@ REGION_HINTS = {
 #: Pinot Blanc). Ein Veto gibt es nur beim *Widerspruch* — rot gegen weiss.
 #: ``nero``, ``negra``, ``noir`` fehlen hier absichtlich: das sind Rebsorten- und
 #: Produzentenbestandteile (Nero d'Avola, Anima Negra, Pinot Noir), keine Farbangaben.
+#: Die Plurale gehören dazu, und sie fehlten.
+#:
+#: Jedes Farbwort stand nur im Singular; „blancs", „bianchi", „rossi", „tintos",
+#: „weisse", „noirs" und „neri" galten damit als identitätstragende Tokens. Sie
+#: konnten als Match-Anker dienen und gingen als Identität in den Cache-Schlüssel ein.
+#:
+#: Gefunden an einem Champagner: „Champagne Ruinart blanc de blancs" (Schubi, CHF 94)
+#: trug die 4.5 von **Dom** Ruinart Blanc de Blancs — einer Prestige-Cuvée für ein
+#: Mehrfaches, 21'428 Bewertungen. Gemeinsam war den beiden Namen nur „ruinart" und
+#: das Farbwort „blancs"; das reichte als Anker. Dazu hinterliess derselbe Mangel
+#: einen Cache-Schlüssel „brut champagne blanc blancs|2015", dessen einziges eigenes
+#: Token „blancs" war und der eine bestätigte 4.3 von Pol Roger trug — jeder andere
+#: Blanc de Blancs desselben Jahrgangs hätte sie geerbt.
+#:
+#: Gemessen an allen 2101 bestätigten Zuordnungen kostet die Ergänzung genau einen
+#: Treffer, und das ist der falsche Ruinart.
 COLOUR_TOKENS = {
-    "rosso", "rouge", "tinto", "red", "rot", "roter",
-    "bianco", "blanco", "blanc", "white", "weiss", "weisser", "branco",
+    "rosso", "rossi", "rouge", "rouges", "tinto", "tintos", "tinta", "tintas",
+    "red", "reds", "rot", "roter", "rote", "roten",
+    "bianco", "bianchi", "bianca", "bianche", "blanco", "blancos", "blanca", "blancas",
+    "blanc", "blancs", "blanche", "blanches", "white", "whites",
+    "weiss", "weisser", "weisse", "weissen", "branco", "brancos", "branca", "brancas",
+    "noir", "noirs", "nero", "neri", "negro", "negros",
 }
 
 #: Welche Farbtokens sich gegenseitig ausschliessen.
 COLOUR_GROUPS = {
-    "rot": {"rosso", "rouge", "tinto", "red", "rot", "roter"},
-    "weiss": {"bianco", "blanco", "blanc", "white", "weiss", "weisser", "branco"},
+    "rot": {"rosso", "rossi", "rouge", "rouges", "tinto", "tintos", "tinta", "tintas",
+            "red", "reds", "rot", "roter", "rote", "roten",
+            "noir", "noirs", "nero", "neri", "negro", "negros"},
+    "weiss": {"bianco", "bianchi", "bianca", "bianche", "blanco", "blancos",
+              "blanca", "blancas", "blanc", "blancs", "blanche", "blanches",
+              "white", "whites", "weiss", "weisser", "weisse", "weissen",
+              "branco", "brancos", "branca", "brancas"},
 }
 
 
@@ -508,7 +533,16 @@ def distinctive_tokens(text: str) -> list[str]:
 #: korrekt ab — Ergebnis: eine Lücke, obwohl der richtige Wein existiert und nur nicht
 #: gesucht wurde. Mit der Menge sperrt der Stil weiterhin den falschen Wein und
 #: findet zugleich den richtigen.
-STIL_IN_ABFRAGE = frozenset({"vintage", "tawny", "lbv", "crusted", "garrafeira"})
+#:
+#: „Blancs" und „noirs" stehen mit dabei, obwohl sie Farbwörter sind: in „Blanc de
+#: Blancs" und „Blanc de Noirs" bezeichnen sie nicht die Farbe, sondern die Machart,
+#: und sie trennen wieder Produkte desselben Hauses. Als *Anker* dürfen sie nicht
+#: gelten — genau daran erbte „Champagne Ruinart blanc de blancs" die 4.5 von Dom
+#: Ruinart —, aber ohne sie in der Abfrage fällt „Delamotte Blanc de Blancs" auf
+#: „delamotte" zusammen und findet den richtigen Wein nicht mehr.
+STIL_IN_ABFRAGE = frozenset({
+    "vintage", "tawny", "lbv", "crusted", "garrafeira", "blancs", "noirs",
+})
 
 
 def query_tokens(text: str) -> list[str]:
