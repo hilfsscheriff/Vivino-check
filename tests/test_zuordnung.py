@@ -68,9 +68,13 @@ zuordnungen:
 
 def test_die_echte_datei_ist_lesbar_und_belegt():
     """Jeder Eintrag muss Adresse und Pruefdatum tragen — eine Behauptung ohne Beleg
-    hat hier nichts zu suchen."""
+    hat hier nichts zu suchen.
+
+    Die Liste darf leer sein, und sie ist es: der erste Eintrag war falsch. Er
+    stuetzte sich auf einen Namensgleichstand mit einem Vivino-Dublettenstummel und
+    entfernte damit eine richtige Note. Die Begruendung steht als Warnung in der YAML.
+    """
     t = laden()
-    assert t, "die Datei sollte mindestens den Anlassfall enthalten"
     for e in t.values():
         assert e.url.startswith("https://www.vivino.com/"), e.name
         assert e.geprueft_am, e.name
@@ -85,3 +89,22 @@ def test_der_eintrag_schlaegt_die_suche():
     quelle = inspect.getsource(VivinoAdapter.lookup)
     vor_cache = quelle.index("_zuordnung(name)") < quelle.index("self.cache.get_rating")
     assert vor_cache, "die Zuordnung muss vor dem Cache geprueft werden"
+
+
+def test_ein_namensgleichstand_allein_rechtfertigt_keinen_eintrag():
+    """Die Regel, an der ich gescheitert bin — als Text festgehalten, damit sie beim
+    naechsten Eintrag gelesen wird.
+
+    Vivino enthaelt Dubletten: von Nutzern angelegte Stummel, die wie der gesuchte
+    Wein heissen, aber keine Bewertungen, einen einzigen Jahrgang und lueckenhafte
+    Angaben tragen. "la Rocca" wurde auf so einen Stummel eingetragen (/w/14033263,
+    nur Sangiovese, 0 Bewertungen) und verlor dadurch die richtige Note 4.2 von
+    /w/11745 — derselben Cuvée aus Cabernet Sauvignon, Merlot und Sangiovese mit
+    4663 Bewertungen.
+    """
+    from pathlib import Path
+    text = Path("sources/vivino-zuordnung.yaml").read_text(encoding="utf-8")
+    assert "Substanz" in text, "die Regel muss in der Datei stehen"
+    assert "14033263" in text and "11745" in text, "der Anlassfall muss belegt bleiben"
+    modul = Path("src/winecheck/zuordnung.py").read_text(encoding="utf-8")
+    assert "Dubletten" in modul
