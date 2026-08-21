@@ -55,9 +55,16 @@ def _produkt(
     menge=6,
     flasche="15.20",
     karton="91.20",
+    # Der Katalogpreis, den DIVO anschreibt, und der Preis nach dem stehenden Abzug
+    # sind **verschiedene** Felder. Die Vorgabe muss sie unterscheiden, sonst prüft
+    # kein Test die Feldwahl: genau daran fiel der Fehler nicht auf, dass der
+    # Bericht für 19 von 21 DIVO-Weinen einen Streichpreis auswies, den die
+    # Händlerseite nirgends nennt.
+    instead_flasche="19.00",
+    instead_karton="114.00",
     regular_flasche="16.90",
     regular_karton="101.40",
-    instead=None,
+    prozent=20,
     verkaeuflich=True,
     nicht_lieferbar=False,
     verzoegerung=False,
@@ -65,6 +72,11 @@ def _produkt(
     posten = {"item_id": id, "item_name": name, "item_category": gruppe}
     if untergruppe:
         posten["item_category2"] = untergruppe
+    preise_instead = {}
+    if instead_flasche is not None:
+        preise_instead["43618"] = instead_flasche
+    if instead_karton is not None:
+        preise_instead["43617"] = instead_karton
     p = {
         "id": id,
         "name": name,
@@ -85,12 +97,14 @@ def _produkt(
                       "isSellable": True},
         },
         "price": {"43618": flasche, "43617": karton},
-        "promotion": {"percent": 10,
-                      "regularPrice": {"43618": regular_flasche, "43617": regular_karton}},
         "gAData": {"currency": "CHF", "items": [posten]},
     }
-    if instead:
-        p["insteadOfPrice"] = instead
+    if prozent is not None:
+        p["promotion"] = {"percent": prozent,
+                          "regularPrice": {"43618": regular_flasche,
+                                           "43617": regular_karton}}
+    if preise_instead:
+        p["insteadOfPrice"] = preise_instead
     return p
 
 
@@ -206,15 +220,61 @@ def test_bei_einzelverkauf_zaehlt_die_flasche(adapter):
 def test_der_streichpreis_liegt_auf_derselben_bezugsgroesse(allo):
     """Karton gegen Karton: 87.00 zu 108.00 sind 19 %, nicht 84 % gegen die Flasche."""
     o = _eins(allo, _produkt(einzeln=False, flasche="14.50", karton="87.00",
-                             regular_flasche="18.00", regular_karton="108.00"))
+                             instead_flasche=None, instead_karton=None,
+                             regular_flasche="18.00", regular_karton="108.00",
+                             prozent=19))
     assert o.reference_price == 18.00
     assert o.discount_percent is not None and 19.0 <= o.discount_percent <= 19.5
 
 
 def test_referenzpreis_auch_ohne_insteadofprice(allo):
-    """Alloboissons führt nur ``promotion.regularPrice``, DIVO beides."""
-    o = _eins(allo, _produkt(einzeln=False))
-    assert o.reference_price is not None
+    """Alloboissons führt nur ``promotion.regularPrice`` — dort ist es das richtige Feld.
+
+    Gemessen: bei allen 24 Alloboissons-Kacheln reproduziert ``regularPrice`` den
+    beworbenen Rabatt, ``insteadOfPrice`` fehlt ganz.
+    """
+    o = _eins(allo, _produkt(einzeln=False, flasche="14.50", karton="87.00",
+                             instead_flasche=None, instead_karton=None,
+                             regular_flasche="18.00", regular_karton="108.00",
+                             prozent=19))
+    assert o.reference_price == 18.00
+
+
+def test_der_katalogpreis_gewinnt_gegen_den_preis_nach_abzug(adapter):
+    """Die Kachel führt zwei höhere Preise; der beworbene Rabatt sagt, welcher gilt.
+
+    DIVO zeigt "Katalogpreis: 19.00" und einen Balken mit −20 %. ``regularPrice``
+    liegt mit 16.90 rund 10 % darunter — offenbar der Preis nach einem stehenden
+    Abzug. Gemessen an den 22 DIVO-Kacheln erklärt der Katalogpreis den Balken 22 mal,
+    ``regularPrice`` zweimal. Zuerst stand hier die falsche Reihenfolge, und der
+    Bericht wies für den Coudoulet "statt 28.80, −17 %" aus, während die Seite
+    "statt 32.00, −25 %" anschreibt.
+    """
+    o = _eins(adapter, _produkt())
+    assert o.reference_price == 19.00
+    assert o.discount_percent is not None and 19.5 <= o.discount_percent <= 20.5
+
+
+def test_kein_streichpreis_wenn_keiner_den_beworbenen_rabatt_erklaert(adapter):
+    """Ein erfundener Rabatt ist schlimmer als keiner — gerankt wird über ihn nie."""
+    o = _eins(adapter, _produkt(flasche="15.20", instead_flasche="25.00",
+                                regular_flasche="24.00", prozent=20))
+    assert o.reference_price is None
+    assert o.discount_percent is None
+
+
+def test_kachel_ohne_aktion_bekommt_keinen_rabatt(adapter):
+    """Ohne ausgeschriebene Aktion kein Streichpreis — sonst wird eine erfunden.
+
+    Auf derselben Plattform tragen auch Normalartikel einen Katalogpreis rund 10 %
+    über dem Nettopreis. Gemessen an der ungefilterten Sortimentsseite: 24 Kacheln,
+    4 mit Aktion — ohne diese Regel hätte der Adapter 24 Rabatte gemeldet. Fällt der
+    Aktionsfilter je aus der URL, ist das genau der Fall.
+    """
+    o = _eins(adapter, _produkt(prozent=None, instead_flasche="19.00"))
+    assert o.reference_price is None
+    assert o.discount_percent is None
+    assert "keine Aktion ausgeschrieben" in o.source_note
 
 
 def test_halbe_flasche_wird_hochgerechnet_der_zahlbetrag_nicht(adapter):
@@ -312,4 +372,43 @@ def test_unlesbare_kachel_wird_gemeldet(adapter):
     html = _seite(_produkt()).replace("<div x-data=\"product(", "<div x-data=\"product({&quot;id&quot;:)", 1)
     offers = adapter.parse(html, SEITE)
     assert offers == []
-    assert any("nicht lesbar" in h for h in adapter._hinweise)
+    assert any("unlesbar" in h for h in adapter._hinweise), adapter._hinweise
+
+
+def test_ein_falscher_feldtyp_kostet_nur_seine_eigene_kachel(adapter):
+    """Eine schräge Kachel darf nicht die ganze Seite mitnehmen.
+
+    Vorher lag nur ``json.loads`` im Schutz. Ein ``price`` als Liste statt als Objekt
+    riss die Ausnahme bis in ``fetch``, und aus 21 lesbaren Weinen wurde ein
+    „Parse-Fehler" ohne einen einzigen Wein.
+    """
+    kaputt = _produkt(id="99999 75 2020", name="Kaputte Kachel 2020")
+    kaputt["price"] = ["15.20"]
+    offers = adapter.parse(_seite(kaputt, _produkt()), SEITE)
+    assert [o.name for o in offers] == ["Anthoinette 2024 Château Castera Bordeaux Blanc AOC"]
+    assert any("unlesbar" in h for h in adapter._hinweise), adapter._hinweise
+
+
+def test_eine_vom_regex_verfehlte_kachel_wird_gezaehlt(adapter):
+    """Die Sollzahl kommt aus dem rohen HTML, nicht aus den Regex-Treffern.
+
+    Ein echtes Anführungszeichen im Namen — die Annahme, auf der ``[^"]*`` beruht —
+    lässt die Kachel am Muster vorbeilaufen. Zählte der Nenner nur die Treffer, wäre
+    sie lautlos verschwunden.
+    """
+    html = _seite(_produkt(), _produkt(id="91968 75 2024", name="Zweiter 2024"))
+    html = html.replace('Zweiter 2024', 'Zweiter "Reserve" 2024', 1)
+    offers = adapter.parse(html, SEITE)
+    assert len(offers) == 1
+    assert any("nicht gelesen" in h for h in adapter._hinweise), adapter._hinweise
+
+
+def test_die_stueckzahl_kommt_nie_aus_dem_weinnamen(adapter):
+    """Der Gebindetext wird aus den Zahlen der Kachel gebaut, nicht aus ihrem Text.
+
+    Sonst durchsucht die Stückzahl-Erkennung den Weinnamen mit: ein „6er-Aktion" darin
+    ergäbe units=6 und damit einen sechsfachen Zahlbetrag.
+    """
+    o = _eins(adapter, _produkt(name="Anthoinette 6er-Aktion 2024"))
+    assert (o.units or 1) == 1
+    assert o.price_raw == 15.20
