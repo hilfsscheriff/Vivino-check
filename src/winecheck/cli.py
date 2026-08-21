@@ -44,7 +44,7 @@ from .aggregate import (
     resolve_shared_ratings,
 )
 from .cache import Cache
-from .config import SourceConfig, load_registry
+from .config import SourceConfig, load_registry, Registry
 from .fetching import Fetcher
 from .models import Offer, PriceConfidence, VivinoStatus, WineRow
 from .prices import price_band
@@ -146,9 +146,19 @@ def _echo(msg: str, *, err: bool = False) -> None:
     typer.echo(msg, err=err)
 
 
-def _adapter_for(cfg: SourceConfig, fetcher: Fetcher) -> RetailerAdapter | None:
+def _adapter_for(cfg: SourceConfig, fetcher: Fetcher,
+                 reg: "Registry | None" = None) -> RetailerAdapter | None:
     cls = ADAPTERS.get(cfg.adapter) or ADAPTERS.get(cfg.key)
-    return cls(cfg, fetcher) if cls else None
+    if cls is None:
+        return None
+    adapter = cls(cfg, fetcher)
+    # Aggregatoren legen unter fremden Händlerschlüsseln ab; deren eigene
+    # Aktionsseite ist das haltbarere Kaufziel als die Deal-Seite des Aggregators.
+    if reg is not None:
+        adapter.haendler_seiten = {
+            k: dict(s.aktionsseiten) for k, s in reg.retailers.items() if s.aktionsseiten
+        }
+    return adapter
 
 
 # --------------------------------------------------------------------- fetch
@@ -201,7 +211,7 @@ def fetch(
                 # gemessen 96 Zeilen unter coop, denner, ottos, volg und spar.
                 for key in {cfg.key} | cache.haendler_unter(cfg.key):
                     cache.clear_offers(key)
-            adapter = _adapter_for(cfg, fetcher)
+            adapter = _adapter_for(cfg, fetcher, reg)
             if adapter is None:
                 _echo(f"  {cfg.key:<14} übersprungen — kein Adapter ({cfg.status})")
                 continue

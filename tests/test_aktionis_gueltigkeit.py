@@ -72,3 +72,57 @@ def test_der_adapter_meldet_die_uebersprungenen():
     offers = a.parse(f"<html><body>{karten}</body></html>", "https://www.aktionis.ch/q/Wein")
     assert len(offers) == 1, [o.name for o in offers]
     assert any("abgelaufener Aktion" in h for h in a._hinweise), a._hinweise
+
+
+# -- Das Kaufziel ----------------------------------------------------------
+def _adapter_mit_seiten() -> AktionisAdapter:
+    cfg = SourceConfig(key="aktionis", name="Aktionis", adapter="aktionis",
+                       domain="aktionis.ch", vat_included=True)
+    a = AktionisAdapter(cfg, fetcher=None)
+    a.haendler_seiten = {"coop": {
+        "standard": "https://www.coop.ch/de/weine/aktionen/c/SPECIAL_OFFERS_WINE",
+        "weisswein": "https://www.coop.ch/de/weine/aktionen/aktionen-weisswein/c/X",
+        "champagner": "https://www.coop.ch/de/weine/aktionen/aktionen-champagner/c/Y",
+    }}
+    return a
+
+
+def _mit_namen(name: str, haendler: str = "Coop"):
+    html = (
+        '<div class="card dealtype-deal" data-upox-id="123">'
+        f'<a href="/deals/irgendein-wein-47"><div class="card-merchant"><img alt="{haendler}"></div>'
+        '<div class="card-price"><span class="price-new">9.95</span></div>'
+        f'<div class="card-image"><img alt="{name}"></div>'
+        '<span class="card-date">20.08.2026 - 26.08.2026</span></a></div>'
+    )
+    return f"<html><body>{html}</body></html>"
+
+
+def test_der_link_zeigt_auf_die_aktionsseite_des_haendlers():
+    """Aktionis' Deal-Seiten sind binnen Stunden tot — 9 von 11 gemessen.
+
+    Der Link muss auf eine Adresse zeigen, die bleibt. Der Preis stammt weiterhin
+    von Aktionis, und das steht in der Notiz.
+    """
+    a = _adapter_mit_seiten()
+    o = a.parse(_mit_namen("Barolo DOCG 2020 – Rotwein, Italien (0.75l)"),
+                "https://www.aktionis.ch/q/Wein")[0]
+    assert o.url == "https://www.coop.ch/de/weine/aktionen/c/SPECIAL_OFFERS_WINE"
+    assert "Aktionis" in o.source_note
+
+
+def test_die_farbe_fuehrt_zur_genaueren_seite():
+    """Die Karte nennt die Farbe im Namen; wo die Adresse bekannt ist, wird sie genutzt."""
+    a = _adapter_mit_seiten()
+    weiss = a.parse(_mit_namen("Chablis AOC 2023 – Weisswein, Frankreich (0.75l)"),
+                    "https://www.aktionis.ch/q/Wein")[0]
+    assert weiss.url.endswith("aktionen-weisswein/c/X")
+
+
+def test_ohne_bekannte_aktionsseite_bleibt_der_deal_link():
+    """Für Händler ohne eigene Adresse ist die Deal-Seite immer noch die beste — sie
+    ist am Tag des Laufs richtig, und eine schlechtere Auskunft wäre keine."""
+    a = _adapter_mit_seiten()
+    o = a.parse(_mit_namen("Rioja DOCa 2021 – Rotwein, Spanien (0.75l)", haendler="Otto's"),
+                "https://www.aktionis.ch/q/Wein")[0]
+    assert o.url.startswith("https://www.aktionis.ch/deals/")

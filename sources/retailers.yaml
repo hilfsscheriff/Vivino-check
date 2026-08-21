@@ -26,6 +26,15 @@ retailers:
     adapter: coop
     enabled: false
     status: blocked
+    # Coops eigene Aktionsseiten. Sie werden **nicht** abgerufen — coop.ch liefert
+    # schon fuer robots.txt eine CAPTCHA-Auslieferung aus, ein Adapter ist damit
+    # ausgeschlossen. Hier stehen sie als *Kaufziel* fuer die Coop-Angebote, die
+    # ueber Aktionis hereinkommen: dessen Deal-Seiten werden laufend neu angelegt und
+    # sind binnen Stunden tot (gemessen: 9 von 11), waehrend diese Adressen bleiben.
+    aktionsseiten:
+      standard: "https://www.coop.ch/de/weine/aktionen/c/SPECIAL_OFFERS_WINE"
+      weisswein: "https://www.coop.ch/de/weine/aktionen/aktionen-weisswein/c/SPECIAL_OFFERS_M_0235?q=:relevance:specialOfferFacet:true&sort=relevance&pageSize=58"
+      champagner: "https://www.coop.ch/de/weine/aktionen/aktionen-champagner/c/SPECIAL_OFFERS_M_3051?q=%3Arelevance%3AspecialOfferFacet%3Atrue&sort=relevance&pageSize=58"
     urls:
       - https://www.coop.ch/de/aktionen/aktuelle-aktionen/aktionen-weine/c/m_1808
     verified_at: "2026-08-05"

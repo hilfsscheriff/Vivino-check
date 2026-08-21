@@ -54,6 +54,17 @@ class SourceConfig:
     #: Nine Napa Valley", "4 kilos Tinto". Steht das hier auf ``true``, wird nur noch
     #: ausgeschlossen, was ausdrücklich kein Wein ist — Gläser, Essig, Alkoholfreies.
     wine_only: bool = False
+    #: Die **eigene** Aktionsseite dieses Händlers, als Kaufziel für Angebote, die
+    #: über einen Aggregator hereinkommen.
+    #:
+    #: Aktionis legt seine Deal-Seiten laufend neu an: von elf gespeicherten Links
+    #: waren elf Stunden nach dem Lauf neun tot, obwohl die Aktionen noch liefen. Die
+    #: alte Seite ist dabei eine Sackgasse — ihr Canonical zeigt auf sich selbst, auf
+    #: die neue verweist sie nicht. Eine Aktionsseite des Händlers rottet nicht.
+    #:
+    #: Schlüssel ``standard`` gilt für alles; Farbschlüssel (``weisswein``,
+    #: ``champagner``, …) landen genauer, wenn die Adresse bekannt ist.
+    aktionsseiten: dict[str, str] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict)
 
     # -- Zugangsdaten ------------------------------------------------------

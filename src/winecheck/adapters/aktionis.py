@@ -169,7 +169,36 @@ class AktionisAdapter(RetailerAdapter):
         )
         # Der Händler ist das eigentliche Ziel, nicht der Aggregator.
         offer.retailer = merchant
+        seite = self._kaufziel(merchant, name)
+        if seite:
+            offer.url = seite
         return offer
+
+    def _kaufziel(self, merchant: str, name: str) -> str:
+        """Die Aktionsseite des Händlers statt der Deal-Seite des Aggregators.
+
+        Aktionis legt seine Deal-Seiten laufend neu an, mit neuer Zahl-Endung, und
+        markiert die alte als „Angebot ist abgelaufen". Gemessen: von elf gespeicherten
+        Links waren elf Stunden nach dem Lauf neun tot — und alle neun gehörten zu
+        Aktionen, die noch fünf Tage liefen. Die alte Seite verweist nicht auf die
+        neue, ihr Canonical zeigt auf sich selbst; sie ist eine Sackgasse.
+
+        Darum zeigt der Link auf die eigene Aktionsseite des Händlers, wenn sie in der
+        Registry steht. Sie ist eine Adresse mehr statt einer Sackgasse — und der
+        Händler ist ohnehin der Ort, an dem gekauft wird. Woher der *Preis* kommt,
+        steht weiterhin in der Notiz („Aktionis, gültig …").
+
+        Die Farbe steht im Namen der Karte („… – Rotwein, Italien (0.75l)"), also wird
+        die genauere Adresse genommen, wo sie bekannt ist.
+        """
+        seiten = self.haendler_seiten.get(merchant) or {}
+        if not seiten:
+            return ""
+        klein = name.lower()
+        for farbe, url in seiten.items():
+            if farbe != "standard" and farbe in klein:
+                return url
+        return seiten.get("standard", "")
 
 
 

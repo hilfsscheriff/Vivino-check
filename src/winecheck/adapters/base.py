@@ -244,6 +244,10 @@ class RetailerAdapter:
         self.cfg = cfg
         self.fetcher = fetcher
         self._hinweise: list[str] = []
+        #: Aktionsseiten fremder Händler, ``{Händlerschlüssel: {Farbe: URL}}``.
+        #: Nur Aggregatoren brauchen das; ``cli._adapter_for`` füllt es aus der
+        #: Registry, damit ein Adapter nicht die ganze Konfiguration kennen muss.
+        self.haendler_seiten: dict[str, dict[str, str]] = {}
 
     def melde_luecke(self, text: str) -> None:
         """Eine bekannte, unvermeidbare Unvollständigkeit in den Bericht schreiben.
