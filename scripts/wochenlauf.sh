@@ -41,6 +41,23 @@ sage "── Wochenlauf gestartet"
 # Hier darf zurückgesetzt werden, weil in diesem Klon nichts von Hand entsteht: er
 # holt den Stand, rechnet und schiebt das Ergebnis zurück. Die Arbeitskopie unter
 # ~/Library/CloudStorage bleibt unberührt.
+# -- Sperre: nur ein Lauf zur Zeit ------------------------------------------
+# Das Skript nennt den Handstart selbst als vorgesehenen Weg, und der launchd-Auftrag
+# holt verpasste Termine beim naechsten Aufwachen nach — also genau dann, wenn sich
+# jemand anmeldet und selbst etwas startet. Beide Laeufe teilen Arbeitsverzeichnis,
+# Cache und Git-Index, und der Schaden ist still: der Reset des zweiten verwirft die
+# Seite, die der erste gerade gebaut hat, und Schritt 6 meldet dann brav "Keine
+# Aenderung an der Seite".
+#
+# mkdir ist die Sperre: es gelingt genau einmal. flock(1) gibt es auf macOS nicht.
+SPERRE="$PROJEKT/state/.lauf.lock"
+mkdir -p "$PROJEKT/state"
+if ! mkdir "$SPERRE" 2>/dev/null; then
+  sage "Ein Lauf laeuft schon (Sperre $SPERRE) — abgebrochen."
+  exit 0
+fi
+trap 'rmdir "$SPERRE" 2>/dev/null' EXIT
+
 if ! git fetch -q origin 2>>"$PROTOKOLL"; then
   sage "WARNUNG: git fetch fehlgeschlagen — arbeite mit dem lokalen Stand weiter"
 elif ! git reset --hard -q origin/main 2>>"$PROTOKOLL"; then
@@ -76,12 +93,20 @@ fi
 # Genossenschaftsabfüllungen, ein Zürcher Kleinwinzer — die stehen bei Vivino
 # wirklich nicht. Der Durchgang kostet rund 400 zusätzliche Abfragen; für zehn
 # Prozent Ausbeute lohnt er einmal im Monat, nicht jede Woche.
+# Der Rueckgabewert wird ausgewertet. Vorher nicht — und ein abgebrochener rate-Lauf
+# lief damit still weiter: report las den Stand des Vorlaufs, alle Reissleinen
+# verglichen ihn mit sich selbst, und die Preise der Vorwoche gingen unter dem heutigen
+# Datum online.
 if [ "$(date '+%d')" -le 7 ]; then
   sage "Bewertungen abgleichen (mit Wiederholung der Fehlschläge) …"
-  uv run wine-check rate --retry-failed >>"$PROTOKOLL" 2>&1
+  RATE_OK=0; uv run wine-check rate --retry-failed >>"$PROTOKOLL" 2>&1 || RATE_OK=$?
 else
   sage "Bewertungen abgleichen …"
-  uv run wine-check rate >>"$PROTOKOLL" 2>&1
+  RATE_OK=0; uv run wine-check rate >>"$PROTOKOLL" 2>&1 || RATE_OK=$?
+fi
+if [ "$RATE_OK" -ne 0 ]; then
+  sage "FEHLER beim Abgleich (Code $RATE_OK) — nichts gebaut, nichts eingecheckt"
+  exit 1
 fi
 
 # -- 3. Report und Seite ----------------------------------------------------
@@ -90,7 +115,13 @@ if ! uv run wine-check report --out ./output >>"$PROTOKOLL" 2>&1; then
   sage "FEHLER beim Report — nichts eingecheckt"
   exit 1
 fi
-uv run wine-check site --out ./docs >>"$PROTOKOLL" 2>&1
+# Auch hier der Rueckgabewert: seit es die Seitensperre gibt (SEITE_MIN_ANTEIL), kann
+# 'site' bewusst abbrechen — und dieser Abbruch wurde verschluckt. Der Lauf checkte
+# danach die alte Seite ein und meldete Erfolg.
+if ! uv run wine-check site --out ./docs >>"$PROTOKOLL" 2>&1; then
+  sage "FEHLER beim Seitenbau — nichts eingecheckt (siehe Protokoll)"
+  exit 1
+fi
 
 # -- 4. Reissleine ----------------------------------------------------------
 # Dieselbe Prüfung wie im (abgeschalteten) GitHub-Workflow: ein Lauf, der die Datenlage
@@ -137,7 +168,13 @@ if git diff --quiet -- docs state/ratings-cache.json; then
   sage "Keine Änderung an der Seite — nichts einzuchecken."
 else
   git add docs state/ratings-cache.json
-  git commit -q -m "Wochenlauf $(date '+%d.%m.%Y')" && sage "eingecheckt"
+  # Der Push haengt am Commit. Vorher stand er in einem eigenen if, und ein an
+  # .git/index.lock gescheiterter Commit fuehrte trotzdem zu "gepusht" im Protokoll.
+  if ! git commit -q -m "Wochenlauf $(date '+%d.%m.%Y')"; then
+    sage "FEHLER beim Einchecken — nicht gepusht"
+    exit 1
+  fi
+  sage "eingecheckt"
   if git push -q origin HEAD:main 2>>"$PROTOKOLL"; then
     sage "gepusht — GitHub Pages liefert in ein bis zwei Minuten aus"
   else

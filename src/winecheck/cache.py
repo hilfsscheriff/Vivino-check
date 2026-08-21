@@ -5,11 +5,16 @@ Gültigkeiten, weil sich die Daten unterschiedlich schnell ändern:
 
 ============================  ========
 Bewertungen                   90 Tage
-Preise                         1 Tag
+Preise                         7 Tage
 ``rating_not_readable``        30 Tage
 ``no_entry``                   30 Tage
-``blocked``                    bis zum vermerkten Retry-Zeitpunkt
+``blocked``                    bis zum vermerkten Retry-Zeitpunkt, höchstens 7 Tage
 ============================  ========
+
+Bei den Preisen stand hier „1 Tag", und das galt nirgends: der Wert kam nur in
+``get_offer`` vor, und diese Methode hatte keinen einzigen Aufrufer. Wirksam ist
+allein das Fenster von :meth:`Cache.all_offers`, also sieben Tage. Lieber die
+tatsächliche Zahl als eine strengere, die nicht stimmt.
 
 Die 30 Tage für Nicht-Treffer sind der Grund, warum ``diff.md`` neu aufgetauchte
 Vivino-Bewertungen zeigen kann: der Eintrag verfällt, wird neu geprüft, und wenn dann
@@ -28,7 +33,12 @@ from typing import Any
 from .names import normalized_name
 
 TTL_RATING_DAYS = 90
-TTL_PRICE_DAYS = 1
+
+#: Wie lange ein Angebotspreis gilt. Hier stand ``TTL_PRICE_DAYS = 1``, benutzt wurde
+#: aber ausschliesslich ``TTL_PRICE_DAYS * 7`` — die Eins war nie eine Frist, sondern
+#: ein Faktor, und der Modulkopf hat sie als Frist dokumentiert. Jetzt steht die Zahl
+#: da, die gilt.
+TTL_PREIS_TAGE = 7
 TTL_SOFT_MISS_DAYS = 30      # rating_not_readable, no_entry
 
 #: Bewertungen ändern sich langsam, Preise nicht. Trägt ein Eintrag einen
@@ -76,6 +86,29 @@ CREATE INDEX IF NOT EXISTS idx_ratings_status ON ratings(status);
 """
 
 
+#: Stand des Schemas. Wird als ``PRAGMA user_version`` in der Datei vermerkt.
+#:
+#: Vorher gab es keinen Ort, an dem ein Cache seinen Stand notiert: ``_SCHEMA``
+#: arbeitet mit ``CREATE TABLE IF NOT EXISTS``, ``_migriere`` prüfte per Introspektion,
+#: und ``user_version`` blieb auf 0. Ein Klon konnte damit nicht feststellen, dass sein
+#: Cache älter ist als der Code — der Bruch zeigte sich erst als ``OperationalError``
+#: zur Laufzeit, im Wochenlauf freitags um 07:00 ohne Beobachter.
+#:
+#: 1 = Ausgangsstand, 2 = ``offers.retailer`` heisst ``source_key``.
+SCHEMA_VERSION = 2
+
+#: Aufbewahrung der Lauf-Schnappschüsse.
+#:
+#: ``save_snapshot`` ersetzt nur den Lauf desselben Kalendertages; darüber hinaus wuchs
+#: die Tabelle unbegrenzt. Gemessen: 2.67 MB je Lauf bei 2206 Weinen, 74 % der
+#: 16.8-MB-Datei, nach einem Jahr Wochenläufen 157 MB. Das trifft jede Abfrage, die
+#: die Spalte liest, und die Datei liegt zudem in einem synchronisierten Ordner.
+#:
+#: 26 statt 12: ``site --runs 12`` ist dokumentiert, und der älteste angezeigte Lauf
+#: braucht einen Vorgänger für den Vergleich. Ein halbes Jahr Aktionswochen.
+RUNS_AUFBEWAHRUNG = 26
+
+
 def _key(name: str, vintage: int | None) -> tuple[str, str]:
     return normalized_name(name), str(vintage or "")
 
@@ -96,13 +129,25 @@ def _migriere(conn: sqlite3.Connection) -> None:
     ``fetch`` kostet Anfragen bei siebzehn Quellen, und ein ``rate`` danach Stunden. Wer
     das Werkzeug aktualisiert, soll seinen Bestand behalten.
     """
+    stand = conn.execute("PRAGMA user_version").fetchone()[0]
+    if stand > SCHEMA_VERSION:
+        raise RuntimeError(
+            f"Der Cache trägt Schemastand {stand}, dieser Code kennt nur "
+            f"{SCHEMA_VERSION}. Er stammt aus einer neueren Fassung des Werkzeugs — "
+            f"erst aktualisieren, sonst gehen Felder verloren."
+        )
+
     hat = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    if "offers" not in hat:
-        return
-    spalten = {r[1] for r in conn.execute("PRAGMA table_info(offers)")}
-    if "retailer" in spalten and "source_key" not in spalten:
-        conn.execute("ALTER TABLE offers RENAME COLUMN retailer TO source_key")
-        conn.commit()
+    if "offers" in hat:
+        spalten = {r[1] for r in conn.execute("PRAGMA table_info(offers)")}
+        if "retailer" in spalten and "source_key" not in spalten:
+            conn.execute("ALTER TABLE offers RENAME COLUMN retailer TO source_key")
+
+    # Den Stand vermerken. Ein leerer Cache bekommt ihn ebenso — er ist per
+    # Konstruktion aktuell, und ohne Eintrag würde jede künftige Wanderung ihn für
+    # veraltet halten.
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+    conn.commit()
 
 
 @dataclass
@@ -116,8 +161,11 @@ class Cache:
         p.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(p)
         conn.row_factory = sqlite3.Row
-        _migriere(conn)
+        # Tabellen zuerst, Wanderungen danach. Vorher lief ``_migriere`` davor und
+        # brauchte deshalb einen eigenen Existenzwächter; jeder künftige Schritt hätte
+        # denselben gebraucht.
         conn.executescript(_SCHEMA)
+        _migriere(conn)
         conn.commit()
         return cls(path=p, conn=conn)
 
@@ -190,19 +238,10 @@ class Cache:
         self.conn.commit()
 
     # -- Angebote ----------------------------------------------------------
-    def get_offer(self, source_key: str, name: str, vintage: int | None, *, refresh: bool = False):
-        if refresh:
-            return None
-        nk, vt = _key(name, vintage)
-        row = self.conn.execute(
-            "SELECT * FROM offers WHERE source_key=? AND name_key=? AND vintage=?",
-            (source_key, nk, vt),
-        ).fetchone()
-        if row is None:
-            return None
-        if (time.time() - row["fetched_at"]) / 86400.0 > TTL_PRICE_DAYS:
-            return None
-        return json.loads(row["payload"])
+    # ``get_offer`` stand hier: ein Einzelabruf mit einem Ein-Tage-Fenster. Er hatte
+    # keinen Aufrufer, und sein TTL-Wert war damit die einzige Stelle, an der die im
+    # Modulkopf dokumentierte Gültigkeit „Preise 1 Tag" auftauchte. Entfernt, statt die
+    # Doku eine Grenze behaupten zu lassen, die nichts durchsetzt.
 
     def put_offer(self, source_key: str, name: str, vintage: int | None, payload: dict[str, Any]) -> None:
         nk, vt = _key(name, vintage)
@@ -214,7 +253,17 @@ class Cache:
         )
         self.conn.commit()
 
-    def all_offers(self, *, max_age_days: float = TTL_PRICE_DAYS * 7) -> list[dict[str, Any]]:
+    def juengstes_angebot(self) -> float | None:
+        """Zeitstempel des jüngsten Angebots, oder ``None`` bei leerer Tabelle.
+
+        Gebraucht von ``report``, um einen abgebrochenen ``rate``-Lauf zu erkennen:
+        ist der Bewertungsstand älter als die Angebote, die er bewerten soll, dann
+        wurde nicht fertig bewertet.
+        """
+        row = self.conn.execute("SELECT MAX(fetched_at) AS m FROM offers").fetchone()
+        return row["m"] if row and row["m"] is not None else None
+
+    def all_offers(self, *, max_age_days: float = TTL_PREIS_TAGE) -> list[dict[str, Any]]:
         """Alle noch brauchbaren Angebote — Grundlage für ``rate`` und ``report``,
         damit die Schritte getrennt laufen können."""
         cutoff = time.time() - max_age_days * 86400
@@ -246,6 +295,13 @@ class Cache:
         cur = self.conn.execute(
             "INSERT INTO runs (started_at, label, snapshot) VALUES (?,?,?)",
             (now, label, json.dumps(snapshot, ensure_ascii=False)),
+        )
+        # Aufbewahrungsgrenze: siehe RUNS_AUFBEWAHRUNG. Ohne sie wuchs die Tabelle
+        # unbegrenzt, und sie ist der grösste Teil der Datei.
+        self.conn.execute(
+            "DELETE FROM runs WHERE id NOT IN "
+            "(SELECT id FROM runs ORDER BY id DESC LIMIT ?)",
+            (RUNS_AUFBEWAHRUNG,),
         )
         self.conn.commit()
         return int(cur.lastrowid or 0)

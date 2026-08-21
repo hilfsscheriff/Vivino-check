@@ -14,6 +14,7 @@ nur bei neuen Weinen:
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import typer
@@ -235,12 +236,13 @@ def fetch(
             _echo(f"  {cfg.key:<14} {report.status:<8} {report.count:>4} Positionen  {report.message[:90]}")
 
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    (STATE_DIR / "fetch_reports.json").write_text(
+    _schreibe_atomar(
+        STATE_DIR / "fetch_reports.json",
         json.dumps([_report_payload(r) for r in reports], ensure_ascii=False, indent=2),
-        encoding="utf-8",
     )
-    (STATE_DIR / "uncertain.json").write_text(
-        json.dumps(uncertain, ensure_ascii=False, indent=2), encoding="utf-8"
+    _schreibe_atomar(
+        STATE_DIR / "uncertain.json",
+        json.dumps(uncertain, ensure_ascii=False, indent=2),
     )
     total = sum(r.count for r in reports)
     _echo(f"\n{total} Positionen von {len(reports)} Quellen im Cache.")
@@ -277,6 +279,22 @@ def rate(
     """
     reg = load_registry(registry)
     cache = Cache.open(cache_path)
+
+    # Erst die Arbeitsmenge bilden und prüfen, dann verwerfen.
+    #
+    # Die beiden Verwerfungen standen vorher **vor** diesem Block. Sind die Angebote
+    # leer oder älter als das Preisfenster, waren die Bewertungen damit gelöscht und
+    # der Lauf endete mit Exit 1, ohne eine einzige Abfrage gestellt zu haben — ein
+    # vergessener ``fetch`` oder ein Tippfehler im Feldnamen kostete mehrere hundert
+    # Noten, die nur über Stunden Vivino-Abfragen zurückkommen.
+    offers = [_offer_from_payload(d) for d in cache.all_offers()]
+    rows = compute_scores(attach_maturity(merge_offers(offers)))
+    if limit:
+        rows = rows[:limit]
+    if not rows:
+        _echo("Keine Angebote im Cache — zuerst 'wine-check fetch' laufen lassen.", err=True)
+        raise typer.Exit(1)
+
     if nachtragen:
         verworfen = cache.verwerfe_ratings_ohne_feld("vivino", nachtragen)
         _echo(f"Nachtrag '{nachtragen}': {verworfen} Bewertungen verworfen, "
@@ -291,13 +309,6 @@ def rate(
         verworfen = cache.verwerfe_ratings_mit_konfidenz("vivino", neu_beurteilen)
         _echo(f"Neubeurteilung '{neu_beurteilen}': {verworfen} Bewertungen verworfen, "
               f"der Rest bleibt aus dem Cache.")
-    offers = [_offer_from_payload(d) for d in cache.all_offers()]
-    rows = compute_scores(attach_maturity(merge_offers(offers)))
-    if limit:
-        rows = rows[:limit]
-    if not rows:
-        _echo("Keine Angebote im Cache — zuerst 'wine-check fetch' laufen lassen.", err=True)
-        raise typer.Exit(1)
 
     falstaff_cfg = reg.rating_source("falstaff")
     use_falstaff = bool(falstaff_cfg and falstaff_cfg.enabled)
@@ -331,10 +342,21 @@ def rate(
                 f"vivino={row.vivino.status.value:<19} "
                 f"{(f'{row.vivino.rating}' if row.vivino.rating else '—')}"
             )
-            cache.put_offer(
-                row.offers[0].retailer, row.name, row.vintage,
-                {**_offer_payload(row.offers[0]), "_rated": True},
-            )
+            # Hier stand eine Rueckschreibung des Angebots mit der Marke ``_rated``.
+            # Sie ist entfernt, und zwar aus zwei Gruenden:
+            #
+            # 1. Niemand liest ``_rated``. Der Bewertungsstand steht in der Tabelle
+            #    ``ratings`` und in state/rated.json.
+            # 2. ``put_offer`` stempelt ``fetched_at = time.time()``. Damit trug die
+            #    Angebotszeile nicht mehr die Zeit des ``fetch``, sondern die des
+            #    ``rate`` — und ``all_offers`` filtert genau darauf. Jeder rate-Lauf
+            #    verlaengerte die Lebensdauer alter Preise um weitere sieben Tage.
+            #    Messbar: am 21.08. wurden durchweg Preise vom 15.08. verrechnet und
+            #    gerankt, waehrend die Seite "Stand 21.08." anschrieb.
+            #
+            # Dazu schrieb sie unter dem *Haendler*-Schluessel, wo ``fetch`` unter dem
+            # *Adapter*-Schluessel ablegt — also eine zweite Zeile mit demselben
+            # Inhalt. Im Arbeitsverzeichnis 2332 statt 2225 Zeilen.
 
     _save_rated(rows)
     _echo("\nVivino-Status-Verteilung:")
@@ -388,8 +410,39 @@ def ratings_export(
                 err=True,
             )
             raise typer.Exit(2)
+        # Die Zeilenzahl allein genügt nicht.
+        #
+        # Weil die beiden Klone getrennte Caches haben, sind ihre Bestände
+        # auseinandergelaufen. Gemessen am 21.08.: die Datei führte 3924 Schlüssel, das
+        # Arbeitsverzeichnis 2620, ~/winecheck 3799 — und die Vereinigung 3971. Ein
+        # Export aus dem kleineren Klon lag mit 1.2 % über der Zahlengrenze und hätte
+        # 1351 Schlüssel und darin 597 echte Noten aus der einzigen Sicherung genommen,
+        # ohne dass etwas fehlschlägt.
+        #
+        # Verglichen wird darum die Abdeckung: verliert der neue Satz Schlüssel, die
+        # die Datei führt, bleibt sie stehen. Der Weg dazu ist ``ratings-import`` vor
+        # dem Export — dann trägt die Datei die Vereinigung.
+        if isinstance(vorher, list) and vorher:
+            def schluessel(satz):
+                return {
+                    (r.get("source"), r.get("name_key"), r.get("vintage"))
+                    for r in satz if isinstance(r, dict)
+                }
+            verloren = schluessel(vorher) - schluessel(rows)
+            if verloren:
+                _echo(
+                    f"Abbruch: {len(verloren)} Schlüssel der bestehenden Datei fehlen im "
+                    f"neuen Satz ({len(rows)} gegen {len(vorher)} Zeilen).\n"
+                    f"  Die Datei ist die einzige Sicherung der Bewertungen — der Cache "
+                    f"steht nicht im Git.\n"
+                    f"  Erst 'wine-check ratings-import' laufen lassen, dann exportieren; "
+                    f"dann trägt die Datei die Vereinigung beider Klone.\n"
+                    f"  Mit --force überschreiben, wenn der Verlust gewollt ist.",
+                    err=True,
+                )
+                raise typer.Exit(2)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+    _schreibe_atomar(out, json.dumps(rows, ensure_ascii=False))
     cache.close()
     _echo(f"{len(rows)} Bewertungen nach {out} geschrieben ({out.stat().st_size // 1024} KB)")
 
@@ -427,6 +480,28 @@ def report(
     rows = _load_rated()
     if not rows:
         _echo("Keine bewerteten Weine gefunden — zuerst 'wine-check rate'.", err=True)
+        raise typer.Exit(1)
+
+    # Ist der Bewertungsstand älter als die Angebote, die er bewerten soll?
+    #
+    # Dann ist ``rate`` abgebrochen, und das war bisher nicht zu bemerken: report las
+    # einfach den letzten erfolgreichen Stand, und alle Reissleinen verglichen ihn mit
+    # sich selbst. Veröffentlicht wurden die Preise der Vorwoche unter dem Datum von
+    # heute. Ein Abbruch soll ein Fehler sein, kein stiller Erfolg.
+    stand = _rated_stand(STATE_DIR / "rated.json")
+    juengstes = cache.juengstes_angebot()
+    if stand is not None and juengstes is not None and stand < juengstes:
+        import time as _t
+
+        _echo(
+            f"Abgebrochen: der Bewertungsstand ist älter als die Angebote.\n"
+            f"  rated.json  {_t.strftime('%d.%m.%Y %H:%M', _t.localtime(stand))}\n"
+            f"  Angebote    {_t.strftime('%d.%m.%Y %H:%M', _t.localtime(juengstes))}\n"
+            f"  Das heisst, 'rate' ist abgebrochen. Erst 'wine-check rate' zu Ende "
+            f"laufen lassen — sonst stünden die Preise des Vorlaufs unter dem heutigen "
+            f"Datum auf der Seite.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     reports = _load_reports()
@@ -806,9 +881,54 @@ def _save_rated(rows: list[WineRow]) -> None:
             "vivino": vivino_payload(r.vivino) if r.vivino else None,
             "falstaff": falstaff_payload(r.falstaff) if r.falstaff else None,
         })
-    (STATE_DIR / "rated.json").write_text(
-        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    # Mit Kopf: Zeitstempel und Zahl der Weine.
+    #
+    # Ohne diese zwei Angaben konnte ``report`` nicht erkennen, dass ``rate``
+    # abgebrochen war. Dann las es den Stand des letzten erfolgreichen Laufs, und alle
+    # drei Reissleinen verglichen den alten Stand mit sich selbst: die Weinzahl gleich,
+    # die Notenzahl gleich, der Seitenumfang gleich. Der Lauf ging durch und
+    # veröffentlichte die Preise der Vorwoche unter dem Datum von heute.
+    _schreibe_atomar(
+        STATE_DIR / "rated.json",
+        json.dumps(
+            {"geschrieben_am": time.time(), "weine": len(data), "zeilen": data},
+            ensure_ascii=False, indent=2,
+        ),
     )
+
+
+def _schreibe_atomar(pfad: Path, text: str) -> None:
+    """Erst vollständig schreiben, dann an die Stelle rücken.
+
+    Die Übergabedateien wurden direkt überschrieben. Ein Abbruch mitten im Schreiben
+    liess eine halbe JSON-Datei zurück, und die nimmt der nächste Leser als „kaputt"
+    statt als „alt" — schlimmer als der alte Stand, den sie ersetzen sollte. Der
+    Austausch über ``replace`` ist auf einem Dateisystem atomar.
+    """
+    pfad.parent.mkdir(parents=True, exist_ok=True)
+    tmp = pfad.with_suffix(pfad.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(pfad)
+
+
+def _rated_zeilen(pfad: Path) -> list[dict]:
+    """Die Weinzeilen aus rated.json — beide Dateiformen.
+
+    Ältere Läufe schrieben eine nackte Liste, neuere ein Objekt mit Kopf. Eine alte
+    Datei darf nicht zum Fehler werden, nur weil das Format gewachsen ist.
+    """
+    daten = json.loads(pfad.read_text(encoding="utf-8"))
+    if isinstance(daten, dict):
+        return daten.get("zeilen") or []
+    return daten
+
+
+def _rated_stand(pfad: Path) -> float | None:
+    """Wann wurde rated.json geschrieben? ``None`` bei alter Datei ohne Kopf."""
+    if not pfad.exists():
+        return None
+    daten = json.loads(pfad.read_text(encoding="utf-8"))
+    return daten.get("geschrieben_am") if isinstance(daten, dict) else None
 
 
 def _load_rated() -> list[WineRow]:
@@ -819,7 +939,7 @@ def _load_rated() -> list[WineRow]:
     if not path.exists():
         return []
     rows: list[WineRow] = []
-    for d in json.loads(path.read_text(encoding="utf-8")):
+    for d in _rated_zeilen(path):
         offers = [_offer_from_payload(o) for o in d.get("offers") or []]
         merged = merge_offers(offers)
         row = merged[0] if merged else WineRow(name=d["name"], vintage=d.get("vintage"),

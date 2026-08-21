@@ -80,9 +80,20 @@ _RE_PACK_X_VOL = re.compile(
 _RE_PACK_ONLY = re.compile(
     r"(?:(?<!\d)(\d{1,3})\s*er\b"
     r"|(?<!\d)(\d{1,3})\s*(?:fl(?:aschen)?|bouteilles?)\b"
-    r"|(?:karton|harass|kiste|box|caisse|tray|gebinde|pack)\s*(?:à|a|von|of)?\s*(\d{1,3})(?!\s*(?:cl|ml|dl|l)\b))",
+    r"|(?:karton|harass|kiste|box|caisse|tray|gebinde|pack)\s*(?:à|a|von|of)?\s*(\d{1,3})(?!\d)(?!\s*(?:cl|ml|dl|l)\b))",
     re.I,
 )
+#: Grenze, ab der eine Stückzahl keine Abnahmemenge mehr ist.
+#:
+#: „Geschenkkarton 2021" ergab die Stückzahl 202 — die Jahreszahl, nach drei Ziffern
+#: abgeschnitten. ``certain`` blieb True, die Konfidenz MEDIUM, der Wein rankbar, und
+#: im Bericht stand „zusammen CHF 11'615.00" bei einem Wein für CHF 115. Die
+#: Ziffernbegrenzung im Muster verhindert diesen Fall; die Grenze hier fängt jeden
+#: anderen, den noch niemand gesehen hat.
+#:
+#: 24 ist zwei Kartons à 12 — mehr verlangt kein Aktionsangebot als Mindestabnahme.
+MAX_GEBINDE = 24
+
 _RE_VOLUME = re.compile(r"(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(cl|ml|dl|l|lt|liter)\b", re.I)
 _RE_CARTON_WORD = re.compile(r"karton|harass|kiste|caisse|gebinde|tray|\bpack\b", re.I)
 _RE_PER_BOTTLE = re.compile(r"pro\s*flasche|je\s*flasche|/\s*fl\b|par\s*bouteille|st(?:ü|u)ck", re.I)
@@ -167,6 +178,15 @@ def parse_gebinde(text: str) -> tuple[int | None, int | None, str, bool]:
         if ml is None:
             certain = False
             notes.append("BiB ohne Volumenangabe")
+
+    # Eine Stückzahl über :data:`MAX_GEBINDE` ist keine Abnahmemenge, sondern ein
+    # Fehlgriff — sie kam aus einer Jahreszahl („Geschenkkarton 2021" → 202) und stand
+    # als „zusammen CHF 11'615.00" im Bericht. Verworfen statt geraten: ohne Stückzahl
+    # greift die Regel darunter und stuft den Wein als unsicher ein.
+    if units is not None and units > MAX_GEBINDE:
+        notes.append(f"Stückzahl {units} unplausibel — verworfen")
+        units = None
+        certain = False
 
     # Der gefährliche Fall: Kartonpreis, aber die Stückzahl steht nicht dabei.
     if units is None and _RE_CARTON_WORD.search(t):
