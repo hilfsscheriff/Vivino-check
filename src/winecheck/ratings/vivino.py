@@ -861,6 +861,27 @@ class VivinoAdapter:
     #: ``winery_level`` steht bewusst unter ``ambiguous``: eine Liste von drei
     #: Kandidaten, aus der ein Mensch wählen kann, sagt mehr als ein
     #: Produzenten-Durchschnitt, der so tut, als wäre er die Note dieses Weins.
+    #: Wie sicher die **Identität** ist. Wird beim Vergleich zweier Abfrageergebnisse
+    #: vor :attr:`_RANK` gelesen — Identität vor Jahrgangsgenauigkeit.
+    #:
+    #: Der Fall, an dem es auffiel: „Rocca di Frassinello la Rocca" (CHF 37.50). Die
+    #: kurze Abfrage ``rocca frassinello rocca`` liefert den gleichnamigen Hauptwein
+    #: des Guts **nicht** mit, also gewinnt dort „Baffonero" — ein anderer Wein für
+    #: rund CHF 200, als ``fuzzy`` eingestuft, aber mit jahrgangsgenauem Wert und
+    #: damit Status ``EXACT``. Die lange Abfrage findet den richtigen Wein und
+    #: erreicht mit ihm nur ``WINE_LEVEL``.
+    #:
+    #: Verglichen wurde allein über den Status. ``EXACT`` schlägt ``WINE_LEVEL``, und
+    #: der Abbruch bei ``EXACT`` griff sofort — die bessere Abfrage lief nie. Der
+    #: Wein trug so die 4.5 des Spitzenweins.
+    #:
+    #: Ein unbestätigter Treffer mit passendem Jahrgang ist aber nicht besser als ein
+    #: bestätigter Wein in anderem Jahrgang: das eine sagt „vielleicht ein anderer
+    #: Wein, aber das Jahr stimmt", das andere „dieser Wein, anderes Jahr". Dieselbe
+    #: Rangfolge gilt schon innerhalb einer Kandidatenliste, siehe
+    #: :func:`winecheck.matching._konfidenz_rang` — sie fehlte nur eine Ebene höher.
+    _IDENTITAET = {"exact": 3, "wine_level": 3, "fuzzy": 2, "winery_level": 1}
+
     _RANK = {
         VivinoStatus.EXACT: 6,
         VivinoStatus.WINE_LEVEL: 5,
@@ -870,6 +891,16 @@ class VivinoAdapter:
         VivinoStatus.RATING_NOT_READABLE: 2,
         VivinoStatus.NO_ENTRY: 1,
     }
+
+    def _guete(self, res) -> tuple[int, int]:
+        """Wie gut ist dieses Abfrageergebnis? Grösser ist besser.
+
+        Identität zuerst, Jahrgangsgenauigkeit danach — siehe :attr:`_IDENTITAET`.
+        Ein ``fuzzy``-Treffer mit passendem Jahrgang steht damit hinter einem
+        bestätigten Wein in anderem Jahrgang, und nicht mehr davor.
+        """
+        ident = self._IDENTITAET.get(res.match_confidence or "", 0)
+        return (ident, self._RANK[res.status])
 
     def _best_of(self, name, vintage, long_query, exclude_hosts):
         """Mehrere Suchbegriffe probieren und das beste Ergebnis behalten.
@@ -924,11 +955,16 @@ class VivinoAdapter:
                 if c.winery_slug:
                     gueter.setdefault(c.winery_slug, None)
             res = classify(name, vintage, q, kandidaten, exclude_hosts=exclude_hosts)
-            if best is None or self._RANK[res.status] > self._RANK[best.status]:
+            if best is None or self._guete(res) > self._guete(best):
                 best = res
             # Besser als ein Jahrgangstreffer wird es nicht — weitere Anfragen wären
-            # nur Last für Vivino.
-            if best.status is VivinoStatus.EXACT:
+            # nur Last für Vivino. **Aber nur bei bestätigter Identität**: vorher
+            # brach die Schleife auch bei einem ``fuzzy``-Treffer ab, sobald dessen
+            # Jahrgang passte. Genau daran hing „la Rocca" an „Baffonero" — die kurze
+            # Abfrage liefert den richtigen Wein nicht mit, und die lange, die ihn
+            # findet, lief nie.
+            if best.status is VivinoStatus.EXACT \
+                    and self._IDENTITAET.get(best.match_confidence or "", 0) >= 3:
                 break
 
         # Rückfall: die Suche kennt den Wein nicht, das Gut aber schon.
@@ -947,7 +983,7 @@ class VivinoAdapter:
                 res = classify(name, vintage, best.query,
                                _nur_derselbe_wein(name, self._weingut_kandidaten(slug)),
                                exclude_hosts=exclude_hosts)
-                if self._RANK[res.status] > self._RANK[best.status]:
+                if self._guete(res) > self._guete(best):
                     best = res
                 # Sobald *irgendetwas* gefunden ist, reicht es. Hier stand
                 # ``is VivinoStatus.EXACT``, und das konnte per Konstruktion nie

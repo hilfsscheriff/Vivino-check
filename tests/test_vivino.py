@@ -567,3 +567,45 @@ def test_der_grundwein_gewinnt_gegen_die_benannte_variante():
     )
     assert r.rating == 4.4
     assert "Bianco" not in (r.matched_name or "")
+
+
+# -- Identitaet vor Jahrgangsgenauigkeit -----------------------------------
+def test_ein_unsicherer_jahrgangstreffer_schlaegt_keinen_sicheren_wein():
+    """"Rocca di Frassinello la Rocca" (CHF 37.50) trug die 4.5 von "Baffonero",
+    dem Spitzenwein des Guts fuer rund CHF 200.
+
+    Der Weg dorthin: die kurze Abfrage `rocca frassinello rocca` liefert den
+    gleichnamigen Hauptwein des Guts NICHT mit, also gewinnt dort Baffonero — als
+    fuzzy eingestuft, aber mit jahrgangsgenauem Wert und damit Status EXACT. Die
+    lange Abfrage findet den richtigen Wein und erreicht mit ihm nur WINE_LEVEL.
+
+    Verglichen wurde allein ueber den Status, und der Abbruch bei EXACT griff sofort
+    — die bessere Abfrage lief nie.
+    """
+    from winecheck.ratings.vivino import VivinoAdapter, VivinoStatus
+
+    a = VivinoAdapter(fetcher=None)
+    unsicher = VivinoStatus.EXACT
+    sicher = VivinoStatus.WINE_LEVEL
+
+    class _Res:
+        def __init__(self, status, conf):
+            self.status, self.match_confidence = status, conf
+
+    fuzzy_exact = _Res(unsicher, "fuzzy")
+    bestaetigt_weinebene = _Res(sicher, "wine_level")
+    assert a._guete(bestaetigt_weinebene) > a._guete(fuzzy_exact), (
+        "ein bestaetigter Wein in anderem Jahrgang ist mehr wert als ein "
+        "unbestaetigter mit passendem Jahrgang"
+    )
+    # Bei gleicher Identitaet entscheidet weiterhin die Jahrgangsgenauigkeit.
+    assert a._guete(_Res(unsicher, "exact")) > a._guete(_Res(sicher, "exact"))
+
+
+def test_der_abbruch_verlangt_bestaetigte_identitaet():
+    """Sonst hoert die Suche beim ersten unsicheren Treffer auf, dessen Jahrgang
+    zufaellig passt — und die Abfrage, die den richtigen Wein findet, laeuft nie."""
+    import inspect
+    from winecheck.ratings.vivino import VivinoAdapter
+    quelle = inspect.getsource(VivinoAdapter._best_of)
+    assert "_IDENTITAET" in quelle, "der Abbruch muss die Identitaet mitpruefen"
