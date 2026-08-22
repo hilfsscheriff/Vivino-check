@@ -48,3 +48,28 @@ version: 1
 # ---------------------------------------------------------------------------
 
 zuordnungen: []
+
+# ---------------------------------------------------------------------------
+# MARKTPLATZ — Angebote, bei denen Vivino selbst den falschen Wein anhängt.
+#
+# Der Marktplatz-Adapter übernimmt Note und Weinname ohne Namensabgleich: die
+# Zuordnung kommt von Vivino, und das ist sonst die beste Auskunft, die es gibt.
+# Ist sie falsch, greift keine Sicherung. Hier steht die geprüfte Gegenauskunft;
+# die Note holt danach der normale Weg über den korrigierten Namen.
+marktplatz:
+  - url: https://www.gerstl.ch/2022-secret-spot-wines-doc-douro-prt-265715-2022/p
+    name: Vale do Lacrau Reserva
+    geprueft_am: "2026-08-22"
+    grund: >
+      Vivinos Schnittstelle liefert diesen Gerstl-Link unter dem Wein „Secret Spot
+      Tinto" (/w/1368855, 4.3 aus 448 Bewertungen). Gerstl verkauft auf dieser Seite
+      aber den „Vale do Lacrau Reserva 2022": Produzent Secret Spot Wines, DOC Douro,
+      30 % Touriga Franca, 30 % Tempranillo, 20 % Touriga Nacional, CHF 18.80 statt
+      25.00. Zwei verschiedene Weine desselben Hauses — der Tinto trägt bei Vivino
+      ein eigenes Gerstl-Angebot, /2024-secret-spot-wines-doc-douro-prt-266217-2024/p.
+      Der richtige Eintrag ist /de/lacrau-douro-reserva-field-blend/w/6467422:
+      Weingut Lacrau mit der Weingutsgruppe „Secret Spot Wines"
+      (secretspotwines.com), Douro, Touriga Nacional, Touriga Franca, Tinta Roriz
+      (= Tempranillo) und Tinta Barroca, 13'017 Bewertungen über viele Jahrgänge.
+      Produzentengruppe, Appellation und Traubensatz stimmen damit überein; die
+      Note holt der Abgleich über den korrigierten Namen selbst.

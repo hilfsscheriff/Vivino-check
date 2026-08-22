@@ -96,6 +96,12 @@ class VivinoShopAdapter(RetailerAdapter):
         #: Was hier gesammelt wird, kann ``rate`` ohne eine einzige Netzabfrage in
         #: den Bewertungs-Cache legen: (Name, Jahrgang, Wein-ID, Note, Anzahl).
         self.bewertungen: list[dict[str, Any]] = []
+        #: Geprüfte Gegenauskunft, wo Vivino den falschen Wein an ein Angebot hängt.
+        #: Siehe :mod:`winecheck.zuordnung` — dort steht auch, was ein Eintrag belegen
+        #: muss.
+        from ..zuordnung import marktplatz_laden
+
+        self._korrekturen = marktplatz_laden()
 
     # -- Netz --------------------------------------------------------------
     def _seite(self, farbe: int, seite: int) -> list[dict]:
@@ -207,9 +213,21 @@ class VivinoShopAdapter(RetailerAdapter):
             f"{wein_url}?year={jahrgang}" if wein_id and jahrgang else wein_url
         )
 
+        # Hängt Vivino hier den falschen Wein an das Angebot, gilt die geprüfte
+        # Gegenauskunft: der Name des Weins, den der Händler auf dieser Seite wirklich
+        # verkauft — und **keine** mitgelieferte Note. Die holt danach der normale
+        # Abgleich über den korrigierten Namen, mit allen seinen Sicherungen.
+        korrektur = self._korrekturen.get(url)
+        if korrektur is not None:
+            name = korrektur.name
+            self.melde_luecke(
+                f"{korrektur.name}: Vivinos Wein-Zuordnung verworfen (geprüft "
+                f"{korrektur.geprueft_am})"
+            )
+
         note = stat.get("ratings_average")
         anzahl = stat.get("ratings_count")
-        if isinstance(note, (int, float)) and wein_id:
+        if korrektur is None and isinstance(note, (int, float)) and wein_id:
             self.bewertungen.append({
                 "name": name, "vintage": jahrgang, "wine_id": wein_id,
                 "rating": float(note), "rating_count": anzahl, "url": wein_url,

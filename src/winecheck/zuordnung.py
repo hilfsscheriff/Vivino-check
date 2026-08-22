@@ -83,3 +83,47 @@ def laden(pfad: Path | None = None) -> dict[str, Eintrag]:
 
 def finde(name: str, tabelle: dict[str, Eintrag]) -> Eintrag | None:
     return tabelle.get(normalized_name(name)) if tabelle else None
+
+@dataclass(frozen=True)
+class Marktplatzkorrektur:
+    """Ein Marktplatz-Angebot, dessen Wein bei Vivino falsch daran hängt."""
+
+    url: str
+    name: str
+    grund: str
+    geprueft_am: str
+
+
+def marktplatz_laden(pfad: Path | None = None) -> dict[str, Marktplatzkorrektur]:
+    """Korrekturen für den Vivino-Marktplatz, geschlüsselt über die Angebots-Adresse.
+
+    Der Marktplatz-Adapter übernimmt Note und Weinname **ohne Namensabgleich** — die
+    Zuordnung kommt von Vivino selbst, und das ist normalerweise die verlässlichste
+    Auskunft, die es gibt. Sie kann aber falsch sein, und dann greift keine der
+    Sicherungen des Abgleichs.
+
+    Gefunden am 22.08.2026: Vivinos Schnittstelle liefert den Wein „Secret Spot
+    Tinto" (4.3 aus 448 Bewertungen) mit einem Gerstl-Link, der den „Vale do Lacrau
+    Reserva" desselben Hauses verkauft. Zwei verschiedene Weine, ein Datensatz. Eine
+    Stichprobe von zwölf anderen Marktplatz-Angeboten war fehlerfrei; das ist also
+    ein Ausreisser und kein Muster — geprüft wird jede Korrektur trotzdem einzeln.
+
+    Was ein Eintrag belegen muss, steht in dieser Datei über den Einträgen: die
+    Substanz, nicht der Name.
+    """
+    p = pfad or DEFAULT_PATH
+    if not p.exists():
+        return {}
+    daten = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    aus: dict[str, Marktplatzkorrektur] = {}
+    for roh in daten.get("marktplatz") or []:
+        url = str(roh.get("url") or "").strip()
+        name = str(roh.get("name") or "").strip()
+        if not url or not name:
+            continue
+        aus[url] = Marktplatzkorrektur(
+            url=url, name=name,
+            grund=" ".join(str(roh.get("grund") or "").split()),
+            geprueft_am=str(roh.get("geprueft_am") or ""),
+        )
+    return aus

@@ -27,6 +27,13 @@ LEGAL_DESIGNATIONS = {
     "sudwein", "landwein", "tafelwein", "qualitatswein", "prädikatswein",
     "pradikatswein", "schaumweine", "stillwein",
     "appellation", "controlee", "protegee", "qualitatswein", "landwein", "tafelwein",
+    # Verschnitt-Bezeichnungen. „Field Blend" ist die Machart (gemischter Satz), kein
+    # Name — Vivino schreibt sie an, Händler meist nicht. Daran scheiterte „Vale do
+    # Lacrau Reserva" (Gerstl) gegen „Lacrau Douro Reserva **Field Blend**": beide
+    # Seiten schienen einen eigenen Namen zu führen, und die Rivalen-Regel sperrte den
+    # richtigen Wein. Gemessen an allen 2107 gespeicherten Zuordnungen kostet der
+    # Eintrag keinen einzigen Treffer und gewinnt diesen.
+    "field", "blend",
 }
 
 #: Betriebsformen und Höflichkeitsformeln vor dem eigentlichen Produzentennamen.
