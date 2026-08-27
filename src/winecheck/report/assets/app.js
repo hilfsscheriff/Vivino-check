@@ -887,7 +887,12 @@ document.getElementById("fMaxPrice").value = String(STANDARD_PREIS);
 document.getElementById("reset").addEventListener("click", () => {
   // Zurücksetzen heisst: auf den Standard, nicht auf leer. Sonst führt der Knopf zu
   // einem Zustand, den man beim Laden nie sieht.
-  S.mat.clear(); S.shop.clear(); S.land.clear(); S.q = "";
+  // Jede Filtergruppe gehört hierher. Der Typ fehlte, und das sah wie ein defekter
+  // Knopf aus: „Filter zurücksetzen" liess „Weich & modern" und „Ausgewogen" stehen,
+  // während die Zeile darüber wieder „3 aktiv" zählte. Der Wächter dagegen steht in
+  // tests/test_filter_zuruecksetzen.py — er vergleicht die Felder des Zustands mit
+  // denen, die dieser Block anfasst.
+  S.mat.clear(); S.typ.clear(); S.shop.clear(); S.land.clear(); S.q = "";
   S.style = new Set([STANDARD_SORTE]);
   S.src = STANDARD_QUELLE;
   S.minRating = STANDARD_NOTE; S.maxPrice = STANDARD_PREIS;
