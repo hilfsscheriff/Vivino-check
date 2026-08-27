@@ -178,8 +178,20 @@ else
   if git push -q origin HEAD:main 2>>"$PROTOKOLL"; then
     sage "gepusht — GitHub Pages liefert in ein bis zwei Minuten aus"
   else
-    sage "FEHLER beim Push (Zugangsdaten im Schlüsselbund erreichbar?)"
-    exit 1
+    # Der häufigste Grund ist nicht die Anmeldung, sondern ein Push von anderswo:
+    # der zweite Klon oder eine Reparatur zwischen Lauf und Push. Am 27.08.2026 war
+    # es genau das, und die alte Meldung schickte die Fehlersuche zum Schlüsselbund.
+    # Also erst nachziehen und ein zweites Mal versuchen, dann urteilen.
+    sage "Push abgelehnt — hole erst den Fernstand und versuche es erneut"
+    if git pull --rebase -q origin main 2>>"$PROTOKOLL" \
+       && git push -q origin HEAD:main 2>>"$PROTOKOLL"; then
+      sage "gepusht nach Nachziehen — GitHub Pages liefert in ein bis zwei Minuten aus"
+    else
+      sage "FEHLER beim Push. Die Git-Meldung steht oben in diesem Protokoll:"
+      sage "  abgelehnt (fetch first) heisst Fernstand voraus — von Hand rebasen."
+      sage "  Authentication/403 heisst Zugangsdaten — Schlüsselbund prüfen."
+      exit 1
+    fi
   fi
 fi
 
