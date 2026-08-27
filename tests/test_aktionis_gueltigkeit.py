@@ -11,7 +11,7 @@ Auskunft. Und ohne lesbares Datum wird nichts ausgeschlossen — ein fehlendes F
 darf keinen Wein kosten.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from selectolax.parser import HTMLParser
@@ -19,7 +19,20 @@ from selectolax.parser import HTMLParser
 from winecheck.adapters.aktionis import AktionisAdapter, _ist_abgelaufen
 from winecheck.config import SourceConfig
 
+#: Fester Stichtag für die Fälle, die ``heute`` selbst mitgeben.
 HEUTE = date(2026, 8, 21)
+
+
+def _tag(versatz: int) -> str:
+    """Ein Datum relativ zu **heute**, in Aktionis-Schreibweise.
+
+    Die Vorgaben trugen zuerst feste Daten. Sie waren grün, solange „26.08.2026" in
+    der Zukunft lag, und fielen am 27.08. alle zusammen um: der Adapter warf die
+    Karten als abgelaufen weg, richtig, und die Tests hielten das für einen Fehler.
+    Alles, was durch ``parse`` läuft, rechnet darum vom Tageslauf aus; nur die
+    Fälle, die ``heute`` ausdrücklich mitgeben, dürfen feste Daten tragen.
+    """
+    return (date.today() + timedelta(days=versatz)).strftime("%d.%m.%Y")
 
 
 def _karte(datum: str | None) -> "object":
@@ -66,8 +79,8 @@ def test_der_adapter_meldet_die_uebersprungenen():
         f'<a href="/deals/wein-{i}"><div class="card-merchant"><img alt="Coop"></div>'
         '<div class="card-price"><span class="price-new">9.95</span></div>'
         f'<div class="card-image"><img alt="Barolo DOCG 20{20 + i} – Rotwein, Italien (0.75l)"></div>'
-        f'<span class="card-date">01.08.2026 - {datum}</span></a></div>'
-        for i, datum in enumerate(("26.08.2026", "20.08.2026", "19.08.2026"))
+        f'<span class="card-date">{_tag(-20)} - {datum}</span></a></div>'
+        for i, datum in enumerate((_tag(5), _tag(-1), _tag(-2)))
     )
     offers = a.parse(f"<html><body>{karten}</body></html>", "https://www.aktionis.ch/q/Wein")
     assert len(offers) == 1, [o.name for o in offers]
@@ -93,7 +106,7 @@ def _mit_namen(name: str, haendler: str = "Coop"):
         f'<a href="/deals/irgendein-wein-47"><div class="card-merchant"><img alt="{haendler}"></div>'
         '<div class="card-price"><span class="price-new">9.95</span></div>'
         f'<div class="card-image"><img alt="{name}"></div>'
-        '<span class="card-date">20.08.2026 - 26.08.2026</span></a></div>'
+        f'<span class="card-date">{_tag(-2)} - {_tag(5)}</span></a></div>'
     )
     return f"<html><body>{html}</body></html>"
 
