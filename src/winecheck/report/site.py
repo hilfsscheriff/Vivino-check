@@ -620,13 +620,26 @@ __KENNUNG__
       <legend>Feinauswahl</legend>
       <div class="controls">
         <label>Note ab
+          <!-- Unter 4.0 grob, darüber in Zehnteln. Die Feinstufen sind dort, wo die
+               Entscheidungen fallen: gemessen am Lauf vom 28.08.2026 stehen hinter
+               "ab 4.0" 1007 Weine, hinter 4.1 725, hinter 4.2 431, hinter 4.3 231,
+               hinter 4.4 105, hinter 4.5 44 und hinter 4.6 noch 10. Jede Stufe
+               trennt also eine echte Menge ab; ein Sprung von 4.2 auf 4.5 überging
+               dazwischen 387 Weine.
+
+               "4" statt "4.0" als Wert, weil das Zurücksetzen den Wert über
+               String(4) vergleicht — dort steht "4", nicht "4.0". -->
           <select id="fMinRating">
             <option value="">alle</option>
             <option value="3.5">3.5</option>
             <option value="3.8">3.8</option>
             <option value="4">4.0</option>
+            <option value="4.1">4.1</option>
             <option value="4.2">4.2</option>
+            <option value="4.3">4.3</option>
+            <option value="4.4">4.4</option>
             <option value="4.5">4.5</option>
+            <option value="4.6">4.6</option>
           </select>
         </label>
         <label>Preis bis
