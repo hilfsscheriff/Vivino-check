@@ -398,6 +398,9 @@ def rate(
 
 
 RATINGS_FILE = Path("state/ratings-cache.json")
+#: Die versionierte Preisreihe. Anders als der Notenexport wächst sie nur an: eine
+#: Beobachtung von gestern wird nicht besser, wenn heute neu gerechnet wird.
+PREISE_FILE = Path("state/preisverlauf.csv")
 
 
 @app.command("ratings-export")
@@ -556,12 +559,18 @@ def report(
 
     diff_path = write_diff(rows, previous, out / "diff.md", source_reports=reports)
     cache.save_snapshot(snapshot(rows), label="report")
+    beobachtungen = _preis_beobachtungen(rows)
+    heute = time.strftime("%Y-%m-%d")
+    n_preise = cache.preise_schreiben(heute, beobachtungen)
+    tage = cache.preis_tage()
 
     _echo(f"  {csv_path}")
     _echo(f"  {pdf_path}")
     _echo(f"  {png_path if png_path else '(scatter.png übersprungen — keine bewerteten Preise)'}")
     _echo(f"  {html_path if html_path else '(scatter.html übersprungen)'}")
     _echo(f"  {diff_path}")
+    _echo(f"  Preisreihe: {n_preise} Beobachtungen für {heute}, "
+          f"{len(tage)} Tage von {tage[0] if tage else '—'} bis {tage[-1] if tage else '—'}")
     cache.close()
 
 
@@ -820,6 +829,148 @@ def _retailer_hosts(reg, row: WineRow) -> set[str]:
         if host:
             hosts.add(host)
     return hosts
+
+
+@app.command("preise-export")
+def preise_export(
+    out: Path = typer.Option(PREISE_FILE, "--out"),
+    cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache"),
+) -> None:
+    """Die Preisreihe in eine versionierbare CSV schreiben.
+
+    Dieselbe Rolle wie ``ratings-export`` für die Noten: der Cache liegt lokal und
+    nicht im Git, ein verlorener Rechner nimmt die Reihe mit. Die Datei ist das
+    Gedächtnis.
+
+    Es gibt hier **keine** Verschlechterungssperre wie beim Notenexport, sondern eine
+    stärkere Regel: geschrieben wird die Vereinigung aus Datei und Cache. Eine
+    Beobachtung von gestern kann nicht besser werden, also darf sie auch nicht
+    verschwinden — auch nicht, wenn der Cache neu aufgebaut wurde.
+    """
+    import csv as _csv
+
+    cache = Cache.open(cache_path)
+    aus_cache = cache.preisverlauf()
+    cache.close()
+
+    spalten = ["datum", "name_key", "vintage", "haendler", "preis_75cl", "rohpreis",
+               "units", "flaschen_ml", "sicherheit", "name"]
+    vereint: dict[tuple, dict] = {}
+    if out.exists():
+        with out.open(encoding="utf-8", newline="") as f:
+            for zeile in _csv.DictReader(f, delimiter=";"):
+                vereint[(zeile["datum"], zeile["name_key"], zeile["vintage"],
+                         zeile["haendler"])] = zeile
+    vorher = len(vereint)
+    for b in aus_cache:
+        vereint[(b["datum"], b["name_key"], b["vintage"], b["haendler"])] = b
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    zeilen = [vereint[k] for k in sorted(vereint)]
+    inhalt = ";".join(spalten) + "\n" + "\n".join(
+        ";".join("" if r.get(s) is None else str(r.get(s, "")).replace(";", ",")
+                 for s in spalten)
+        for r in zeilen
+    ) + "\n"
+    _schreibe_atomar(out, inhalt)
+    tage = sorted({r["datum"] for r in zeilen})
+    _echo(f"{len(zeilen)} Beobachtungen nach {out} ({len(zeilen) - vorher} neu), "
+          f"{len(tage)} Tage von {tage[0] if tage else '—'} bis {tage[-1] if tage else '—'}")
+
+
+@app.command("preise-nachfuellen")
+def preise_nachfuellen(
+    cache_path: Path = typer.Option(DEFAULT_CACHE, "--cache"),
+) -> None:
+    """Die Preisreihe aus den vorhandenen Lauf-Schnappschüssen auffüllen.
+
+    Die Schnappschüsse tragen pro Wein ``prices: {Händler: Preis}`` — eine
+    Preisgeschichte, die es schon gibt und die bisher nur niemand lesen konnte. Sie
+    verfällt zudem mit ``RUNS_AUFBEWAHRUNG``. Dieser Befehl holt sie in die Reihe,
+    einmalig, damit sie nicht mit dem ältesten Lauf verschwindet.
+
+    Vorhandene Beobachtungen werden **nicht** überschrieben: der Schnappschuss kennt
+    nur den normierten Preis, der laufende Weg auch Rohpreis, Gebinde und
+    Flaschengrösse. Wo beides existiert, ist der genauere Eintrag der bessere.
+    """
+    from .names import normalized_name
+
+    cache = Cache.open(cache_path)
+    bekannt = {(b["datum"], b["name_key"], b["vintage"], b["haendler"])
+               for b in cache.preisverlauf()}
+    ergaenzt = uebersprungen = 0
+    for zeile in cache.conn.execute(
+            "SELECT started_at, snapshot FROM runs ORDER BY started_at"):
+        datum = time.strftime("%Y-%m-%d", time.localtime(float(zeile["started_at"])))
+        try:
+            weine = json.loads(zeile["snapshot"] or "[]")
+        except json.JSONDecodeError:
+            continue
+        beobachtungen = []
+        for w in weine:
+            schluessel = normalized_name(w.get("name") or "")
+            jahrgang = str(w.get("vintage") or "")
+            for haendler, preis in (w.get("prices") or {}).items():
+                if preis is None:
+                    continue
+                if (datum, schluessel, jahrgang, haendler) in bekannt:
+                    uebersprungen += 1
+                    continue
+                beobachtungen.append({
+                    "name_key": schluessel, "vintage": jahrgang, "haendler": haendler,
+                    "preis_75cl": preis, "rohpreis": None,
+                    "units": w.get("units"), "flaschen_ml": None,
+                    # Aus dem Schnappschuss, also ohne die Sicherheitsangabe des
+                    # Angebots — sie steht dort nicht. Leer heisst hier "unbekannt".
+                    "sicherheit": "", "name": w.get("name") or "",
+                })
+        n = cache.preise_schreiben(datum, beobachtungen)
+        ergaenzt += n
+        if n:
+            _echo(f"  {datum}: {n} Beobachtungen aus dem Schnappschuss")
+    tage = cache.preis_tage()
+    cache.close()
+    _echo(f"{ergaenzt} ergänzt, {uebersprungen} übersprungen (schon genauer vorhanden). "
+          f"Reihe: {len(tage)} Tage von {tage[0] if tage else '—'} bis {tage[-1] if tage else '—'}")
+
+
+def _preis_beobachtungen(rows: list) -> list[dict]:
+    """Eine Zeile je Wein und Händler — das Rohmaterial der Preisreihe.
+
+    Gebaut aus denselben ``rows``, aus denen der Schnappschuss und die CSV entstehen,
+    also aus geprüften Zahlen: ``price_per_bottle_incl_vat`` ist auf 75 cl normiert und
+    damit über die Zeit vergleichbar, ``rohpreis`` ist der angeschriebene Betrag.
+
+    Beide gehören hierher. Der normierte Preis trägt den Vergleich, der Rohpreis die
+    Nachprüfbarkeit: wer in einem Jahr fragt, warum eine Kurve springt, findet in
+    ``rohpreis``, ``units`` und ``flaschen_ml``, ob der Laden den Preis geändert hat
+    oder das Gebinde.
+
+    Weine ohne Preis kommen nicht in die Reihe. Eine Beobachtung ohne Betrag ist keine.
+    """
+    from .names import normalized_name
+
+    aus: list[dict] = []
+    for row in rows:
+        schluessel = normalized_name(row.name)
+        jahrgang = str(row.vintage or "")
+        for p in getattr(row, "prices", None) or []:
+            if p.price_per_bottle_incl_vat is None and p.price_raw is None:
+                continue
+            aus.append({
+                "name_key": schluessel,
+                "vintage": jahrgang,
+                "haendler": p.retailer,
+                "preis_75cl": p.price_per_bottle_incl_vat,
+                "rohpreis": p.price_raw,
+                "units": p.units,
+                "flaschen_ml": getattr(p, "bottle_ml", None),
+                "sicherheit": getattr(p.price_confidence, "value", "") or "",
+                # Der Klartextname einmal mitgeschrieben: ohne ihn ist eine Reihe aus
+                # normalisierten Schlüsseln in einem Jahr nicht mehr zu lesen.
+                "name": row.name,
+            })
+    return aus
 
 
 def _offer_payload(o: Offer) -> dict:

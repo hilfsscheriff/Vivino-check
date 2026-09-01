@@ -82,7 +82,30 @@ CREATE TABLE IF NOT EXISTS runs (
     label         TEXT NOT NULL DEFAULT '',
     snapshot      TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS preise (
+    -- Eine Beobachtung: was dieser Wein an diesem Tag bei diesem Haendler kostete.
+    --
+    -- Die Preise stecken zwar auch in den Lauf-Schnappschuessen, aber dort mit
+    -- Verfallsdatum (RUNS_AUFBEWAHRUNG) und in fetten JSON-Bloecken: 2.7 MB je Lauf
+    -- gegen rund 600 KB fuer dieselbe Woche hier. Diese Tabelle ist die Preisreihe,
+    -- und sie wird nicht aufgeraeumt.
+    --
+    -- Schluessel ohne Uhrzeit: mehrere Laeufe am selben Tag sind eine Beobachtung,
+    -- der spaetere ersetzt den frueheren. Genau so haelt es save_snapshot auch.
+    datum         TEXT NOT NULL,          -- YYYY-MM-DD
+    name_key      TEXT NOT NULL,
+    vintage       TEXT NOT NULL,
+    haendler      TEXT NOT NULL,
+    preis_75cl    REAL,                   -- normiert, vergleichbar
+    rohpreis      REAL,                   -- wie angeschrieben
+    units         INTEGER,                -- Abnahmemenge, 1 = Einzelflasche
+    flaschen_ml   INTEGER,
+    sicherheit    TEXT NOT NULL DEFAULT '',
+    name          TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (datum, name_key, vintage, haendler)
+);
 CREATE INDEX IF NOT EXISTS idx_ratings_status ON ratings(status);
+CREATE INDEX IF NOT EXISTS idx_preise_wein ON preise(name_key, vintage, datum);
 """
 
 
@@ -94,8 +117,9 @@ CREATE INDEX IF NOT EXISTS idx_ratings_status ON ratings(status);
 #: Cache älter ist als der Code — der Bruch zeigte sich erst als ``OperationalError``
 #: zur Laufzeit, im Wochenlauf freitags um 07:00 ohne Beobachter.
 #:
-#: 1 = Ausgangsstand, 2 = ``offers.retailer`` heisst ``source_key``.
-SCHEMA_VERSION = 2
+#: 1 = Ausgangsstand, 2 = ``offers.retailer`` heisst ``source_key``,
+#: 3 = Tabelle ``preise`` fuer die Preisreihe.
+SCHEMA_VERSION = 3
 
 #: Aufbewahrung der Lauf-Schnappschüsse.
 #:
@@ -168,6 +192,52 @@ class Cache:
         _migriere(conn)
         conn.commit()
         return cls(path=p, conn=conn)
+
+
+    # -- Preisreihe --------------------------------------------------------
+    def preise_schreiben(self, datum: str, beobachtungen: list[dict[str, Any]]) -> int:
+        """Die Preise eines Lauftages ablegen.
+
+        Aufgerufen von ``report``, aus denselben Zeilen, aus denen auch der
+        Schnappschuss entsteht. Ein zweiter Lauf am selben Tag ersetzt die
+        Beobachtungen des ersten — der Tag ist die Einheit, nicht der Lauf.
+
+        Bewusst **ohne** Aufbewahrungsgrenze: eine Preisreihe, die nach einem halben
+        Jahr vergisst, beantwortet die Frage nicht, für die es sie gibt. Gemessen sind
+        es rund 2900 Zeilen je Lauftag, also unter 600 KB pro Woche gegenüber 2.7 MB
+        für denselben Zeitraum in den Schnappschüssen.
+        """
+        if not beobachtungen:
+            return 0
+        self.conn.executemany(
+            "INSERT OR REPLACE INTO preise (datum, name_key, vintage, haendler,"
+            " preis_75cl, rohpreis, units, flaschen_ml, sicherheit, name)"
+            " VALUES (:datum, :name_key, :vintage, :haendler, :preis_75cl, :rohpreis,"
+            " :units, :flaschen_ml, :sicherheit, :name)",
+            [{"datum": datum, **b} for b in beobachtungen],
+        )
+        self.conn.commit()
+        return len(beobachtungen)
+
+    def preisverlauf(self, name_key: str | None = None, *, seit: str = "") -> list[dict[str, Any]]:
+        """Beobachtungen, aufsteigend nach Datum. Ohne Wein: der ganze Bestand."""
+        bedingungen, werte = [], []
+        if name_key:
+            bedingungen.append("name_key=?")
+            werte.append(name_key)
+        if seit:
+            bedingungen.append("datum>=?")
+            werte.append(seit)
+        wo = (" WHERE " + " AND ".join(bedingungen)) if bedingungen else ""
+        rows = self.conn.execute(
+            f"SELECT * FROM preise{wo} ORDER BY datum, name_key, haendler", werte
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def preis_tage(self) -> list[str]:
+        """Welche Tage die Reihe kennt — für Berichte und zum Nachsehen."""
+        return [r[0] for r in self.conn.execute(
+            "SELECT DISTINCT datum FROM preise ORDER BY datum")]
 
     def close(self) -> None:
         self.conn.close()

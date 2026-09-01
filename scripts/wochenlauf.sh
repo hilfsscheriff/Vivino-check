@@ -163,11 +163,19 @@ fi
 # Bestands fehlte. Die Ausfuhr bleibt trotzdem: als Sicherung ist sie das wert.
 uv run wine-check ratings-export >>"$PROTOKOLL" 2>&1
 
+# -- 5b. Preisreihe sichern -------------------------------------------------
+# Dieselbe Rolle wie die Notenausfuhr, fuer die Preise. Die Beobachtungen des Tages
+# schreibt bereits "report" in den Cache; hier wird die Reihe in die versionierte
+# Datei gespiegelt, damit sie einen Rechnerverlust uebersteht. Geschrieben wird die
+# Vereinigung aus Datei und Cache — eine Beobachtung von gestern kann nicht besser
+# werden, also darf sie auch nicht verschwinden.
+uv run wine-check preise-export >>"$PROTOKOLL" 2>&1
+
 # -- 6. Einchecken ----------------------------------------------------------
-if git diff --quiet -- docs state/ratings-cache.json; then
+if git diff --quiet -- docs state/ratings-cache.json state/preisverlauf.csv; then
   sage "Keine Änderung an der Seite — nichts einzuchecken."
 else
-  git add docs state/ratings-cache.json
+  git add docs state/ratings-cache.json state/preisverlauf.csv
   # Der Push haengt am Commit. Vorher stand er in einem eigenen if, und ein an
   # .git/index.lock gescheiterter Commit fuehrte trotzdem zu "gepusht" im Protokoll.
   if ! git commit -q -m "Wochenlauf $(date '+%d.%m.%Y')"; then
