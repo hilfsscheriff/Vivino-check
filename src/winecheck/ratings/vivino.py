@@ -695,8 +695,32 @@ def classify(
     top = ranked[0]
     c = candidates[top.index]
     decision = top.decision
-    price, price_note = c.market_price(hosts)
     suffix = "" if decision.confidence is MatchConfidence.EXACT else f" [{decision.reason}]"
+    return _ergebnis_aus_kandidat(
+        c, retailer_vintage, query, hosts,
+        konfidenz=decision.confidence.value, suffix=suffix,
+    )
+
+
+def _ergebnis_aus_kandidat(
+    c: _Cand,
+    retailer_vintage: int | None,
+    query: str,
+    hosts: set[str],
+    *,
+    konfidenz: str,
+    suffix: str = "",
+) -> VivinoResult:
+    """Aus einem bestätigten Kandidaten das Ergebnis: Jahrgang, Wein oder zu wenige.
+
+    Herausgezogen aus :func:`classify`, weil eine geprüfte Zuordnung dieselbe
+    Entscheidung braucht. Sie bringt ihren Kandidaten auf einem anderen Weg — die
+    Adresse steht in der Liste, gesucht wird nicht —, aber die Frage danach ist
+    dieselbe: trägt der Jahrgang eine eigene Note, sonst der Wein über alle
+    Jahrgänge, sonst keine. Zwei Kopien dieser Staffelung würden auseinanderlaufen,
+    und die Antwort ist genau das, was auf der Seite als Note steht.
+    """
+    price, price_note = c.market_price(hosts)
 
     # -- Jahrgangsgenaue Bewertung ----------------------------------------
     if c.has_vintage_rating and c.year is not None and c.year == retailer_vintage:
@@ -708,7 +732,7 @@ def classify(
             rating=c.vintage_avg,
             rating_count=c.vintage_count,
             matched_name=c.name,
-            match_confidence=decision.confidence.value,
+            match_confidence=konfidenz,
             **_price_fields(price, price_note),
             **_stil_felder(c),
         )
@@ -728,7 +752,7 @@ def classify(
             rating=c.wine_avg,
             rating_count=c.wine_count,
             matched_name=_display_name(c),
-            match_confidence=decision.confidence.value,
+            match_confidence=konfidenz,
             **_price_fields(price, price_note),
             **_stil_felder(c),
         )
@@ -746,7 +770,7 @@ def classify(
         ),
         rating_count=count or None,
         matched_name=c.name,
-        match_confidence=decision.confidence.value,
+        match_confidence=konfidenz,
         **_price_fields(price, price_note),
     )
 
@@ -762,6 +786,42 @@ _RE_TRINKFENSTER = re.compile(
 
 def _jahr(rohwert: str) -> int | None:
     return None if rohwert == "null" else int(rohwert)
+
+
+def _fenster_aus_seite(text: str) -> tuple[int | None, int | None]:
+    """Das Trinkfenster aus dem Text einer Weinseite. Rein, also ohne Netz."""
+    m = _RE_TRINKFENSTER.search(text or "")
+    if not m:
+        return None, None
+    return _jahr(m.group(1)), _jahr(m.group(2))
+
+
+def _kandidaten_aus_seite(text: str) -> list[_Cand]:
+    """Note und Bewertungszahl aus dem Text einer Weinseite. Rein, also ohne Netz.
+
+    Die Seite trägt dieselben Daten wie die Suchantwort, nur anders verschachtelt:
+    ``wine`` und ``vintage`` liegen dort nebeneinander, während
+    :func:`_parse_candidates` den Wein *innerhalb* des Jahrgangs erwartet. Die
+    Angleichung ist dieselbe Idee wie bei :meth:`VivinoAdapter._weingut_kandidaten` —
+    eine Auswertung für alle Wege, damit Farbprüfung, Stilfelder und Marktpreis
+    überall gleich entstehen.
+    """
+    matches = []
+    for roh in _json_objekte(html.unescape(text or "")):
+        v, w = roh.get("vintage") or {}, roh.get("wine") or {}
+        if not w.get("id"):
+            continue
+        v_stat, w_stat = v.get("statistics") or {}, w.get("statistics") or {}
+        matches.append({"vintage": {
+            **v,
+            "wine": w,
+            "statistics": {
+                **v_stat,
+                "wine_ratings_average": w_stat.get("ratings_average"),
+                "wine_ratings_count": w_stat.get("ratings_count"),
+            },
+        }})
+    return _parse_candidates({"explore_vintage": {"matches": matches}})
 
 
 class VivinoAdapter:
@@ -807,19 +867,112 @@ class VivinoAdapter:
         Ein Fehlschlag ist kein Grund, die ganze Bewertung zu verlieren: dann bleibt
         das Fenster eben leer.
         """
-        if not vintage or "/w/" not in url:
+        if not vintage:
             return None, None
-        trenner = "&" if "?" in url else "?"
         try:
-            res = self.fetcher.get(f"{url.split('#')[0]}{trenner}year={vintage}")
+            return _fenster_aus_seite(self._weinseite(url, vintage))
         except Exception:
+            # Ein Fehlschlag ist kein Grund, die Bewertung zu verlieren.
             return None, None
-        if not res.ok:
-            return None, None
-        m = _RE_TRINKFENSTER.search(res.text)
-        if not m:
-            return None, None
-        return _jahr(m.group(1)), _jahr(m.group(2))
+
+    def _weinseite(self, url: str, vintage: int | None) -> str:
+        """Der rohe Text einer Vivino-Weinseite, mit Jahrgang an der Adresse.
+
+        Eine Stelle für den Abruf, zwei Auswertungen darauf: das Trinkfenster
+        (:func:`_fenster_aus_seite`) und, bei einer geprüften Zuordnung, Note und
+        Bewertungszahl (:func:`_kandidaten_aus_seite`). Vorher holte der
+        Zuordnungsweg dieselbe Seite zweimal — einmal für die Note, einmal für das
+        Fenster.
+
+        Der Jahrgang gehört an die Adresse: ohne ihn liefert Vivino
+        ``start_year: null, end_year: null`` und keine Jahrgangsstatistik, und beides
+        sieht dann aus, als gäbe es es nicht.
+        """
+        if "/w/" not in url:
+            return ""
+        ziel = url.split("#")[0]
+        if vintage:
+            ziel += ("&" if "?" in ziel else "?") + f"year={vintage}"
+        res = self.fetcher.get(ziel)
+        return res.text if res.ok else ""
+
+    def _weinseite_kandidaten(self, url: str, vintage: int | None) -> list[_Cand]:
+        """Note und Bewertungszahl direkt von einer **bekannten** Weinseite.
+
+        Der Weg für eine geprüfte Zuordnung aus :mod:`winecheck.zuordnung`: dort steht
+        die Adresse fest, gesucht wird also nicht. Genau dafür ist die Liste gedacht —
+        für Weine, die Vivinos Suche nicht hergibt und die auch die Weingutseite nicht
+        listet.
+
+        Die Weinseite trägt dieselben Daten wie die Suchantwort, nur anders
+        verschachtelt: ``wine`` und ``vintage`` liegen dort nebeneinander, während
+        :func:`_parse_candidates` den Wein *innerhalb* des Jahrgangs erwartet. Die
+        Angleichung ist dieselbe Idee wie bei :meth:`_weingut_kandidaten` — eine
+        Auswertung für alle Wege, damit Farbprüfung, Stilfelder und Marktpreis
+        überall gleich entstehen.
+
+        Der Jahrgangsparameter gehört an die Adresse, sonst liefert Vivino die Seite
+        ohne Jahrgangsstatistik — dasselbe wie beim Trinkfenster.
+
+        ``Blocked`` wird **nicht** geschluckt, anders als bei der Weingutseite: dort
+        ist der Abruf ein Zusatzversuch nach einer Suche, hier ist er der einzige Weg
+        zur Auskunft. Eine Ratenbegrenzung muss darum als solche durchkommen und
+        einen erneuten Versuch vermerken, statt als „kein Eintrag" zu erscheinen.
+        """
+        return _kandidaten_aus_seite(self._weinseite(url, vintage))
+
+    def _aus_zuordnung(
+        self,
+        eintrag: Any,
+        vintage: int | None,
+        query: str,
+        exclude_hosts: set[str] | None,
+    ) -> VivinoResult:
+        """Die Note von der Adresse, die in der geprüften Zuordnung steht.
+
+        Ohne diesen Weg war die Liste halb gebaut: der Sonderfall „Vivino führt den
+        Wein ohne verwertbare Note" wirkte, ein Eintrag *mit* Note wurde gelesen und
+        stillschweigend übergangen. Aufgefallen am Pintia Toro, für den am 01.09.2026
+        ein Eintrag angelegt wurde — er blieb danach ``no_entry``, obwohl die Adresse
+        in der Datei stand und die Seite 2111 Bewertungen für den Jahrgang 2020 trägt.
+
+        **Kein** Namensabgleich: die Zuordnung *ist* die geprüfte Identität, das ist
+        ihr ganzer Zweck. Was sie belegen muss, steht in :mod:`winecheck.zuordnung` —
+        die Substanz, nicht der Name.
+
+        Scheitert der Abruf, wird nichts geraten: dann steht da, dass die Adresse
+        nicht lesbar war, mit der Adresse daneben.
+        """
+        try:
+            seite = self._weinseite(eintrag.url, vintage)
+        except Blocked as exc:
+            return VivinoResult.miss(
+                VivinoStatus.BLOCKED,
+                query,
+                f"Vivino nicht erreichbar ({exc}) — geprüfte Zuordnung, erneut ab "
+                f"{exc.retry_after or 'später'}",
+                retry_after=exc.retry_after,
+            )
+        kandidaten = _kandidaten_aus_seite(seite)
+        if not kandidaten:
+            return VivinoResult.miss(
+                VivinoStatus.NO_ENTRY,
+                query,
+                f"geprüfte Zuordnung vom {eintrag.geprueft_am} — Seite nicht "
+                f"auswertbar: {eintrag.url}",
+            )
+        # Den Jahrgang des Händlers bevorzugen; sonst den ersten, dann entscheidet
+        # _ergebnis_aus_kandidat auf die Weinebene.
+        c = next((k for k in kandidaten if k.year == vintage), kandidaten[0])
+        ergebnis = _ergebnis_aus_kandidat(
+            c, vintage, query, exclude_hosts or set(),
+            konfidenz=MatchConfidence.EXACT.value,
+            suffix=f" [geprüfte Zuordnung vom {eintrag.geprueft_am}]",
+        )
+        # Das Fenster steht in derselben Antwort — kein zweiter Abruf dafür.
+        if ergebnis.rating is not None:
+            ergebnis.drink_from, ergebnis.drink_until = _fenster_aus_seite(seite)
+        return ergebnis
 
     def _weingut_kandidaten(self, slug: str) -> list[_Cand]:
         """Alle Weine eines Guts von dessen Vivino-Seite.
@@ -1050,7 +1203,12 @@ class VivinoAdapter:
                 checked_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
             )
 
-        if self.cache is not None:
+        # Der Cache wird bei einer geprüften Zuordnung übersprungen, nicht nur
+        # nachgeordnet. Ein Eintrag entsteht, weil der automatische Weg den falschen
+        # Wein liefert oder gar keinen — und dieses Ergebnis liegt im Cache. Ohne den
+        # Vorrang bliebe es dort stehen, dauerhaft. Der Abruf kostet eine Anfrage je
+        # Eintrag und Lauf; die Liste ist per Bauart kurz.
+        if self.cache is not None and eintrag is None:
             cached = self.cache.get_rating(
                 self.source, name, vintage, refresh=refresh, retry_failed=retry_failed
             )
@@ -1075,20 +1233,26 @@ class VivinoAdapter:
                     )
                 return result
 
-        try:
-            result = self._best_of(name, vintage, query, exclude_hosts)
-        except Blocked as exc:
-            result = VivinoResult.miss(
-                VivinoStatus.BLOCKED,
-                query,
-                f"Vivino nicht erreichbar ({exc}) — erneut ab {exc.retry_after or 'später'}",
-                retry_after=exc.retry_after,
-            )
+        if eintrag is not None:
+            result = self._aus_zuordnung(eintrag, vintage, query, exclude_hosts)
+        else:
+            try:
+                result = self._best_of(name, vintage, query, exclude_hosts)
+            except Blocked as exc:
+                result = VivinoResult.miss(
+                    VivinoStatus.BLOCKED,
+                    query,
+                    f"Vivino nicht erreichbar ({exc}) — erneut ab {exc.retry_after or 'später'}",
+                    retry_after=exc.retry_after,
+                )
 
-        # Nur bei einem echten Weinfund: eine Suchurl hat keine Weinseite, und ein
-        # Produzenten-Mittelwert hat kein Trinkfenster.
-        if result.rating is not None and "/w/" in result.url:
-            result.drink_from, result.drink_until = self._trinkfenster(result.url, vintage)
+            # Nur bei einem echten Weinfund: eine Suchurl hat keine Weinseite, und
+            # ein Produzenten-Mittelwert hat kein Trinkfenster. Der Zuordnungsweg
+            # bringt sein Fenster schon mit, aus derselben Antwort.
+            if result.rating is not None and "/w/" in result.url:
+                result.drink_from, result.drink_until = self._trinkfenster(
+                    result.url, vintage
+                )
 
         result.checked_at = time.strftime("%Y-%m-%dT%H:%M:%S")
         if self.cache is not None:
