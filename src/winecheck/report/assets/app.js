@@ -634,11 +634,19 @@ function table(list) {
       if (!zeile) return;
       const w = listeImBlick[+zeile.dataset.w];
       if (!w) return;
+      /* Die Auswahl muss *diese* Zeile betreffen. Sonst haengt die Bedeutung eines
+         Klicks an einer Markierung irgendwo sonst auf der Seite — genau die
+         Unvorhersehbarkeit, die wir beim Diagramm-Klick abgeschafft haben. Geprüft
+         werden beide Enden: eine Markierung über zwei Zeilen hat ihren Anker in der
+         einen und ihr Ende in der anderen. */
+      const sel = typeof getSelection === "function" ? getSelection() : null;
+      const inZeile = k => !!k && zeile.contains(k);
       const was = listenklick({
         handy: handyAnsicht(),
         aufLink: !!e.target.closest("a[href]"),
         modifiziert: e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0,
-        auswahl: !!String(getSelection ? getSelection() || "" : "").trim(),
+        auswahl: !!(sel && String(sel).trim()
+                    && (inZeile(sel.anchorNode) || inZeile(sel.focusNode))),
       });
       if (was !== "fenster") return;
       e.preventDefault();

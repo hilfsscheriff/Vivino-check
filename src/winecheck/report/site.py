@@ -708,7 +708,13 @@ __KENNUNG__
          nicht gesehen hatte. Wer wissen will, wie gerechnet wird, sucht danach; wer
          eine Flasche sucht, will die Liste. Die Erläuterungen stehen darum unter der
          Tabelle, direkt an dem, was sie erklären. -->
-    <p class="tblnote colhint">Spaltentitel antippen sortiert, nochmal antippen kehrt um</p>
+    <!-- ``colhint`` wird auf dem Handy ausgeblendet — der Hinweis gilt genau dort,
+         wo er sichtbar ist: am Desktop sortiert der Spaltentitel, und der Klick auf
+         eine Zeile zeigt die Angaben statt in den Shop zu springen. Auf dem Handy
+         stimmt beides nicht (kein Spaltenkopf, Link führt direkt zum Shop), darum
+         steht es auch nicht da. -->
+    <p class="tblnote colhint">Spaltentitel antippen sortiert, nochmal antippen kehrt um
+       · Zeile anklicken zeigt alle Angaben und die Links</p>
     <div id="table"></div>
     <!-- Die Herkunft der Zahl gehört sichtbar dazu: das Preisniveau ist gemessen,
          die Gewichtung ist gesetzt. Wer danach kauft, soll wissen, welcher Teil

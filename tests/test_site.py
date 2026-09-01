@@ -187,6 +187,20 @@ def test_tooltip_has_no_dangling_role(doc):
     assert not re.search(r"<[^!>]*role=\"tooltip\"", text)
 
 
+def test_der_hinweis_zum_zeilenklick_steht_nur_wo_er_gilt(doc):
+    """Am Desktop fuehrt der Klick auf eine Zeile nicht mehr in den Shop — das muss
+    dastehen, sonst sieht man einen Link, der anderswohin fuehrt als er verspricht.
+
+    Und es darf **nur** am Desktop stehen: auf dem Handy gibt es keinen Spaltenkopf
+    und der Link fuehrt weiterhin direkt zum Shop. Beides traegt ``.colhint``, das der
+    Media-Query ausblendet.
+    """
+    text = doc()
+    hinweis = text.split('class="tblnote colhint"', 1)[1].split("</p>", 1)[0]
+    assert "Zeile anklicken" in hinweis
+    assert "Spaltentitel" in hinweis
+
+
 def test_der_punktdialog_steht_im_geruest(doc):
     """Der Klick auf einen Punkt braucht ein Ziel — und es muss ohne Skript schliessen.
 
