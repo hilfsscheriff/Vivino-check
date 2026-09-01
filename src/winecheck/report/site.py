@@ -696,7 +696,7 @@ __KENNUNG__
       <span><svg width="14" height="12" aria-hidden="true"><circle cx="7" cy="6" r="4"
         fill="none" stroke="var(--muted)" stroke-width="1.1" opacity=".55"/></svg>
         ausserhalb der Regel</span>
-      <span>je Punkt ein Wein</span></p>
+      <span>Punkt anklicken zeigt alle Weine an dieser Stelle, mit Links</span></p>
     <div id="chart"></div>
   </div>
 
@@ -778,6 +778,19 @@ __KENNUNG__
      assistive Technik ein Versprechen ohne Beziehung. Die Tabelle ist die
      zugängliche Entsprechung zum Diagramm. -->
 <div id="tip"></div>
+
+<!-- Der Klick auf einen Punkt öffnet diese Liste: bei gleichem Preis und gleicher Note
+     liegen mehrere Weine auf derselben Stelle, und im Tooltip waren sie nur zu lesen,
+     nicht anzuklicken. Ein natives <dialog>: Fokus, Escape und das Aussperren des
+     Hintergrunds macht der Browser richtig. Das Formular mit method="dialog" schliesst
+     ohne eine Zeile JavaScript — auch dann, wenn das Skript scheitert. -->
+<dialog id="punkt" class="pdlg" aria-labelledby="punktT">
+  <form method="dialog" class="pdlg-kopf">
+    <h2 id="punktT"></h2>
+    <button type="submit" class="pdlg-zu" aria-label="Liste schliessen">&times;</button>
+  </form>
+  <div id="punktB"></div>
+</dialog>
 
 <script>__JS__</script>
 </body>

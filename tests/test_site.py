@@ -187,12 +187,33 @@ def test_tooltip_has_no_dangling_role(doc):
     assert not re.search(r"<[^!>]*role=\"tooltip\"", text)
 
 
+def test_der_punktdialog_steht_im_geruest(doc):
+    """Der Klick auf einen Punkt braucht ein Ziel — und es muss ohne Skript schliessen.
+
+    Die Weine an einer Stelle standen vorher nur im Mouseover, mit Namen und Preis,
+    ohne Adresse. Gemeldet als „ich will auch den anderen Wein sehen können und dann
+    anklicken für den Shop". Ein natives ``<dialog>`` mit ``method="dialog"`` schliesst
+    auch dann, wenn das Skript scheitert; Fokus und Escape kommen vom Browser.
+    """
+    text = doc()
+    assert '<dialog id="punkt"' in text
+    assert 'aria-labelledby="punktT"' in text
+    assert 'method="dialog"' in text
+    # Die beiden Behälter, die ``punktZeigen`` füllt.
+    assert 'id="punktT"' in text and 'id="punktB"' in text
+
+
 def test_chart_legend_explains_its_encodings(doc):
-    """Trendlinie, Vektor und Markierung müssen benannt sein — sonst sind sie Deko."""
+    """Trendlinie, Vektor und Markierung müssen benannt sein — sonst sind sie Deko.
+
+    „je Punkt ein Wein" stand hier früher und war nicht wahr: bei gleichem Preis und
+    gleicher Note liegen die Weine in den Daten aufeinander, an einer Stelle bis zu
+    neun. Die Legende sagt jetzt stattdessen, wie man sie erreicht.
+    """
     text = doc()
     legend = text.split('class="legend"', 1)[1].split("</p>", 1)[0]
     for begriff in ("üblich für den Preis", "gut und günstig", "ausserhalb der Regel",
-                    "je Punkt ein Wein"):
+                    "Punkt anklicken zeigt alle Weine an dieser Stelle"):
         assert begriff in legend, begriff
 
 

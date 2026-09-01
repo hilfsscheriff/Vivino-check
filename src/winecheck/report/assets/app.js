@@ -305,8 +305,9 @@ function chart(list) {
               + `<span class="k">${o.rating.toFixed(1)} · ${chf(o.price)}</span></div>`;
           }).join("")
         + (cluster.length > 4
-            ? `<div class="k">… und ${cluster.length - 4} weitere — in der Tabelle</div>`
+            ? `<div class="k">… und ${cluster.length - 4} weitere</div>`
             : "")
+        + `<div class="k">Punkt anklicken zeigt alle mit Links</div>`
         + `</div>`;
     }
     tip.innerHTML = h; tip.classList.add("on"); place(ev);
@@ -323,28 +324,18 @@ function chart(list) {
   host.addEventListener("mouseover", e => { const el = treffer(e); if (el) show(el, e); });
   host.addEventListener("mousemove", e => { if (tip.classList.contains("on")) place(e); });
   host.addEventListener("mouseout", () => tip.classList.remove("on"));
-  /* Auf Touch gibt es kein Hover. Zwischen 721 und 900 px ist das Diagramm sichtbar
-     — dort waren die Tooltips bisher unerreichbar, weil nur Maus-Ereignisse hingen.
-     Erstes Antippen zeigt den Wein, zweites Antippen öffnet ihn. */
-  let armed = null;
+  /* Ein Klick öffnet die vollständige Liste dieser Stelle — siehe
+     ``punktInhalt``. Damit ist auch das Handy versorgt: dort gibt es kein Hover,
+     und das frühere „einmal antippen zeigt, zweimal öffnet den Shop" war weder
+     erkennbar noch erreichte es die verdeckten Weine. */
   host.addEventListener("click", e => {
     const el = treffer(e); if (!el) return;
-    const p = pts[+el.dataset.i];
-    const touch = !matchMedia("(hover: hover)").matches;
-    if (touch && armed !== el) {
-      armed = el;
-      show(el, e.touches ? e.touches[0] : e);
-      return;
-    }
-    armed = null;
-    const href = p && (p.url || p.vivinoUrl);
-    if (href) window.open(href, "_blank", "noopener");
+    const i = +el.dataset.i, p = pts[i]; if (!p) return;
+    punktZeigen(punktReihenfolge(clusterOf(i).map(j => pts[j]), p));
   });
   // Tippen daneben schliesst den Tooltip wieder.
   addEventListener("pointerdown", e => {
-    if (!treffer(e)) {
-      armed = null; tip.classList.remove("on");
-    }
+    if (!treffer(e)) tip.classList.remove("on");
   }, { passive: true });
 }
 
@@ -400,6 +391,26 @@ function fokusZurueck(box, merk) {
    Warnung "laut Vivino, nicht beim Verkaeufer geprueft" zu sehen.
    Eine Funktion fuer beide Ausgaben: zwei Fassungen derselben Angaben laufen in
    diesem Projekt erfahrungsgemaess auseinander. */
+/* Händlername und Linkbeschriftung brauchen Liste *und* Punktdialog — darum hier
+   oben und nicht mehr in ``table()``. */
+function shopName(k) { return (D.retailers.find(r => r.key === k) || {}).name || k; }
+
+/* Beim Vivino-Marktplatz ist Vivino nicht der Verkaeufer, sondern der Vermittler:
+   der Link fuehrt bewusst zum Shop, der tatsaechlich liefert, weil nur dort der
+   genannte Preis steht. Dann darf die Beschriftung nicht "Vivino Aktionen" sagen —
+   wer klickt, landet auf bignens.ch und haelt den Link fuer kaputt. Steht der Shop
+   in der Adresse, wird er angeschrieben. */
+function linkZiel(w) {
+  const name = shopName(w.cheapest);
+  let host = "";
+  try { host = new URL(w.url).hostname.replace(/^www\./, ""); } catch (e) { host = ""; }
+  if (!host) return name;
+  const eigen = (D.retailers.find(r => r.key === w.cheapest) || {}).domain || "";
+  if (eigen && (host === eigen || host.endsWith("." + eigen))) return name;
+  return `${name} → ${host}`;
+}
+
+
 function detailRows(p) {
   const row = (k, v) => `<div class="r"><span class="k">${k}</span><span>${v}</span></div>`;
   let h = "";
@@ -462,6 +473,101 @@ function detailRows(p) {
   return h;
 }
 
+/* ------------------------------------------------------ Punktdialog */
+/* Ein Punkt im Diagramm ist nicht immer ein Wein. Bei gleichem Preis und gleicher
+   Note liegen die Weine in den *Daten* aufeinander, nicht bloss optisch — ein
+   kleinerer Radius hilft darum nichts. Der Tooltip nannte die Verdeckten immerhin,
+   aber nur mit Namen und Preis, ohne Links und auf vier begrenzt: „1 weiterer Wein
+   an dieser Stelle" liess sich lesen und nicht anfassen.
+   Gemeldet als „ich will auch den anderen Wein sehen können und dann anklicken für
+   den Shop". Der Klick öffnet darum die vollständige Liste dieser Stelle, jeder Wein
+   mit denselben Angaben wie in der Tabelle und mit beiden Adressen — Shop und Vivino.
+
+   Auch bei einem einzigen Wein: dass ein Klick manchmal eine Liste zeigt und
+   manchmal ungefragt den Shop öffnet, wäre schwer vorhersehbar. Die Adresse steht
+   jetzt immer als Link da, und wer sie anklickt, weiss, wohin es geht. */
+function punktInhalt(weine) {
+  const titel = weine.length > 1
+    ? `${weine.length} Weine zu diesem Preis und dieser Note`
+    : "Wein an dieser Stelle";
+  const html = weine.map(w => {
+    const vs = vintageSuffix(w);
+    const pillen = [
+      w.neu ? `<span class="pill neu">neu</span>` : "",
+      w.styleLabel ? `<span class="pill">${esc(w.styleLabel)}</span>` : "",
+      w.typ && w.typLabel
+        ? `<span class="pill t-${w.typ}">${esc(w.typLabel)}</span>` : "",
+      w.maturityShort ? `<span class="pill">${esc(w.maturityShort)}</span>` : "",
+      istGut(w) ? `<span class="marker">◆ gut und günstig</span>` : "",
+    ].filter(Boolean).join(" ");
+    /* Der Vivino-Link trägt, was dort zu holen ist. Ohne Note heisst er nicht
+       „4.0/5", sondern sagt, dass es keine gibt — sonst klickt man auf ein
+       Versprechen. Fehlt die Adresse ganz, fehlt auch der Link. */
+    const vLabel = w.rating != null
+      ? `Bei Vivino: ${w.rating.toFixed(1)}/5`
+      : w.wineryRating != null
+        ? `Bei Vivino: nur Produzenten-Ø ${w.wineryRating.toFixed(1)}/5`
+        : "Bei Vivino nachsehen";
+    const links = [
+      w.url
+        ? `<a class="pw-shop" href="${esc(w.url)}" target="_blank" rel="noopener">`
+          + `Zum Shop: ${esc(linkZiel(w))}</a>`
+        : `<span class="meta">${esc(shopName(w.cheapest))} — keine Adresse hinterlegt</span>`,
+      w.vivinoUrl
+        ? `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener">${esc(vLabel)}</a>`
+        : "",
+    ].filter(Boolean).join("");
+    return `<article class="pw">`
+      + `<h3>${esc(w.name)}${vs ? ` <span class="meta">${vs}</span>` : ""}</h3>`
+      + (pillen ? `<p class="pw-p">${pillen}</p>` : "")
+      + `<div class="pw-d">${detailRows(w)}</div>`
+      + `<p class="pw-l">${links}</p>`
+      + `</article>`;
+  }).join("");
+  return { titel, html };
+}
+
+/* Reihenfolge: der angeklickte Wein zuerst — er ist der, auf den gezeigt wurde —,
+   danach die übrigen nach Preis-Leistung wie in der Tabelle, Leerwerte nach unten. */
+function punktReihenfolge(alle, gewaehlt) {
+  const rest = alle.filter(w => w !== gewaehlt).sort((a, b) => {
+    const x = valueOf(a), y = valueOf(b);
+    if (x == null && y == null) return (b.rating ?? 0) - (a.rating ?? 0);
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return y - x;
+  });
+  return [gewaehlt, ...rest];
+}
+
+function punktZeigen(weine) {
+  const dlg = document.getElementById("punkt");
+  if (!dlg) return;
+  const { titel, html } = punktInhalt(weine);
+  document.getElementById("punktT").textContent = titel;
+  document.getElementById("punktB").innerHTML = html;
+  document.getElementById("tip").classList.remove("on");
+  if (!dlg.dataset.wired) {
+    dlg.dataset.wired = "1";
+    /* Klick auf den Hintergrund schliesst. Geprüft wird an den Koordinaten und nicht
+       an ``e.target === dlg``: der Dialog hat innen Polsterung, und ein Klick darauf
+       kommt ebenfalls am Element selbst an — er würde sonst schliessen, obwohl man
+       innerhalb des Kastens geklickt hat. Escape macht der Browser von sich aus. */
+    dlg.addEventListener("click", e => {
+      const r = dlg.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right
+          || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
+    });
+  }
+  /* ``showModal`` statt einer eigenen Overlay-Bastelei: Fokus, Escape und das
+     Aussperren des Hintergrunds macht der Browser richtig, und zwar auch mit
+     Tastatur und Screenreader. */
+  // Neuer Inhalt beginnt oben: sonst öffnet der nächste Punkt mitten in der Liste,
+  // weil der Dialog die Blätterposition des vorigen behält.
+  dlg.scrollTop = 0;
+  if (!dlg.open) dlg.showModal();
+}
+
 function table(list) {
   const box = document.getElementById("table");
   /* Einmal verdrahtet, nicht bei jedem Neuzeichnen: table() laeuft bei jeder
@@ -481,21 +587,6 @@ function table(list) {
   }
   const merk = fokusMerken(box);
   if (!list.length) { box.innerHTML = '<p class="empty">Kein Wein passt zu dieser Auswahl.</p>'; return; }
-  const shopName = k => (D.retailers.find(r => r.key === k) || {}).name || k;
-  /* Beim Vivino-Marktplatz ist Vivino nicht der Verkaeufer, sondern der Vermittler:
-     der Link fuehrt bewusst zum Shop, der tatsaechlich liefert, weil nur dort der
-     genannte Preis steht. Dann darf die Beschriftung nicht "Vivino Aktionen" sagen —
-     wer klickt, landet auf bignens.ch und haelt den Link fuer kaputt. Steht der Shop
-     in der Adresse, wird er angeschrieben. */
-  const linkZiel = w => {
-    const name = shopName(w.cheapest);
-    let host = "";
-    try { host = new URL(w.url).hostname.replace(/^www\./, ""); } catch (e) { host = ""; }
-    if (!host) return name;
-    const eigen = (D.retailers.find(r => r.key === w.cheapest) || {}).domain || "";
-    if (eigen && (host === eigen || host.endsWith("." + eigen))) return name;
-    return `${name} → ${host}`;
-  };
   // Leere Werte sortieren immer nach unten, in beiden Richtungen. Ein Wein ohne Note
   // ist keine 0 — er würde sonst bei aufsteigender Sortierung die Liste anführen.
   const KEYS = {
