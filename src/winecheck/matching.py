@@ -183,10 +183,32 @@ _DEFAULT_DOSAGE = frozenset({"brut"})
 #: Projekts: zwei Lücken sind billiger als eine falsche Note.
 
 
+#: In Saint-Émilion ist „Grand Cru" die **Appellation**, nicht die Stufe darüber.
+#:
+#: „Saint-Émilion Grand Cru" ist der Name der Herkunft, und „Premier Grand Cru Classé"
+#: die Klassifikation, die Vivino in Klammern anhängt. Händler lassen beides weg:
+#: Aligro schreibt „St-Emilion Château Pavie AOC 2016", Vivino „Château Pavie
+#: Saint-Émilion Grand Cru (Premier Grand Cru Classé)". Die Stufenregel sah darin drei
+#: einseitige Wörter und lehnte den richtigen Wein ab — der CHF 400 teure Pavie stand
+#: mit dem Produzenten-Durchschnitt 4.5 da, während seine eigene 4.6 aus 466
+#: Bewertungen bei Vivino steht.
+#:
+#: In Burgund bleibt die Regel scharf, und das ist der Punkt: dort trennen „Grand Cru"
+#: und „Premier Cru" tatsächlich verschiedene Weine desselben Guts. Die Ausnahme hängt
+#: darum an der Herkunft und nicht an den Wörtern. Gemessen an allen gespeicherten
+#: Zuordnungen betrifft sie vier Weine, alle in Saint-Émilion, und keinen einzigen
+#: Cru-Fall anderswo.
+_EMILION = frozenset({"emilion"})
+_EMILION_STUFEN = frozenset({"grand", "cru", "premier", "classe", "classé"})
+
+
 def _qualifier_veto(retailer: _Prepared, source: _Prepared) -> str | None:
     """Qualitätsstufen müssen auf beiden Seiten gleich sein."""
     r_q = discriminating_tokens(retailer.tokens)
     s_q = discriminating_tokens(source.tokens)
+    if (retailer.token_set | source.token_set) & _EMILION:
+        r_q = r_q - _EMILION_STUFEN
+        s_q = s_q - _EMILION_STUFEN
     only_source = s_q - r_q
     only_retailer = r_q - s_q
     # Die Standard-Dosage darf einseitig fehlen — aber nur, wenn die andere Seite
@@ -347,12 +369,18 @@ def _foreign_token_analysis(
     )
     if first_hit is None:
         return None, []
+    # In Saint-Émilion sind „Grand Cru" und „Premier Grand Cru Classé" Herkunft und
+    # Klassifikation, nicht ein eigener Wein — dieselbe Ausnahme wie in
+    # :func:`_qualifier_veto`, siehe die Begründung dort. Beide Regeln nehmen
+    # Regionswörter aus; für diese gilt es nur unter dieser Herkunft.
+    emilion = bool((retailer.token_set | source.token_set) & _EMILION)
     suspects = [
         tok
         for tok in source.tokens[first_hit:]
         if tok not in retailer.known
         and tok not in REGION_HINTS
         and tok not in COLOUR_TOKENS
+        and not (emilion and tok in _EMILION_STUFEN)
         and len(tok) > 2
         and not tok.isdigit()
     ]
