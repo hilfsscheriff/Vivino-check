@@ -636,8 +636,15 @@ def match_wine(
     # wie ein Eintrag mit zwei zusätzlichen Namensbestandteilen. Es sind aber genau
     # die Wörter, die wir selbst angehängt haben — die Quelle bringt nichts mit, was
     # wir nicht schon wüssten.
-    r_identity = [t for t in r.token_set if is_distinctive(t)]
-    s_identity = [t for t in s.token_set if is_distinctive(t)]
+    # Unter der Herkunft Saint-Émilion tragen „Grand Cru" und „Premier Grand Cru
+    # Classé" auf keiner der beiden Seiten Identität — sie sind Appellation und
+    # Klassifikation, siehe die Begründung bei :data:`_EMILION`. Ohne diesen Abzug
+    # feuert die Regel auf einen Scheinunterschied: „St-Emilion Château Pavie AOC"
+    # und „Château Pavie Saint-Émilion Grand Cru (Premier Grand Cru Classé)" sagen
+    # dasselbe, und die Quelle brachte doch angeblich „Classé" zusätzlich mit.
+    stufen = _EMILION_STUFEN if (r.token_set | s.token_set) & _EMILION else frozenset()
+    r_identity = [t for t in r.token_set if is_distinctive(t) and t not in stufen]
+    s_identity = [t for t in s.token_set if is_distinctive(t) and t not in stufen]
     unexplained_source = [t for t in s_identity if t not in r.known]
     if (
         len(r_identity) < MIN_IDENTITY_TOKENS
