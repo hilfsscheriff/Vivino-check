@@ -583,6 +583,21 @@ function punktReihenfolge(alle, gewaehlt) {
   return [gewaehlt, ...rest];
 }
 
+/* Schliesst dieser Klick das Fenster? Als eigene Funktion, damit die Regel ohne
+   Browser prüfbar ist — und weil die erste Fassung hier falsch war.
+
+   Sie prüfte nur die Koordinaten gegen den Kasten. Ein per Tastatur ausgelöster Klick
+   trägt aber clientX/clientY = 0: wer im Fenster mit Enter auf „Zum Shop" ging, schloss
+   damit das Fenster, weil 0/0 ausserhalb des zentrierten Kastens liegt. Entscheidend
+   ist darum zuerst das Ziel — ein Klick auf ein Kind schliesst nie. Die Koordinaten
+   klären nur noch den Rest: bei einem <dialog> kommt auch der Klick auf den
+   Hintergrund am Element selbst an, und ebenso der Klick auf seine innere Polsterung. */
+function schliesstDialog(u) {
+  if (!u.aufDialogSelbst) return false;
+  return u.x < u.rect.left || u.x > u.rect.right
+      || u.y < u.rect.top || u.y > u.rect.bottom;
+}
+
 function punktZeigen(weine) {
   const dlg = document.getElementById("punkt");
   if (!dlg) return;
@@ -592,14 +607,14 @@ function punktZeigen(weine) {
   document.getElementById("tip").classList.remove("on");
   if (!dlg.dataset.wired) {
     dlg.dataset.wired = "1";
-    /* Klick auf den Hintergrund schliesst. Geprüft wird an den Koordinaten und nicht
-       an ``e.target === dlg``: der Dialog hat innen Polsterung, und ein Klick darauf
-       kommt ebenfalls am Element selbst an — er würde sonst schliessen, obwohl man
-       innerhalb des Kastens geklickt hat. Escape macht der Browser von sich aus. */
+    // Klick auf den Hintergrund schliesst — die Regel steht in ``schliesstDialog``.
+    // Escape macht der Browser von sich aus.
     dlg.addEventListener("click", e => {
-      const r = dlg.getBoundingClientRect();
-      if (e.clientX < r.left || e.clientX > r.right
-          || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
+      if (schliesstDialog({
+        aufDialogSelbst: e.target === dlg,
+        x: e.clientX, y: e.clientY,
+        rect: dlg.getBoundingClientRect(),
+      })) dlg.close();
     });
   }
   /* ``showModal`` statt einer eigenen Overlay-Bastelei: Fokus, Escape und das

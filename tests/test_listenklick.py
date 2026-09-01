@@ -39,6 +39,44 @@ console.log(JSON.stringify({json.dumps(faelle)}.map(listenklick)));
     return json.loads(lauf.stdout)
 
 
+def _schliesst(faelle: list[dict]) -> list[bool]:
+    js = (ASSETS / "app.js").read_text(encoding="utf-8")
+    start = js.index("function schliesstDialog(")
+    ende = js.index("\nfunction punktZeigen(", start)
+    programm = js[start:ende] + f"""
+console.log(JSON.stringify({json.dumps(faelle)}.map(schliesstDialog)));
+"""
+    lauf = subprocess.run(["node", "-e", programm], capture_output=True, text=True, timeout=60)
+    assert lauf.returncode == 0, lauf.stderr
+    return json.loads(lauf.stdout)
+
+
+#: Ein zentrierter Kasten, wie ihn showModal() erzeugt.
+KASTEN = {"left": 320, "right": 880, "top": 60, "bottom": 700}
+
+
+@needs_node
+def test_enter_auf_einem_link_im_fenster_schliesst_es_nicht():
+    """Der Fehler, den die Gegenpruefung gefunden hat — und der Grund fuer die Funktion.
+
+    Die erste Fassung prueffte nur die Koordinaten gegen den Kasten. Ein per Tastatur
+    ausgeloester Klick traegt aber clientX/clientY = 0: wer im Fenster mit Enter auf
+    "Zum Shop" ging, schloss damit das Fenster. Im Browser nachgestellt und bestaetigt,
+    bevor es geaendert wurde.
+    """
+    (tastatur, hintergrund, polsterung) = _schliesst([
+        # Enter auf einem Link im Fenster: Ziel ist der Link, Koordinaten 0/0.
+        {"aufDialogSelbst": False, "x": 0, "y": 0, "rect": KASTEN},
+        # Echter Klick auf den Hintergrund: Ziel ist der Dialog, Punkt liegt draussen.
+        {"aufDialogSelbst": True, "x": 40, "y": 400, "rect": KASTEN},
+        # Klick auf die innere Polsterung: Ziel ist ebenfalls der Dialog, Punkt drin.
+        {"aufDialogSelbst": True, "x": 330, "y": 400, "rect": KASTEN},
+    ])
+    assert tastatur is False
+    assert hintergrund is True
+    assert polsterung is False
+
+
 @needs_node
 def test_auf_dem_handy_bleibt_der_link_ein_link():
     (navigieren, daneben) = _entscheide([

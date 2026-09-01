@@ -714,7 +714,8 @@ __KENNUNG__
          stimmt beides nicht (kein Spaltenkopf, Link führt direkt zum Shop), darum
          steht es auch nicht da. -->
     <p class="tblnote colhint">Spaltentitel antippen sortiert, nochmal antippen kehrt um
-       · Zeile anklicken zeigt alle Angaben und die Links</p>
+       · Zeile anklicken zeigt alle Angaben und die Links, mit der Tastatur Enter auf
+       einem Link der Zeile</p>
     <div id="table"></div>
     <!-- Die Herkunft der Zahl gehört sichtbar dazu: das Preisniveau ist gemessen,
          die Gewichtung ist gesetzt. Wer danach kauft, soll wissen, welcher Teil
