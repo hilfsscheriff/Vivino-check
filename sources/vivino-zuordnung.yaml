@@ -47,7 +47,30 @@ version: 1
 # Daraus die Regel oben: Substanz vergleichen, nicht Namen.
 # ---------------------------------------------------------------------------
 
-zuordnungen: []
+zuordnungen:
+  - name: Toro Pintia Parker 94, DO 2020 Vega Sicilia
+    url: https://www.vivino.com/de/w/77172
+    geprueft_am: "2026-09-01"
+    grund: >
+      Gemeldet mit der Frage, weshalb der Wein nicht gefunden wurde. Er ist bei Vivino
+      geführt — /w/77172 "Pintia Toro", Jahrgang 2020 mit 4.5 aus 2111 Bewertungen —,
+      aber über Aligros Namen nicht erreichbar. Zwei Regeln löschen zusammen genau die
+      Wörter, die ihn finden würden: "sicilia" fällt als italienische Region weg,
+      obwohl es hier die zweite Hälfte des Produzenten *Vega Sicilia* ist, und "toro"
+      fällt ebenfalls als Region weg, obwohl es bei Vivino der Weinname dieses
+      Eintrags ist. Übrig bleibt die Abfrage "pintia vega" — und Vivino sucht mit
+      UND-Verknüpfung, also liefert sie null Treffer, weil der Eintrag "vega" nirgends
+      trägt (das Weingut heisst dort "Pintia"). "pintia" allein liefert ihn an erster
+      Stelle, "pintia toro" ebenso; beides direkt an der Schnittstelle geprüft.
+      Substanz: Weingut Pintia mit der Weingutsgruppe "Tempos Vega Sicilia"
+      (vega-sicilia.com), Appellation Toro, Tempranillo — das ist Tinta de Toro. Damit
+      stimmen Produzentengruppe, Appellation, Weinname und Jahrgang mit Aligros
+      Angabe überein.
+      Ein allgemeiner Rückfall auf weniger Suchwörter wurde gemessen und verworfen:
+      bei 10 von 1073 kürzbaren Abfragen ergab er 0 brauchbare Treffer und 9 vom
+      Abgleich verworfene Kandidatenlisten, bei rund 90 Minuten Zusatzlast je Lauf.
+      Beim Pintia trägt das Kürzen nur, weil "pintia" ein seltener Eigenname ist — und
+      das lässt sich vorab nicht wissen.
 
 # ---------------------------------------------------------------------------
 # MARKTPLATZ — Angebote, bei denen Vivino selbst den falschen Wein anhängt.
