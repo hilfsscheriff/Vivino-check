@@ -14,6 +14,13 @@
     --ink:#1a1719; --muted:#6b6668; --faint:#78716d;
     --line:#e2dedc; --line-strong:#8f8a86;
     --bg:#faf9f7; --panel:#f4f2ef; --chip:transparent;
+    /* Damit JavaScript dieselbe Grenze liest, ohne die Zahl 720 ein zweites Mal
+       hinzuschreiben: der Media-Query unten setzt diesen Wert auf „handy". In einer
+       @media-Bedingung ist ``var()`` ungültig — den umgekehrten Weg gibt es nicht,
+       und zwei Zahlen, die auseinanderlaufen können, wären schlimmer. Gelesen wird
+       bei jedem Klick neu, darum stimmt es auch nach dem Verkleinern des Fensters
+       ohne Neuladen. */
+    --ansicht: desktop;
     --brand:#6d1834; --accent:#6d1834;
     /* Gold erreicht auf dem hellen Grund nur 3.75:1 — es trägt darum ausschliesslich
        Grossgrade und Flächen. Kleintext in Gold nimmt --goldtx mit 4.74:1. */
@@ -320,6 +327,10 @@
   .mehr::after { content:"▾"; font-size:1.1em; line-height:1; transition:transform .15s; }
   .mehr[aria-expanded="true"]::after { transform:rotate(180deg); }
   .mehr:hover { border-color:var(--accent); color:var(--accent); }
+  /* Auf dem Desktop öffnet ein Klick auf die Zeile die Angaben zum Wein statt
+     ungefragt den Shop — der Zeigefinger sagt das an. Im Handy-Block oben wieder
+     zurückgenommen. */
+  #table tbody tr[data-w] { cursor:pointer; }
   .det > td { padding:0 9px 15px; border-bottom:1px solid var(--line); }
   .det .r { display:flex; justify-content:space-between; gap:14px;
             padding:3px 0; font-size:var(--fs-body-sm); }
@@ -339,6 +350,12 @@
   /* Auf dem Handy ist thead ausgeblendet — dort ist der Hinweis schlicht falsch.
      Derselbe Breakpoint wie für Kartenansicht und Diagramm: 720 px. */
   @media (max-width: 720px) {
+    /* Die eine Stelle, an der „Handy" definiert ist — siehe --ansicht oben. */
+    :root { --ansicht: handy; }
+    /* Hier ist die Tabelle alles, was es gibt: das Diagramm ist ausgeblendet, und
+       ein Link muss ein Link bleiben und direkt in den Shop führen. Also kein
+       Zeigefinger auf der Zeile. */
+    #table tbody tr[data-w] { cursor:auto; }
     .colhint { display:none; }
     h1 { font-size:1.6rem; }
     .wrap { padding:20px 15px 44px; }

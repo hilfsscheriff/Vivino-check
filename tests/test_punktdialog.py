@@ -91,7 +91,9 @@ def test_ein_einzelner_wein_oeffnet_dieselbe_liste():
     """Auch bei einem Wein: ein Klick, der manchmal eine Liste zeigt und manchmal
     ungefragt den Shop öffnet, wäre nicht vorhersehbar."""
     r = _inhalt([MIT_NOTE])
-    assert r["titel"] == "Wein an dieser Stelle"
+    # Nicht „Wein an dieser Stelle": das Fenster geht auch aus der Liste auf, und
+    # dort gibt es keine Stelle.
+    assert r["titel"] == "Angaben zum Wein"
     assert "Zum Shop" in r["html"] and "Elettra" in r["html"]
 
 

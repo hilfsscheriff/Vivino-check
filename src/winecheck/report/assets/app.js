@@ -473,6 +473,45 @@ function detailRows(p) {
   return h;
 }
 
+/* ------------------------------------------------- Handy oder Desktop */
+/* „Handy" heisst hier: die Ansicht, in der es das Diagramm nicht gibt. Der Bruchpunkt
+   steht genau einmal, im Media-Query in app.css; von dort liest diese Funktion ihn
+   über die Eigenschaft ``--ansicht``, statt die Breite ein zweites Mal in
+   JavaScript hinzuschreiben. Bei jedem Klick neu gelesen: wer sein Fenster
+   verkleinert, wechselt die Ansicht ohne Neuladen. */
+function handyAnsicht() {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue("--ansicht").trim() === "handy";
+}
+
+/* Was ein Klick in der Liste bedeutet. Als eigene Funktion, damit die Regel ohne
+   Browser prüfbar ist.
+
+   Die beiden Ansichten wollen Verschiedenes, und zwar aus einem sachlichen Grund:
+   Auf dem Handy ist die Liste alles, was es gibt — das Diagramm ist ausgeblendet.
+   Wer dort auf einen Link tippt, steht meist im Laden und will in den Shop, sofort.
+   Am Desktop steht das Diagramm daneben, man vergleicht, und ein Klick, der ungefragt
+   eine Händlerseite öffnet, reisst aus dem Vergleich heraus. Dort zeigt der Klick
+   darum erst die Angaben — mit beiden Adressen als Knopf, sichtbar, bevor man sie
+   anklickt.
+
+   Was das kostet, offen benannt: am Desktop führt der einfache Klick auf den
+   Shop-Link nicht mehr direkt zum Shop. Mittelklick, Cmd/Ctrl-Klick und
+   „Link in neuem Tab öffnen" tun es weiterhin — sie sind ausgenommen. Und eine
+   Textauswahl darf kein Fenster öffnen: wer einen Weinnamen markiert, um ihn zu
+   kopieren, klickt dabei zwangsläufig in die Zeile. */
+function listenklick(u) {
+  if (u.handy || u.modifiziert) return u.aufLink ? "navigieren" : "nichts";
+  if (u.auswahl) return "nichts";
+  return "fenster";
+}
+
+/* Die Liste, wie sie gerade gerendert ist — sortiert und begrenzt. Der Zuhörer am
+   Tabellenkasten wird nur einmal verdrahtet und kann darum nicht auf ``sorted``
+   zugreifen; über diese Variable findet er den Wein zum ``data-w`` der Zeile. */
+let listeImBlick = [];
+
+
 /* ------------------------------------------------------ Punktdialog */
 /* Ein Punkt im Diagramm ist nicht immer ein Wein. Bei gleichem Preis und gleicher
    Note liegen die Weine in den *Daten* aufeinander, nicht bloss optisch — ein
@@ -487,9 +526,13 @@ function detailRows(p) {
    manchmal ungefragt den Shop öffnet, wäre schwer vorhersehbar. Die Adresse steht
    jetzt immer als Link da, und wer sie anklickt, weiss, wohin es geht. */
 function punktInhalt(weine) {
+  /* Bei mehreren Weinen sagt der Titel, warum sie zusammen stehen. Bei einem
+     einzelnen nicht „Wein an dieser Stelle": das Fenster geht auch aus der Liste
+     auf, und dort gibt es keine Stelle — der Name steht ohnehin als Überschrift
+     darunter. */
   const titel = weine.length > 1
     ? `${weine.length} Weine zu diesem Preis und dieser Note`
-    : "Wein an dieser Stelle";
+    : "Angaben zum Wein";
   const html = weine.map(w => {
     const vs = vintageSuffix(w);
     const pillen = [
@@ -577,12 +620,29 @@ function table(list) {
     box.dataset.wired = "1";
     box.addEventListener("click", e => {
       const b = e.target.closest(".mehr");
-      if (!b) return;
-      const det = document.getElementById(b.getAttribute("aria-controls"));
-      if (!det) return;
-      const offen = b.getAttribute("aria-expanded") === "true";
-      b.setAttribute("aria-expanded", String(!offen));
-      det.hidden = offen;
+      if (b) {
+        const det = document.getElementById(b.getAttribute("aria-controls"));
+        if (!det) return;
+        const offen = b.getAttribute("aria-expanded") === "true";
+        b.setAttribute("aria-expanded", String(!offen));
+        det.hidden = offen;
+        return;
+      }
+      /* Klick in eine Weinzeile — auf dem Desktop öffnet er die Angaben, auf dem
+         Handy bleibt der Link ein Link. Die Regel steht in ``listenklick``. */
+      const zeile = e.target.closest("tr[data-w]");
+      if (!zeile) return;
+      const w = listeImBlick[+zeile.dataset.w];
+      if (!w) return;
+      const was = listenklick({
+        handy: handyAnsicht(),
+        aufLink: !!e.target.closest("a[href]"),
+        modifiziert: e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0,
+        auswahl: !!String(getSelection ? getSelection() || "" : "").trim(),
+      });
+      if (was !== "fenster") return;
+      e.preventDefault();
+      punktZeigen([w]);
     });
   }
   const merk = fokusMerken(box);
@@ -610,9 +670,16 @@ function table(list) {
     if (typeof x === "string") return S.dir * x.localeCompare(y, "de");
     return S.dir * (x - y);
   });
+  listeImBlick = sorted;
   const rows = sorted.slice(0, S.limit).map((w, i) => {
+    /* Ohne Adresse kein Link: ``href=""`` zeigt auf die Seite selbst, und ein Klick
+       darauf lud die Liste neu, statt irgendwohin zu führen. */
+    const vLink = (inhalt, klasse) => w.vivinoUrl
+      ? `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener"`
+        + `${klasse ? ` class="${klasse}"` : ""}>${inhalt}</a>`
+      : `<span${klasse ? ` class="${klasse}"` : ""}>${inhalt}</span>`;
     const vivino = w.rating != null
-      ? `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener">${w.rating.toFixed(1)}/5</a>`
+      ? vLink(`${w.rating.toFixed(1)}/5`)
         + (w.ratingCount ? ` <span class="meta">(${w.ratingCount})</span>` : "")
         + (w.fuzzy ? ` <span class="warn" title="Namensabgleich unbestätigt">?</span>` : "")
         // Den gefundenen Namen ausschreiben, wenn er vom Händlernamen abweicht.
@@ -622,9 +689,8 @@ function table(list) {
         + (w.matchedName && !sameWine(w.name, w.matchedName)
             ? `<br><span class="matched">→ ${esc(w.matchedName)}</span>` : "")
       : w.wineryRating != null
-        ? `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener" class="meta">nur Produzenten-Ø `
-          + w.wineryRating.toFixed(1) + "/5</a>"
-        : `<a href="${esc(w.vivinoUrl)}" target="_blank" rel="noopener" class="meta">keine Note</a>`;
+        ? vLink(`nur Produzenten-Ø ${w.wineryRating.toFixed(1)}/5`, "meta")
+        : vLink("keine Note", "meta");
     const bargain = w.bargain == null ? '<span class="meta">—</span>'
       : `<span class="${w.bargain > 0 ? "good" : "bad"}">${w.bargain > 0 ? "−" : "+"}`
         + Math.abs(w.bargain).toFixed(0) + "%</span>";
@@ -637,7 +703,7 @@ function table(list) {
        das Diagramm ausgeblendet und Hover gibt es nicht: dort war nichts davon
        erreichbar, ausgerechnet auf dem Geraet, mit dem man im Laden steht. */
     const id = `det-${i}`;
-    return `<tr>
+    return `<tr data-w="${i}">
       <td data-l="Wein"><span class="wine">${esc(w.name)}</span>
         ${vs ? `<span class="meta">${vs}</span>` : ""}
         ${w.styleLabel || w.maturityShort || w.neu ? "<br>" : ""}
