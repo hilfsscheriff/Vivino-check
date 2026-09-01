@@ -1125,11 +1125,30 @@ def _rated_zeilen(pfad: Path) -> list[dict]:
 
 
 def _rated_stand(pfad: Path) -> float | None:
-    """Wann wurde rated.json geschrieben? ``None`` bei alter Datei ohne Kopf."""
+    """Wann wurde rated.json geschrieben?
+
+    Die alte Fassung der Datei ist eine nackte Liste und trägt den Zeitpunkt nicht im
+    Inhalt. Dafür stand hier ``None`` — und damit war die Frischeprüfung in ``report``
+    stillschweigend abgeschaltet, ausgerechnet für den Fall, für den sie gebaut wurde.
+
+    Am 01.09.2026 hat mich das eingeholt: ``report --cache ~/winecheck/…`` aus dem
+    OneDrive-Klon aufgerufen, dessen ``state/rated.json`` vom 21.08. stammt und noch
+    das alte Format hat. Die Prüfung übersprang sich selbst, und ``save_snapshot``
+    ersetzte — es behält höchstens einen Lauf pro Kalendertag — den Lauf des
+    Wochenlaufs durch einen aus elf Tage alten Bewertungen mit 2206 statt 2460 Weinen.
+    Gemerkt habe ich es nur, weil die Reissleine im Seitenbau den nächsten Neubau
+    verweigerte.
+
+    Fehlt der Kopf, zählt darum die Änderungszeit der Datei. Sie ist gröber als ein
+    geschriebener Zeitstempel, aber sie ist da — und eine gröbere Antwort ist besser
+    als eine abgeschaltete Prüfung.
+    """
     if not pfad.exists():
         return None
     daten = json.loads(pfad.read_text(encoding="utf-8"))
-    return daten.get("geschrieben_am") if isinstance(daten, dict) else None
+    if isinstance(daten, dict) and daten.get("geschrieben_am"):
+        return float(daten["geschrieben_am"])
+    return pfad.stat().st_mtime
 
 
 def _load_rated() -> list[WineRow]:
