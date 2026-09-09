@@ -20,6 +20,7 @@ from winecheck.adapters.flaschenpost import (
     _de,
 )
 from winecheck.config import SourceConfig
+from winecheck.fetching import Blocked
 
 
 @pytest.fixture
@@ -163,7 +164,14 @@ def test_unpubliziertes_produkt_wird_uebersprungen(adapter):
 
 
 class _StubFetcher:
-    """Liefert immer dieselbe Seite — genug, um den Abbruch zu prüfen."""
+    """Liefert immer dieselbe Seite — genug, um den Abbruch zu prüfen.
+
+    ``post_json`` gehört seit dem 09.09.2026 dazu und wirft, was der Pfad
+    tatsächlich tut: ``/api/search`` ist der lebende Index, und er antwortet einem
+    ehrlichen Client mit der Cloudflare-Challenge. Diese Tests prüfen den Weg
+    *danach* — den offenen Pfad ``/api/products``, der antwortet und nur
+    ausgelistete Ware führt.
+    """
 
     def __init__(self, produkte):
         self.payload = json.dumps({"results": produkte})
@@ -172,6 +180,9 @@ class _StubFetcher:
     def get(self, url, params=None, expect_json=False):
         self.aufrufe += 1
         return type("Res", (), {"ok": True, "status_code": 200, "text": self.payload})()
+
+    def post_json(self, url, *, payload, rate=None, headers=None):
+        raise Blocked(f"cloudflare-Challenge bei {url} — nicht umgangen", kind="cloudflare")
 
 
 def test_tote_quelle_meldet_blockiert_statt_leer(adapter):
@@ -184,6 +195,9 @@ def test_tote_quelle_meldet_blockiert_statt_leer(adapter):
     bericht = adapter.fetch()
     assert bericht.status == "blocked"
     assert "ausgelistete" in bericht.message
+    # Und der Grund des lebenden Index steht davor, damit in der Übersicht beides
+    # dasteht: dass die Suche gesperrt ist und dass der offene Pfad nichts trägt.
+    assert "Challenge" in bericht.message
     assert not bericht.offers
 
 

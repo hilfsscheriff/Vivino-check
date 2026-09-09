@@ -19,3 +19,8 @@ state/*
 *.sqlite-journal
 .DS_Store
 dist/
+
+# Untersuchungsordner eines fremden Werkzeugs: 8 MB Rohantworten und ein Zip.
+# Die Erkenntnis daraus steht im Adapter und in tests/fixtures, die Rohdaten
+# gehören nicht in ein Repository, das eine 1.9-MB-Seite ausliefert.
+flaschenpost api/

@@ -388,6 +388,49 @@ class Fetcher:
             raise Blocked(f"{kind}-Challenge beim Login auf {url}", kind=kind)
         return FetchResult(url=str(resp.url), status_code=resp.status_code, text=resp.text)
 
+    def post_json(
+        self,
+        url: str,
+        *,
+        payload: dict[str, object],
+        rate: float | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> FetchResult:
+        """POST als **Abfrage** statt als Nutzeraktion — mit robots-Prüfung.
+
+        Bewusst getrennt von :meth:`post`: dort ist der POST ein Login mit eigenen
+        Zugangsdaten, und dafür gilt die robots.txt nicht, weil es kein Crawling ist.
+        Hier ist der POST genau das, was der Shop selbst tut, um seinen Katalog zu
+        lesen — also Crawling, und die robots.txt entscheidet.
+
+        Ohne Wiederholungen: der eine Aufrufer zählt eine Suche in über hundert
+        Teilabfragen aus, und eine Kette von Backoffs würde daraus im Fehlerfall
+        Stunden machen. Scheitert eine Teilabfrage, ist die Quelle für diesen Lauf
+        blockiert — das ist die ehrliche Meldung, nicht ein halber Bestand.
+        """
+        if not self.robots_allows(url):
+            raise Blocked(f"robots.txt verbietet {url}", kind="robots")
+        hdrs = {**JSON_HEADERS, "Content-Type": "application/json", **(headers or {})}
+        self._throttle(url, rate)
+        try:
+            resp = self._client.post(url, headers=hdrs, json=payload)  # type: ignore[union-attr]
+        except httpx.HTTPError as exc:
+            raise Blocked(f"Netzwerkfehler bei {url}: {exc}", kind="network") from exc
+        kind = detect_block(resp.text, resp.status_code, resp.headers.get("server", ""))
+        if kind:
+            self.log_lines.append(f"blocked[{kind}] {url}")
+            raise Blocked(
+                f"{kind}-Challenge bei {url} — nicht umgangen",
+                retry_after=_retry_timestamp(resp),
+                kind=kind,
+            )
+        return FetchResult(
+            url=str(resp.url),
+            status_code=resp.status_code,
+            text=resp.text,
+            content_bytes=resp.content,
+        )
+
     @property
     def cookies(self) -> httpx.Cookies:
         return self._client.cookies  # type: ignore[union-attr]

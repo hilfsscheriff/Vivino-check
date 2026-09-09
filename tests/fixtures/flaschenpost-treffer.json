@@ -1,0 +1,709 @@
+[
+ {
+  "objectID": "cf3fe8d6-bf14-45b4-9c53-cedbf62f33d3.1",
+  "productID": "cf3fe8d6-bf14-45b4-9c53-cedbf62f33d3",
+  "sku": "1205427",
+  "productType": "",
+  "name": {
+   "en": "Tancredi Dolce & Gabbana e Donnafugata Terre Siciliane IGT Donnafugata",
+   "de-CH": "Tancredi Dolce & Gabbana e Donnafugata Terre Siciliane IGT Donnafugata",
+   "it-CH": "Tancredi Dolce & Gabbana e Donnafugata Terre Siciliane IGT Donnafugata",
+   "fr-CH": "Tancredi Dolce & Gabbana e Donnafugata Terre Siciliane IGT Donnafugata"
+  },
+  "description": {},
+  "url": "tancredi-dolce-gabbana-terre-siciliane-igt_donnafugata?_size=750&_vintage=2021",
+  "attributes": {
+   "displayName": "Tancredi Dolce & Gabbana e Donnafugata Terre Siciliane IGT",
+   "margin": 38.3,
+   "expertRatings": "[]",
+   "grape": "[{\"id\":\"dc306cb3-b217-48fd-b8ab-7122003c4270\",\"name\":\"Cabernet Sauvignon\"},{\"id\":\"ef014e74-df8a-4554-878a-e5c2b9baa772\",\"name\":\"Tannat\"}]",
+   "isBarrique": false,
+   "gtin": "",
+   "isPublished": true,
+   "isBiodynamic": false,
+   "foodPairing": {
+    "en": "It goes well with beef, lamb, game dishes or mature cheese. Also ideal with Mediterranean cuisine with strong aromas.",
+    "de-CH": "Passt hervorragend zu Rindfleisch, Lamm, Wildgerichten oder reifem Käse. Ideal auch zu mediterraner Küche mit kräftigen Aromen.",
+    "it-CH": "Si abbina bene con carne di manzo, agnello, selvaggina o formaggi stagionati. Ideale anche con la cucina mediterranea dagli aromi forti.",
+    "fr-CH": "Il se marie bien avec le bœuf, l'agneau, les plats de gibier ou les fromages affinés. Idéal également pour accompagner une cuisine méditerranéenne aux arômes puissants."
+   },
+   "supplierKey": "7787875f-b88a-4a04-8516-4bb4c41401c5",
+   "status": {
+    "key": "PUBLISHED",
+    "label": "PUBLISHED"
+   },
+   "wineType": {
+    "key": "red",
+    "label": {
+     "de-CH": "Rotwein",
+     "en": "Red wine",
+     "fr-CH": "Vin rouge",
+     "it-CH": "Vino rosso"
+    }
+   },
+   "isBio": false,
+   "supplierName": "Terravigna AG",
+   "supplierId": "1ad8b18b-e7ad-4f72-abb1-b50d45919910",
+   "alcohol": 13.9,
+   "isClearance": false,
+   "vinification": {
+    "en": "Stainless steel tank",
+    "de-CH": "Edelstahltank",
+    "it-CH": "Serbatoio in acciaio inox",
+    "fr-CH": "Réservoir en acier inoxydable"
+   },
+   "producer": {
+    "key": "dd02454c-6b58-4778-8626-4ea6406b4d83",
+    "label": "Donnafugata"
+   },
+   "packaging": "None",
+   "subtitle": {
+    "en": "The Gentleman",
+    "de-CH": "Der Gentleman",
+    "it-CH": "Il gentiluomo",
+    "fr-CH": "Le Gentleman"
+   },
+   "description": {
+    "en": "The TANCREDI from Donnafugata has always been a noble, charming wine. We once described him as a “gentleman with excellent manners and a complex character.” For some time now, this beautiful Sicilian has been wearing a bespoke Dolce & Gabbana robe. Resistance is therefore finally pointless...",
+    "de-CH": "Der Tancredi von Donnafugata war schon immer ein nobler, charmanter Wein. Wir haben ihn einmal als «Gentleman mit besten Umgangsformen und komplexem Charakter» beschrieben. Seit einiger Zeit trägt dieser schöne Sizilianer ein massgeschneidertes Gewand von Dolce & Gabbana. Widerstand ist nun also endgültig zwecklos…",
+    "it-CH": "Il TANCREDI di Donnafugata è sempre stato un vino nobile e affascinante. Una volta lo abbiamo descritto come un «gentiluomo dai modi eccellenti e dal carattere complesso». Da qualche tempo, questa bellissima siciliana indossa una veste Dolce & Gabbana su misura. La resistenza è quindi finalmente inutile...",
+    "fr-CH": "Le TANCREDI de Donnafugata a toujours été un vin noble et charmant. Nous l'avons décrit un jour comme un « gentleman aux manières excellentes et au caractère complexe ». Depuis quelque temps, cette belle Sicilienne porte un peignoir Dolce & Gabbana sur mesure. Toute résistance est donc finalement inutile..."
+   },
+   "tastingNote": {
+    "en": "Powerful and elegant red wine from Sicily. On the nose, aromas of ripe dark berries, plums, spices and fine balsamic notes. The palate is full-bodied, complex and balanced with dense fruit, well-integrated tannins and a long, spicy finish.",
+    "de-CH": "Kraftvoller und eleganter Rotwein aus Sizilien. In der Nase Aromen von reifen dunklen Beeren, Pflaumen, Gewürzen und feinen balsamischen Noten. Am Gaumen vollmundig, komplex und ausgewogen mit dichter Frucht, gut eingebundenen Tanninen und langem, würzigem Abgang.",
+    "it-CH": "Vino rosso siciliano potente ed elegante. Al naso, aromi di frutti di bosco scuri maturi, prugne, spezie e fini note balsamiche. Al palato è corposo, complesso ed equilibrato con frutta densa, tannini ben integrati e un finale lungo e speziato.",
+    "fr-CH": "Vin rouge puissant et élégant de Sicile. Au nez, des arômes de fruits noirs mûrs, de prunes, d'épices et de fines notes balsamiques. La bouche est corsée, complexe et équilibrée avec des fruits denses, des tanins bien intégrés et une longue finale épicée."
+   },
+   "vintage": 2021,
+   "isVegan": false,
+   "bottleSize": 750,
+   "packagingUnit": 1,
+   "isAwarded": false,
+   "criticLevels": null,
+   "isAlcoholFree": false,
+   "isCuve": true,
+   "isBlend": true,
+   "blend": {
+    "de-CH": "None",
+    "en": "None",
+    "fr-CH": "None",
+    "it-CH": "None"
+   },
+   "isDiscounted": true,
+   "isNew": false,
+   "isBackOrderAllowed": true,
+   "mainGrape": "Cabernet Sauvignon",
+   "bottleSizeFormatted": "75 cl",
+   "isSpecialPackaging": false,
+   "isSingleBottlePurchase": true,
+   "isWithImage": true,
+   "isOwnWine": false,
+   "criticScores": [],
+   "name": "Tancredi Dolce & Gabbana e Donnafugata Terre Siciliane IGT Donnafugata",
+   "year": 2021,
+   "isTopSeller": true
+  },
+  "isMasterVariant": true,
+  "isOnStock": false,
+  "images": [
+   {
+    "url": "https://d2uqzpf6d2kb73.cloudfront.net/eyJrZXkiOiIwNTk0ZGRlMS03MTk4LTQ0ZWUtYTI3NC0xOWI1MzVlNjI2MjQucG5nIiwiYnVja2V0Ijoic3BpbmUtcHJvZHVjdC1pbWFnZXMtcHJvZCIsImVkaXRzIjp7InJlc2l6ZSI6eyJoZWlnaHQiOjgwMH0sInRyaW0iOjAuMX19",
+    "label": "MAIN"
+   },
+   {
+    "url": "https://d2uqzpf6d2kb73.cloudfront.net/eyJrZXkiOiIxYzFhMDU0OS0zZGE0LTQ4MzUtYjI1ZC1kYzViNzM5N2I0YmMuanBnIiwiYnVja2V0Ijoic3BpbmUtcHJvZHVjdC1pbWFnZXMtcHJvZCIsImVkaXRzIjp7InJlc2l6ZSI6eyJoZWlnaHQiOjQwMH0sInRyaW0iOjAuMX19",
+    "label": "BACKGROUND"
+   }
+  ],
+  "price": {
+   "initialPrice": {
+    "amount": 3995,
+    "currency": "CHF",
+    "isActive": true
+   },
+   "discountPrice": {
+    "amount": 3195,
+    "currency": "CHF",
+    "validUntil": "2026-09-13T22:00:00.000Z",
+    "validFrom": "2026-09-05T22:00:00.000Z",
+    "isActive": true
+   },
+   "literPrice": {
+    "amount": 426,
+    "currency": "CHF",
+    "isActive": true
+   }
+  },
+  "stock": {
+   "stockLevel": 443,
+   "initialQuantity": 1,
+   "steps": {
+    "prev": 1,
+    "next": 1,
+    "min": 1,
+    "max": 443,
+    "aboveStockLevel": 1
+   },
+   "packageSize": 1,
+   "isRestockable": true,
+   "isAvailable": true
+  },
+  "country": {
+   "en": "Italy",
+   "fr-CH": "Italie",
+   "de-CH": "Italien",
+   "it-CH": "Italia"
+  },
+  "region": {
+   "en": "Sicily",
+   "fr-CH": "Sicile",
+   "de-CH": "Sizilien",
+   "it-CH": "Sicilia"
+  },
+  "subregion": {},
+  "deliveryDate": "2026-09-10",
+  "totalActiveVariants": 3,
+  "campaigns": [],
+  "priceCluster": 4,
+  "tags": []
+ },
+ {
+  "objectID": "c639243e-e636-4a48-9f48-bf7c4ca32eea.1",
+  "productID": "c639243e-e636-4a48-9f48-bf7c4ca32eea",
+  "sku": "1186311",
+  "productType": "",
+  "name": {
+   "en": "Cabernet Sauvignon Landskroon",
+   "de-CH": "Cabernet Sauvignon Landskroon",
+   "it-CH": "Cabernet Sauvignon Landskroon",
+   "fr-CH": "Cabernet Sauvignon Landskroon"
+  },
+  "description": {},
+  "url": "cabernet-sauvignon_landskroon?_size=1500&_vintage=2018",
+  "attributes": {
+   "displayName": "Cabernet Sauvignon",
+   "packaging": "None",
+   "margin": 20,
+   "expertRatings": "[]",
+   "grape": "[{\"id\":\"dc306cb3-b217-48fd-b8ab-7122003c4270\",\"name\":\"Cabernet Sauvignon\"}]",
+   "isBarrique": false,
+   "gtin": "",
+   "isPublished": true,
+   "isBiodynamic": false,
+   "foodPairing": {
+    "en": "An ideal accompaniment to aged red meat, game and cheese.",
+    "de-CH": "Eine ideale Begleitung zu gereiftem rotem Fleisch, Wild und Käse.",
+    "it-CH": "Un accompagnamento ideale per carni rosse stagionate, selvaggina e formaggi.",
+    "fr-CH": "Un accompagnement idéal pour les viandes rouges vieillies, le gibier et le fromage."
+   },
+   "supplierKey": "1f4147a4-5d3d-40a1-bc0d-6a16d82bf480",
+   "status": {
+    "key": "PUBLISHED",
+    "label": "PUBLISHED"
+   },
+   "wineType": {
+    "key": "red",
+    "label": {
+     "de-CH": "Rotwein",
+     "en": "Red wine",
+     "fr-CH": "Vin rouge",
+     "it-CH": "Vino rosso"
+    }
+   },
+   "isBio": false,
+   "supplierName": "Südafrikawein",
+   "supplierId": "02005248-516f-444f-a634-a9b783cdbeda",
+   "alcohol": 14,
+   "isClearance": false,
+   "vinification": {
+    "en": "",
+    "de-CH": "",
+    "it-CH": "",
+    "fr-CH": ""
+   },
+   "producer": {
+    "key": "f1a45acf-4e45-4ca1-a131-39616dc03e09",
+    "label": "Landskroon"
+   },
+   "description": {
+    "en": "The winemaker from the South African winery Landskroon absolutely masters his craft. Elegance and finesse are the characteristics of this red wine, which originates in the fertile and sunny countryside of the coastal region. The Flaschenpöstler promise a dining experience when you serve this Cabernet Sauvignon with Gruyère burgers or pizza with mushrooms.",
+    "de-CH": "Der Winzer vom südafrikanischen Weingut Landskroon beherrscht absolut sein Handwerk. Eleganz und Finesse sind die Charakteristika dieses Rotweins, der in der fruchtbaren und sonnigen Landschaft der Coastal Region seinen Ursprung hat. Die Flaschenpöstler versprechen ein kulinarisches Erlebnis, wenn Sie diesen Cabernet Sauvignon zu Gruyère Burger oder Pizza mit Pilzen servieren.",
+    "it-CH": "L'enologo della cantina sudafricana Landskroon padroneggia perfettamente il suo mestiere. Eleganza e finezza sono le caratteristiche di questo vino rosso, che ha origine nella campagna fertile e soleggiata della regione costiera. Gli Flaschenpöstler promettono un'esperienza culinaria servendo questo Cabernet Sauvignon con hamburger alla groviera o pizza con funghi.",
+    "fr-CH": "Le vigneron de la cave sud-africaine Landskroon maîtrise parfaitement son métier. Élégance et finesse sont les caractéristiques de ce vin rouge, originaire de la campagne fertile et ensoleillée de la région côtière. Le Flaschenpöstler promet une expérience culinaire inoubliable lorsque vous servez ce Cabernet Sauvignon avec des hamburgers au gruyère ou une pizza aux champignons."
+   },
+   "tastingNote": {
+    "en": "Full bodied with dark berry aromas and hints of cedar and spices. Subtle and soft tannins with lovely oak aromas.",
+    "de-CH": "Vollmundig mit dunklen Beerenaromen und einem Hauch von Zeder und Gewürzen. Dezente und weiche Tannine mit schönen Eichenaromen.",
+    "it-CH": "Corposo con aromi di frutti di bosco scuri e sentori di cedro e spezie. Tannini sottili e morbidi con deliziosi aromi di rovere.",
+    "fr-CH": "Corsé avec des arômes de fruits noirs et des notes de cèdre et d'épices. Tanins subtils et doux avec de beaux arômes de chêne."
+   },
+   "vintage": 2018,
+   "isVegan": false,
+   "bottleSize": 1500,
+   "packagingUnit": 3,
+   "isAwarded": false,
+   "criticLevels": null,
+   "isAlcoholFree": false,
+   "isCuve": true,
+   "isBlend": false,
+   "blend": {
+    "de-CH": "None",
+    "en": "None",
+    "fr-CH": "None",
+    "it-CH": "None"
+   },
+   "isDiscounted": true,
+   "isNew": false,
+   "isBackOrderAllowed": true,
+   "mainGrape": "Cabernet Sauvignon",
+   "bottleSizeFormatted": "150 cl",
+   "isSpecialPackaging": false,
+   "isSingleBottlePurchase": false,
+   "isWithImage": true,
+   "isOwnWine": false,
+   "criticScores": [],
+   "name": "Cabernet Sauvignon Landskroon",
+   "year": 2018
+  },
+  "isMasterVariant": true,
+  "isOnStock": false,
+  "images": [
+   {
+    "url": "https://d2uqzpf6d2kb73.cloudfront.net/eyJrZXkiOiI2NzAxNTQ3My0xYmIwLTQ1MmEtYjI2Yy05NWFmNjNlMmY0MzUucG5nIiwiYnVja2V0Ijoic3BpbmUtcHJvZHVjdC1pbWFnZXMtcHJvZCIsImVkaXRzIjp7InJlc2l6ZSI6eyJoZWlnaHQiOjgwMH0sInRyaW0iOjAuMX19",
+    "label": "MAIN"
+   }
+  ],
+  "price": {
+   "initialPrice": {
+    "amount": 4595,
+    "currency": "CHF",
+    "isActive": true
+   },
+   "discountPrice": {
+    "amount": 2395,
+    "currency": "CHF",
+    "validUntil": "2026-10-31T23:00:00.000Z",
+    "validFrom": "2026-08-31T22:00:00.000Z",
+    "isActive": true
+   },
+   "literPrice": {
+    "amount": 159.66666666666666,
+    "currency": "CHF",
+    "isActive": true
+   }
+  },
+  "stock": {
+   "stockLevel": 0,
+   "initialQuantity": 6,
+   "steps": {
+    "prev": 1,
+    "next": 1,
+    "min": 3,
+    "max": 0,
+    "aboveStockLevel": 3
+   },
+   "packageSize": 3,
+   "isRestockable": true,
+   "isAvailable": true
+  },
+  "country": {
+   "en": "South Africa",
+   "fr-CH": "Afrique du Sud",
+   "de-CH": "Südafrika",
+   "it-CH": "Sudafrica"
+  },
+  "region": {
+   "en": "Coastal Region",
+   "fr-CH": "Coastal Region",
+   "de-CH": "Coastal Region",
+   "it-CH": "Coastal Region"
+  },
+  "subregion": {
+   "en": "Paarl",
+   "fr-CH": "Paarl",
+   "de-CH": "Paarl",
+   "it-CH": "Paarl"
+  },
+  "deliveryDate": "2026-09-17",
+  "totalActiveVariants": 1,
+  "campaigns": [],
+  "priceCluster": 4,
+  "tags": []
+ },
+ {
+  "objectID": "12f46cf7-4cb2-4829-98ad-e16c11b9b75c.1",
+  "productID": "12f46cf7-4cb2-4829-98ad-e16c11b9b75c",
+  "sku": "1222643",
+  "productType": "",
+  "name": {
+   "en": "Lupo Meraviglia Uno di Uno Rosé Puglia IGT Botter",
+   "de-CH": "Lupo Meraviglia Uno di Uno Rosé Puglia IGT Botter",
+   "it-CH": "Lupo Meraviglia Uno di Uno Rosé Puglia IGT Botter",
+   "fr-CH": "Lupo Meraviglia Uno di Uno Rosé Puglia IGT Botter"
+  },
+  "description": {},
+  "url": "lupo-meraviglia-uno-di-uno-rose-puglia-igt_botter?_size=750&_vintage=2025",
+  "attributes": {
+   "displayName": "Lupo Meraviglia Uno di Uno Rosé Puglia IGT",
+   "packaging": "None",
+   "margin": 72.5,
+   "expertRatings": "[]",
+   "grape": "[{\"id\":\"a0b7d79c-201c-484b-9f1b-279ca9925c70\",\"name\":\"Primitivo\"}]",
+   "isBarrique": false,
+   "gtin": "8008863067231",
+   "isPublished": true,
+   "isBiodynamic": false,
+   "foodPairing": {
+    "en": "Excellent as a fresh aperitif, ideal with fish and sausage starters, light first courses and white meat.",
+    "de-CH": "Hervorragend als frischer Aperitif, ideal zu Fisch- und Wurstvorspeisen, leichten ersten Gängen sowie hellem Fleisch.",
+    "it-CH": "Ottimo come aperitivo fresco, ideale con antipasti di pesce e salsiccia, primi piatti leggeri e carni bianche.",
+    "fr-CH": "Excellent comme apéritif frais, idéal avec des entrées de poisson et de saucisse, des entrées légères et de la viande blanche."
+   },
+   "supplierKey": "9bb16092-a070-4935-bae7-5f99399c4de5",
+   "status": {
+    "key": "PUBLISHED",
+    "label": "PUBLISHED"
+   },
+   "wineType": {
+    "key": "rose",
+    "label": {
+     "de-CH": "Roséwein",
+     "en": "Rosé wine",
+     "fr-CH": "Vin rosé",
+     "it-CH": "Vino rosato"
+    }
+   },
+   "isBio": false,
+   "supplierName": "MGM Mondo del Vino Spa",
+   "supplierId": "3caef5d5-54b2-45ab-bad5-583b64fa2237",
+   "alcohol": 12,
+   "isClearance": true,
+   "vinification": {
+    "en": "At a temperature of 8 to 12°C, the must remains in contact with the skins for approximately 12 hours to give the wine its characteristic rosé aroma and colour. After gentle pressing, fermentation takes place at a controlled temperature of 16 to 18°C in stainless steel tanks, which preserves freshness and aromatic notes. The wine is then stored at 10 to 12°C in stainless steel tanks on fine yeast, which naturally protects the wine from oxidation and contributes to a soft, velvety texture. The wine is then bottled.",
+    "de-CH": "Der Most bleibt bei einer Temperatur von 8 bis 12 °C etwa 12 Stunden in Kontakt mit den Schalen, um dem Wein sein charakteristisches Rosé-Aroma und seine Farbe zu verleihen. Nach einer schonenden Pressung erfolgt die Gärung bei einer kontrollierten Temperatur von 16 bis 18 °C in Edelstahltanks, wodurch Frische und aromatische Noten bewahrt werden. Anschliessend wird der Wein bei 10 bis 12 °C in Edelstahltanks auf der Feinhefe gelagert, die den Wein auf natürliche Weise vor Oxidation schützt und zu einer weichen, samtigen Textur beiträgt. Danach wird der Wein abgefüllt.",
+    "it-CH": "A una temperatura compresa tra 8 e 12°C, il mosto rimane a contatto con le bucce per circa 12 ore per conferire al vino il caratteristico aroma e colore rosato. Dopo una pressatura delicata, la fermentazione avviene a una temperatura controllata di 16-18° C in serbatoi di acciaio inossidabile, che preserva la freschezza e le note aromatiche. Il vino viene poi conservato a una temperatura compresa tra 10 e 12°C in serbatoi di acciaio inossidabile su lieviti fini, che proteggono naturalmente il vino dall'ossidazione e contribuiscono a una consistenza morbida e vellutata. Il vino viene poi imbottigliato.",
+    "fr-CH": "À une température de 8 à 12 °C, le moût reste en contact avec la peau pendant environ 12 heures pour donner au vin son arôme et sa couleur rosés caractéristiques. Après un pressurage doux, la fermentation a lieu à une température contrôlée de 16 à 18 °C dans des cuves en acier inoxydable, ce qui permet de préserver la fraîcheur et les notes aromatiques. Le vin est ensuite conservé entre 10 et 12 °C dans des cuves en acier inoxydable sur de la levure fine, qui protège naturellement le vin de l'oxydation et contribue à une texture douce et veloutée. Le vin est ensuite mis en bouteille."
+   },
+   "producer": {
+    "key": "b3e3543d-4d51-490c-bb08-6fe54d055659",
+    "label": "Botter"
+   },
+   "description": {
+    "en": "A modern, fresh rosé wine with Mediterranean lightness. Delicate salmon pink in the glass, fine aromas of red berries, strawberries and a touch of flowers on the nose. Ideal as an aperitif, with light appetizers, salads or summer dishes. A characterful rosé for relaxing moments of pleasure.",
+    "de-CH": "Ein moderner, frischer Roséwein mit mediterraner Leichtigkeit. Zartes Lachsrosa im Glas, in der Nase feine Aromen von roten Beeren, Erdbeeren und einem Hauch Blüten. Ideal als Aperitif, zu leichten Vorspeisen, Salaten oder sommerlichen Gerichten. Ein charaktervoller Rosé für entspannte Genussmomente.",
+    "it-CH": "Un vino rosato moderno e fresco con leggerezza mediterranea. Delicato rosa salmone nel bicchiere, aromi fini di frutti rossi, fragole e un tocco di fiori al naso. Ideale come aperitivo, con antipasti leggeri, insalate o piatti estivi. Un rosato di carattere per rilassanti momenti di piacere.",
+    "fr-CH": "Un vin rosé moderne et frais à la légèreté méditerranéenne. Délicat rose saumon dans le verre, arômes fins de fruits rouges, de fraises et une touche de fleurs au nez. Idéal à l'apéritif, avec des entrées légères, des salades ou des plats d'été. Un rosé de caractère pour des moments de détente et de plaisir."
+   },
+   "tastingNote": {
+    "en": "Bright, elegant rosé. The wine develops a fine bouquet of roses and violets, which gives it a characteristic fresh note. Distinct notes of blackberry and blueberry are complemented by a soft and pleasant mouthfeel.",
+    "de-CH": "Heller, eleganter Rosé. Der Wein entfaltet ein feines Bouquet von Rosen und Veilchen, das ihm eine charakteristisch frische Note verleiht. Deutliche Anklänge von Brombeere und Heidelbeere werden von einem sanften und angenehmen Mundgefühl ergänzt.",
+    "it-CH": "Rosé brillante ed elegante. Il vino sviluppa un raffinato bouquet di rose e violette, che gli conferisce una caratteristica nota fresca. Le note distinte di mora e mirtillo sono completate da una sensazione in bocca morbida e piacevole.",
+    "fr-CH": "Rosé brillant et élégant. Le vin développe un fin bouquet de roses et de violettes, ce qui lui confère une note fraîche caractéristique. Des notes distinctes de mûre et de myrtille sont complétées par une sensation en bouche douce et agréable."
+   },
+   "tags": "[{\"id\":\"be08ff3a-5c86-42cd-a811-7486dec0bba5\",\"name\":\"Family\",\"description\":null}]",
+   "vintage": 2025,
+   "isVegan": true,
+   "bottleSize": 750,
+   "packagingUnit": 1,
+   "isAwarded": false,
+   "criticLevels": null,
+   "isAlcoholFree": false,
+   "isCuve": true,
+   "isBlend": false,
+   "blend": {
+    "de-CH": "None",
+    "en": "None",
+    "fr-CH": "None",
+    "it-CH": "None"
+   },
+   "isDiscounted": true,
+   "isNew": false,
+   "isBackOrderAllowed": false,
+   "mainGrape": "Primitivo",
+   "bottleSizeFormatted": "75 cl",
+   "isSpecialPackaging": false,
+   "isSingleBottlePurchase": true,
+   "isWithImage": true,
+   "isOwnWine": true,
+   "criticScores": [],
+   "name": "Lupo Meraviglia Uno di Uno Rosé Puglia IGT Botter",
+   "year": 2025,
+   "isTopSeller": true
+  },
+  "isMasterVariant": true,
+  "isOnStock": false,
+  "images": [
+   {
+    "url": "https://d2uqzpf6d2kb73.cloudfront.net/eyJrZXkiOiJkYTJkMDE4OS0xMGZjLTRkMDMtOTdhMC01ODRjNDUzYzQzNjUucG5nIiwiYnVja2V0Ijoic3BpbmUtcHJvZHVjdC1pbWFnZXMtcHJvZCIsImVkaXRzIjp7InJlc2l6ZSI6eyJoZWlnaHQiOjgwMH0sInRyaW0iOjAuMX19",
+    "label": "MAIN"
+   },
+   {
+    "url": "https://d2uqzpf6d2kb73.cloudfront.net/eyJrZXkiOiJwaW0vOWU0YjNhNDAtYWYxNi00ZGQ2LTk4NTMtYzUxZDkwZWM5ODE3LzE3Nzk0NTc0ODA1NTYtYmFubmVyY2hvY2Jsb2NrMi5wbmciLCJidWNrZXQiOiJzcGluZS1wcm9kdWN0LWltYWdlcy1wcm9kIiwiZWRpdHMiOnsicmVzaXplIjp7ImhlaWdodCI6NDAwfSwidHJpbSI6MC4xfX0=",
+    "label": "BACKGROUND"
+   }
+  ],
+  "price": {
+   "initialPrice": {
+    "amount": 1295,
+    "currency": "CHF",
+    "isActive": true
+   },
+   "discountPrice": {
+    "amount": 750,
+    "currency": "CHF",
+    "validUntil": "2027-12-30T23:00:00.000Z",
+    "validFrom": "2026-08-26T22:00:00.000Z",
+    "isActive": true
+   },
+   "literPrice": {
+    "amount": 100,
+    "currency": "CHF",
+    "isActive": true
+   }
+  },
+  "stock": {
+   "stockLevel": 363,
+   "initialQuantity": 1,
+   "steps": {
+    "prev": 1,
+    "next": 1,
+    "min": 1,
+    "max": 363,
+    "aboveStockLevel": 0
+   },
+   "packageSize": 1,
+   "isRestockable": false,
+   "isAvailable": true
+  },
+  "country": {
+   "en": "Italy",
+   "fr-CH": "Italie",
+   "de-CH": "Italien",
+   "it-CH": "Italia"
+  },
+  "region": {
+   "en": "Puglia",
+   "fr-CH": "Puglia",
+   "de-CH": "Apulien",
+   "it-CH": "Puglia"
+  },
+  "subregion": {},
+  "deliveryDate": "2026-09-10",
+  "totalActiveVariants": 1,
+  "campaigns": [],
+  "priceCluster": 1,
+  "tags": [
+   "family"
+  ]
+ },
+ {
+  "objectID": "a5e4c42e-226b-4bf2-8623-5b3c7a6ebbb1.6",
+  "productID": "a5e4c42e-226b-4bf2-8623-5b3c7a6ebbb1",
+  "sku": "1214202",
+  "productType": "",
+  "name": {
+   "en": "Primitivo Puglia IGP Senza Parole Senza Parole",
+   "de-CH": "Primitivo Puglia IGP Senza Parole Senza Parole",
+   "it-CH": "Primitivo Puglia IGP Senza Parole Senza Parole",
+   "fr-CH": "Primitivo Puglia IGP Senza Parole Senza Parole"
+  },
+  "description": {},
+  "url": "primitivo-puglia-igp-senza-parole_senza-parole?_size=750&_vintage=2024",
+  "attributes": {
+   "displayName": "Primitivo Puglia IGP Senza Parole",
+   "margin": 50,
+   "expertRatings": "[{\"scale\":100,\"expert\":\"LUCA_MARONI\",\"rating\":\"98\"}]",
+   "grape": "[{\"id\":\"a0b7d79c-201c-484b-9f1b-279ca9925c70\",\"name\":\"Primitivo\"}]",
+   "isBarrique": false,
+   "gtin": "7610593405705",
+   "isPublished": true,
+   "isBiodynamic": false,
+   "foodPairing": {
+    "en": "Goes well with grilled or fried veal.",
+    "de-CH": "Passt zu Kalbfleisch gegrillt oder gebraten.",
+    "it-CH": "Si abbina bene con carne di vitello alla griglia o fritta.",
+    "fr-CH": "Se marie bien avec le veau grillé ou frit."
+   },
+   "supplierKey": "e3c2aea1-63b5-4e48-a830-c32783a0fa0c",
+   "status": {
+    "key": "PUBLISHED",
+    "label": "PUBLISHED"
+   },
+   "wineType": {
+    "key": "red",
+    "label": {
+     "de-CH": "Rotwein",
+     "en": "Red wine",
+     "fr-CH": "Vin rouge",
+     "it-CH": "Vino rosso"
+    }
+   },
+   "isBio": false,
+   "supplierName": "Bataillard AG",
+   "supplierId": "23dc874d-faac-4ef7-bf2e-e6c8861616e9",
+   "alcohol": 14.5,
+   "isClearance": false,
+   "vinification": {
+    "en": "A few words about vinification: Ageing in stainless steel tanks, then in large barriques.",
+    "de-CH": "Angaben über Vinifizierung: Ausbau im Stahltank, danach in grossen Barriques.",
+    "it-CH": "Qualche parola sulla vinificazione: Affinamento in vasche di acciaio inox, poi in barrique grandi.",
+    "fr-CH": "Quelques mots sur la vinification : Vieillissement dans des cuves en acier inoxydable, puis dans de grandes barriques."
+   },
+   "producer": {
+    "key": "295748e0-d2d2-4547-917e-08db846c13b8",
+    "label": "Senza Parole"
+   },
+   "packaging": "None",
+   "subtitle": {
+    "en": "The Sweetheart",
+    "de-CH": "Das Sweetheart",
+    "it-CH": "Il tesoro",
+    "fr-CH": "Le chéri"
+   },
+   "description": {
+    "en": "The “Senza Parole” has been an absolute hit with our customers for years. No wonder: The Primitivo is accessible, the etiquette is nice and the price is unbeatable.",
+    "de-CH": "Der «Senza Parole» ist bei unseren Kundinnen und Kunden seit Jahren der absolute Renner. Kein Wunder: Der Primitivo ist zugänglich, die Etikette schön und der Preis unschlagbar.",
+    "it-CH": "Il «Senza Parole» è da anni un successo assoluto tra i nostri clienti. Non c'è da stupirsi: il Primitivo è accessibile, l'etichetta è buona e il prezzo è imbattibile.",
+    "fr-CH": "Le « Senza Parole » est un succès absolu auprès de nos clients depuis des années. Pas étonnant : le Primitivo est accessible, l'étiquette est agréable et le prix est imbattable."
+   },
+   "tastingNote": {
+    "en": "A characterful red wine with fruity aromas of berries, plums and subtle notes of dried fruit. Its soft and generous structure appeals to wine lovers.",
+    "de-CH": "Ein charaktervoller Rotwein mit fruchtigen Aromen von Beeren, Zwetschgen und dezenten Dörrobstnoten. Seine weiche und grosszügige Struktur trifft den Geschmack von Weingeniessern.",
+    "it-CH": "Un vino rosso caratteristico con aromi fruttati di frutti di bosco, prugne e sottili note di frutta secca. La sua struttura morbida e generosa piace agli amanti del vino.",
+    "fr-CH": "Un vin rouge de caractère aux arômes fruités de baies, de prunes et aux notes subtiles de fruits secs. Sa structure souple et généreuse séduit les amateurs de vin."
+   },
+   "vintage": 2024,
+   "isVegan": false,
+   "bottleSize": 750,
+   "packagingUnit": 6,
+   "isAwarded": true,
+   "criticLevels": [
+    "Aussergewöhnlich",
+    "Aussergewöhnlich-maroni",
+    "Extra ordinary",
+    "Extra ordinary-maroni",
+    "Extraordinaire",
+    "Extraordinaire-maroni",
+    "Straordinario",
+    "Straordinario-maroni"
+   ],
+   "isAlcoholFree": false,
+   "isCuve": true,
+   "isBlend": false,
+   "blend": {
+    "de-CH": "None",
+    "en": "None",
+    "fr-CH": "None",
+    "it-CH": "None"
+   },
+   "isDiscounted": true,
+   "isNew": false,
+   "isBackOrderAllowed": true,
+   "mainGrape": "Primitivo",
+   "bottleSizeFormatted": "75 cl",
+   "isSpecialPackaging": false,
+   "isSingleBottlePurchase": false,
+   "isWithImage": true,
+   "isOwnWine": false,
+   "criticScores": [
+    {
+     "rating": "98",
+     "scale": "100",
+     "key": "maroni",
+     "feedKey": "luca_maroni",
+     "name": "Luca Maroni",
+     "isExpertScore": true,
+     "criticLevel": {
+      "key": "extra-ordinary",
+      "label": {
+       "de-CH": "Aussergewöhnlich",
+       "en": "Extra ordinary",
+       "fr-CH": "Extraordinaire",
+       "it-CH": "Straordinario"
+      }
+     }
+    }
+   ],
+   "name": "Primitivo Puglia IGP Senza Parole Senza Parole",
+   "year": 2024,
+   "isTopSeller": true
+  },
+  "isMasterVariant": true,
+  "isOnStock": false,
+  "images": [
+   {
+    "url": "https://d2uqzpf6d2kb73.cloudfront.net/eyJrZXkiOiI4YmNjODgxMi0wOTE3LTQ4OTItOTdkNS05MzI4YmJlZWExOWQucG5nIiwiYnVja2V0Ijoic3BpbmUtcHJvZHVjdC1pbWFnZXMtcHJvZCIsImVkaXRzIjp7InJlc2l6ZSI6eyJoZWlnaHQiOjgwMH0sInRyaW0iOjAuMX19",
+    "label": "MAIN"
+   },
+   {
+    "url": "https://d2uqzpf6d2kb73.cloudfront.net/eyJrZXkiOiIyMzM1ZmQ1OC1hMDhmLTQ3ZDktYWIwNi1mMmRiNDhmZGY2NjMucG5nIiwiYnVja2V0Ijoic3BpbmUtcHJvZHVjdC1pbWFnZXMtcHJvZCIsImVkaXRzIjp7InJlc2l6ZSI6eyJoZWlnaHQiOjQwMH0sInRyaW0iOjAuMX19",
+    "label": "BACKGROUND"
+   }
+  ],
+  "price": {
+   "initialPrice": {
+    "amount": 1295,
+    "currency": "CHF",
+    "isActive": true
+   },
+   "discountPrice": {
+    "amount": 1050,
+    "currency": "CHF",
+    "validUntil": "2026-09-12T22:00:00.000Z",
+    "validFrom": "2026-09-05T22:00:00.000Z",
+    "isActive": true
+   },
+   "literPrice": {
+    "amount": 140,
+    "currency": "CHF",
+    "isActive": true
+   }
+  },
+  "stock": {
+   "stockLevel": 1136,
+   "initialQuantity": 1,
+   "steps": {
+    "prev": 1,
+    "next": 1,
+    "min": 1,
+    "max": 1136,
+    "aboveStockLevel": 6
+   },
+   "packageSize": 6,
+   "isRestockable": true,
+   "isAvailable": true
+  },
+  "country": {
+   "en": "Italy",
+   "fr-CH": "Italie",
+   "de-CH": "Italien",
+   "it-CH": "Italia"
+  },
+  "region": {
+   "en": "Puglia",
+   "fr-CH": "Puglia",
+   "de-CH": "Apulien",
+   "it-CH": "Puglia"
+  },
+  "subregion": {},
+  "deliveryDate": "2026-09-10",
+  "reviewRatingStatistics": {
+   "averageRating": 4.03922,
+   "highestRating": 5,
+   "lowestRating": 1,
+   "count": 51,
+   "ratingsDistribution": {
+    "1": 7,
+    "2": 3,
+    "3": 2,
+    "4": 8,
+    "5": 31
+   }
+  },
+  "totalActiveVariants": 4,
+  "campaigns": [],
+  "priceCluster": 1,
+  "tags": []
+ }
+]
