@@ -33,6 +33,15 @@ class SourceConfig:
     #: Wo der Wein tatsächlich zu kaufen ist — Filiale, Onlineshop, Abholmarkt.
     channel: str = ""
     blocked_by: str = ""
+    #: Wohin der Fühler greift, der bei jedem Lauf prüft, ob die Sperre noch steht.
+    #:
+    #: Nötig, weil das nicht immer die Adresse des Ladens ist. TopCC ist ein
+    #: Beispiel: topcc.ch selbst antwortet mit 200, gesperrt sind die Prospekte auf
+    #: ``files.cdn.ipaper.io``, deren robots.txt ``Disallow: /`` sagt. Ein Fühler auf
+    #: die Hauptseite meldete „antwortet" und behauptete damit, die Sperre sei weg.
+    #:
+    #: Leer bedeutet: die erste Adresse aus ``urls``, sonst ``shop_root``.
+    fuehler_url: str = ""
     verified_at: str = ""
     vat_included: bool = True
     price_basis: str = "bottle"

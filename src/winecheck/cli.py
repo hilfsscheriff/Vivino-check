@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import time
+from typing import Any
 from pathlib import Path
 
 import typer
@@ -45,7 +46,7 @@ from .aggregate import (
 )
 from .cache import Cache
 from .config import SourceConfig, load_registry, Registry
-from .fetching import Fetcher
+from .fetching import Blocked, Fetcher
 from .models import Offer, PriceConfidence, VivinoStatus, WineRow
 from .prices import price_band
 from .ratings.falstaff import FalstaffAdapter
@@ -93,6 +94,60 @@ SEITE_MIN_ANTEIL = 0.90
 
 #: Kennung, die jede gebaute Seite trägt: ``<!-- winecheck lauf=… weine=… -->``.
 _RE_SEITEN_KENNUNG = None  # spät gesetzt, siehe _seiten_kennung
+
+
+def _sperre_pruefen(fetcher: Fetcher, cfg: Any) -> tuple[bool, str]:
+    """Steht die Sperre dieser Quelle **heute** noch? Eine Anfrage, die nur beobachtet.
+
+    Ohne den Fühler war „blockiert" auf der Seite ein Zitat aus der Registry und keine
+    Messung: Coop, Migros und TopCC wurden übersprungen, ohne dass je eine Anfrage
+    hinausging. Hätte Coop den DataDome abgeschaltet, hätten wir es nie erfahren — der
+    Eintrag stünde weiter da, mit einem Prüfdatum vom August.
+
+    Beobachten ist nicht umgehen. Der Fühler stellt genau eine gewöhnliche Anfrage mit
+    dem ehrlichen User-Agent und hält fest, was zurückkommt. Kommt eine Challenge,
+    bleibt es dabei; die Quelle bleibt aus, und niemand versucht, sie zu überreden.
+
+    Bei einer robots-Sperre wird **nichts** abgerufen, sondern nur die robots.txt
+    ausgewertet — sie ist die Aussage des Betreibers, und sie zu lesen ist immer
+    erlaubt. Das Ziel dafür steht als ``fuehler_url`` in der Registry, weil es nicht
+    die Adresse des Ladens sein muss: TopCCs Hauptseite antwortet, gesperrt sind die
+    Prospekte auf einem fremden CDN.
+
+    Returns:
+        ``(Sperre steht noch, Meldung mit Datum)``. Fällt eine Sperre, wird die Quelle
+        **nicht** von selbst eingeschaltet — das ist eine Entscheidung über neues
+        Crawling und gehört dem Menschen. Die Meldung sagt es dafür deutlich.
+    """
+    heute = time.strftime("%d.%m.%Y")
+    ziel = cfg.fuehler_url or (cfg.urls[0] if cfg.urls else "") or cfg.shop_root
+    if not ziel:
+        return True, f"kein Fühler hinterlegt (Stand {cfg.verified_at or 'unbekannt'})"
+
+    if (cfg.blocked_by or "") == "robots":
+        try:
+            erlaubt = fetcher.robots_allows(ziel)
+        except Exception as exc:  # noqa: BLE001 — ein Fühler darf keinen Lauf kippen
+            return True, f"Fühler {heute}: robots.txt nicht lesbar ({exc})"
+        if erlaubt:
+            return False, (
+                f"Fühler {heute}: robots.txt erlaubt {ziel} inzwischen — "
+                f"Quelle prüfen und gegebenenfalls einschalten"
+            )
+        return True, f"Fühler {heute}: robots.txt verbietet {ziel} weiterhin"
+
+    try:
+        res = fetcher.get(ziel)
+    except Blocked as exc:
+        return True, f"Fühler {heute}: {exc.kind or 'blockiert'}"
+    except Exception as exc:  # noqa: BLE001
+        return True, f"Fühler {heute}: nicht erreichbar ({exc})"
+    if res.ok:
+        return False, (
+            f"Fühler {heute}: {ziel} antwortet mit HTTP 200 — Sperre womöglich weg, "
+            f"Quelle prüfen und gegebenenfalls einschalten"
+        )
+    return True, f"Fühler {heute}: HTTP {res.status_code}"
 
 
 def _seiten_kennung(pfad: Path) -> tuple[str, int] | None:
@@ -184,23 +239,32 @@ def fetch(
     # Blockierte Quellen erscheinen im Report, auch wenn sie nicht aktiviert sind —
     # sonst liest sich "keine Coop-Aktionen" wie "Coop hat diese Woche nichts", statt
     # wie "Coop ist nicht einlesbar".
-    if keys is None:
-        for cfg in reg.retailers.values():
-            if cfg.enabled or cfg.status != "blocked":
-                continue
-            reports.append(
-                FetchReport(
-                    retailer=cfg.key,
-                    status="blocked",
-                    message=(
-                        f"{cfg.blocked_by or 'Bot-Schutz'} — Schutzmassnahme wird nicht "
-                        f"umgangen. {' '.join((cfg.notes or '').split())[:150]}"
-                    ),
-                )
-            )
-            _echo(f"  {cfg.key:<14} blockiert ({cfg.blocked_by}) — nicht umgangen")
-
     with Fetcher() as fetcher:
+        # Gesperrte Quellen: einmal anfassen, bevor der Lauf sie überspringt.
+        #
+        # Die Meldung stand hier früher allein aus der Registry — ein Zitat vom
+        # August, das jede Woche unverändert wiederholt wurde. Wäre eine Sperre
+        # gefallen, hätte es niemand bemerkt. Jetzt kostet jede eine Anfrage, und in
+        # der Übersicht steht eine Messung von heute. Siehe :func:`_sperre_pruefen`.
+        if keys is None:
+            for cfg in reg.retailers.values():
+                if cfg.enabled or cfg.status != "blocked":
+                    continue
+                steht, fuehler = _sperre_pruefen(fetcher, cfg)
+                reports.append(
+                    FetchReport(
+                        retailer=cfg.key,
+                        status="blocked",
+                        message=(
+                            f"{cfg.blocked_by or 'Bot-Schutz'} — Schutzmassnahme wird "
+                            f"nicht umgangen. {fuehler}. "
+                            f"{' '.join((cfg.notes or '').split())[:150]}"
+                        ),
+                    )
+                )
+                zeichen = "blockiert" if steht else "SPERRE WEG?"
+                _echo(f"  {cfg.key:<14} {zeichen} ({cfg.blocked_by}) — {fuehler}")
+
         for cfg in selected:
             if not cfg.enabled and keys is None:
                 continue

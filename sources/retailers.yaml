@@ -40,6 +40,9 @@ retailers:
       - https://www.coop.ch/de/aktionen/aktuelle-aktionen/aktionen-weine/c/m_1808
     verified_at: "2026-08-05"
     blocked_by: datadome
+    # Der Fühler greift auf die aktuelle Aktionsseite und nicht auf die alte
+    # Adresse in `urls`: gemessen werden soll, was wir lesen wollten.
+    fuehler_url: https://www.coop.ch/de/weine/aktionen/c/SPECIAL_OFFERS_WINE
     notes: >
       Marktführer, regelmässige 20%-Weinwochen. Die vom Auftrag genannte URL ist
       korrekt und im Browser erreichbar, antwortet aber auf jede Anfrage ohne
@@ -88,6 +91,7 @@ retailers:
       - https://www.migros.ch/de/category/wein-schaumwein
     verified_at: "2026-08-05"
     blocked_by: cloudflare
+    fuehler_url: https://www.migros.ch/de/category/wein-schaumwein
     notes: >
       HTTP 403 hinter Cloudflare für jede Anfrage ohne Browser. Nicht umgangen.
     private_label_brands: [M-Classic, Sélection, Migros Bio, Terra Vigneto]
@@ -509,6 +513,9 @@ retailers:
     enabled: false
     status: blocked
     blocked_by: robots
+    # Nicht topcc.ch: das antwortet mit 200. Gesperrt sind die Prospekte auf
+    # dem iPaper-CDN, dessen robots.txt `Disallow: /` sagt.
+    fuehler_url: https://files.cdn.ipaper.io/
     urls: []
     shop_root: https://www.topcc.ch/
     verified_at: "2026-08-07"
