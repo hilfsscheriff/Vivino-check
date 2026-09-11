@@ -58,6 +58,59 @@ if ! mkdir "$SPERRE" 2>/dev/null; then
 fi
 trap 'rmdir "$SPERRE" 2>/dev/null' EXIT
 
+# -- Wachbleiben ------------------------------------------------------------
+# Am 11.09.2026 schlief der Mac um 07:00. launchd holte den Termin beim naechsten
+# Wartungs-Aufwachen um 07:11:11 nach — und 45 Sekunden spaeter ging der Rechner
+# wieder schlafen (pmset: "Entering Sleep state due to 'Maintenance Sleep'"). Der
+# Lauf arbeitete danach in Schueben: die Abrufphase brauchte 73 statt 7 Minuten, und
+# mittendrin fielen vivinoshop, aktionis und prodega mit "nodename nor servname
+# provided" aus — waehrend einer Schlafphase gibt es keine Namensaufloesung. Drei
+# Quellen fehlten, 1481 statt 2544 Positionen, und die Reissleine stoppte die
+# Veroeffentlichung zu Recht. Nichts davon war ein Fehler im Programm; es fehlte
+# schlicht ein wacher Rechner.
+#
+# caffeinate haelt die Zusicherung, solange dieser Prozess lebt (-w $$), und
+# verschwindet mit ihm. -i verhindert das Einschlafen wegen Untaetigkeit und wirkt
+# auch auf Batterie; -s waere nur am Netzteil wirksam und bleibt darum draussen.
+if command -v caffeinate >/dev/null 2>&1; then
+  caffeinate -i -w $$ &
+  sage "Wachhalten aktiv (caffeinate -i, PID $!)"
+else
+  sage "Achtung: caffeinate fehlt — der Rechner kann waehrend des Laufs einschlafen."
+fi
+
+# -- Netz abwarten ----------------------------------------------------------
+# Ohne Namensaufloesung ist jeder Abruf ein Fehlschlag, und ein halb gelesener Lauf
+# ist schlimmer als gar keiner: er sieht aus wie ein Ergebnis. Fuenf Quellen
+# antworteten am 11.09. normal, drei nicht — und nur weil die drei zufaellig die
+# groessten waren, fiel es der Reissleine auf.
+#
+# Geprueft wird die Aufloesung selbst und keine Verbindung: der Fehler, der auftrat,
+# war ein DNS-Fehler, und ein Verbindungsversuch waere eine Anfrage an einen fremden
+# Server, nur um zu wissen, ob wir online sind.
+NETZ_WARTEN=${WINECHECK_NETZ_WARTEN:-600}
+# Der Name, an dem die Aufloesung geprueft wird. Vivino, weil dort die meiste Arbeit
+# des Laufs hingeht; einstellbar, damit sich der Abbruchweg pruefen laesst.
+NETZ_PROBE=${WINECHECK_NETZ_PROBE:-www.vivino.com}
+netz_da() {
+  /usr/bin/python3 -c \
+    'import socket, sys; socket.setdefaulttimeout(4); socket.gethostbyname(sys.argv[1])' \
+    "$NETZ_PROBE" >/dev/null 2>&1
+}
+
+if ! netz_da; then
+  sage "Keine Namensaufloesung — warte bis zu $((NETZ_WARTEN / 60)) Minuten."
+  NETZ_ENDE=$(( $(date +%s) + NETZ_WARTEN ))
+  while ! netz_da; do
+    if [ "$(date +%s)" -ge "$NETZ_ENDE" ]; then
+      sage "ABBRUCH: nach $((NETZ_WARTEN / 60)) Minuten keine Namensaufloesung — nichts geholt, der alte Stand bleibt stehen."
+      exit 1
+    fi
+    sleep 15
+  done
+  sage "Netz da — weiter."
+fi
+
 if ! git fetch -q origin 2>>"$PROTOKOLL"; then
   sage "WARNUNG: git fetch fehlgeschlagen — arbeite mit dem lokalen Stand weiter"
 elif ! git reset --hard -q origin/main 2>>"$PROTOKOLL"; then
