@@ -541,8 +541,16 @@ class FlaschenpostAdapter(RetailerAdapter):
                 return False
         return True
 
-    def _aus_suchtreffer(self, produkt: dict[str, Any]) -> Offer | None:
-        """Ein Suchtreffer als Angebot — oder ``None``, wenn er keines ist."""
+    def _aus_suchtreffer(
+        self, produkt: dict[str, Any], jetzt: datetime | None = None
+    ) -> Offer | None:
+        """Ein Suchtreffer als Angebot — oder ``None``, wenn er keines ist.
+
+        ``jetzt`` gibt es für die Tests: sie arbeiten mit aufgezeichneten Antworten,
+        und deren Rabattfenster laufen ab. Ohne den Parameter prüften sie gegen die
+        Uhr statt gegen die Daten und würden Tage später rot, ohne dass sich etwas
+        geändert hat.
+        """
         attr = produkt.get("attributes") or {}
         preise = produkt.get("price") or {}
         lager = produkt.get("stock") or {}
@@ -553,7 +561,7 @@ class FlaschenpostAdapter(RetailerAdapter):
         # selbst, ob der Artikel publiziert und lieferbar ist.
         if not attr.get("isPublished") or not lager.get("isAvailable"):
             return None
-        if not self._rabatt_gilt(rabatt):
+        if not self._rabatt_gilt(rabatt, jetzt):
             return None
         aktion, referenz = rabatt.get("amount"), (preise.get("initialPrice") or {}).get("amount")
         if not isinstance(aktion, (int, float)) or not aktion:

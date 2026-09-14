@@ -71,12 +71,22 @@ PACKAGING_NOISE = {
     "karton", "kartons", "harass", "kiste", "caisse", "tray", "pack", "gebinde",
     "cl", "ml", "dl", "lt", "liter", "litre", "magnumflasche", "stk", "stuck",
     "neu", "aktion", "angebot", "sale", "rabatt", "statt", "nur", "jetzt",
-    "trinkreif", "jahrgang", "millesime",
+    "trinkreif", "jahrgang",
     # "vintage" stand hier und ist bewusst weg: bei Port, Madeira und Champagne ist
     # es nicht das Etikett für die Jahreszahl, sondern der **Stil** — und damit das
     # Produkt. Gemessen an allen 1987 damals gespeicherten Zuordnungen kostet der
     # Wechsel genau fünf Treffer, davon vier falsche Weine (siehe DISCRIMINATING).
-    # "jahrgang" und "millesime" bleiben: die bezeichnen nie ein Produkt.
+    #
+    # "millesime" stand danach noch hier, mit der Begründung, es bezeichne nie ein
+    # Produkt. Das war falsch, aus genau demselben Grund: im Champagne ist
+    # "Millésimé" das, was "Vintage" beim Port ist. Gemeldet am 14.09.2026 an einem
+    # Coop-Angebot "Champagne AOC Laurent-Perrier, brut" für CHF 25.55, das die Note
+    # des "Laurent-Perrier Brut Millésimé" trug — eines anderen, teureren Weins,
+    # dessen Marktpreis von CHF 81.66 der Karte ein "−69 % gegen Markt" anschrieb.
+    # Derselbe Wein steht bei Prodega und Schubi korrekt als "La Cuvée Brut".
+    #
+    # "jahrgang" bleibt: das deutsche Wort steht für die Jahreszahl, nie für einen
+    # Wein.
     # Verpackungsmaterial. "Montagne Vin Rouge PET" wäre sonst über das Token "pet"
     # spezifisch genug geworden und hätte die Note eines Burgunders geerbt.
     "pet", "tetra", "dose", "bib", "beutel", "pouch", "glas", "schraubverschluss",
@@ -152,6 +162,17 @@ DISCRIMINATING = {
     # Ruby gegen Tawny bleibt getrennt, denn "tawny" sperrt einseitig; und Ruby
     # gegen Vintage über "vintage".
     "vintage", "tawny", "lbv", "crusted", "garrafeira",
+    # Dasselbe im Champagne, auf Französisch: ein "Millésimé" ist ein eigener Wein
+    # neben dem Brut ohne Jahrgang und meist der deutlich teurere. Die italienische
+    # Form "millesimato" steht weiter unten und galt immer als unterscheidend; die
+    # französische fehlte.
+    #
+    # Gemessen an allen 3367 gespeicherten Zuordnungen kostet der Wechsel drei
+    # Treffer: den Laurent-Perrier und einen "Charles Heidsieck Champagne brut", der
+    # ebenso an einem "Brut Millésimé 2018" hing — beide falsch —, und den "Nicolas
+    # Feuillatte Cuvée Spéciale", bei dem der Millésimé vermutlich wirklich gemeint
+    # war. Zwei falsche Noten gegen eine verlorene richtige.
+    "millesime",
     # Ausbau
     "barrique", "barricato", "oak", "unfiltered", "unfiltriert", "naturale",
     "passito", "appassimento", "ripasso", "amarone", "recioto", "solera",
@@ -549,6 +570,10 @@ def distinctive_tokens(text: str) -> list[str]:
 #: „delamotte" zusammen und findet den richtigen Wein nicht mehr.
 STIL_IN_ABFRAGE = frozenset({
     "vintage", "tawny", "lbv", "crusted", "garrafeira", "blancs", "noirs",
+    # "millesime" muss mit, sobald es unterscheidend ist: sonst fiele es aus der
+    # Abfrage, die Suche fände den Brut ohne Jahrgang — und der würde dann als
+    # anderer Wein abgelehnt. Das Ergebnis wäre keine Note statt der richtigen.
+    "millesime",
 })
 
 

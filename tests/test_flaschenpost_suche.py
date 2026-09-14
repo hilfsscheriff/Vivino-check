@@ -144,6 +144,12 @@ def treffer() -> list[dict]:
     return json.loads((VORLAGEN / "flaschenpost-treffer.json").read_text(encoding="utf-8"))
 
 
+#: Der Tag, an dem die Antworten aufgezeichnet wurden. Die Rabattfenster darin laufen
+#: ab — gegen die Uhr geprüft wären diese Tests wenige Tage später rot, ohne dass sich
+#: am Programm etwas geändert hätte. Genau das ist am 14.09.2026 passiert.
+AUFGEZEICHNET_AM = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)
+
+
 @pytest.fixture
 def adapter() -> FlaschenpostAdapter:
     cfg = SourceConfig(key="flaschenpost", name="Flaschenpost", adapter="flaschenpost",
@@ -154,7 +160,7 @@ def adapter() -> FlaschenpostAdapter:
 def test_der_jahrgang_kommt_mit(adapter, treffer):
     """Der Gewinn gegenüber ``/api/products``: dort gibt es keinen Jahrgang, und ohne
     ihn fehlt die Trinkreife und der Vivino-Treffer bleibt auf Weinebene."""
-    angebote = [adapter._aus_suchtreffer(p) for p in treffer]
+    angebote = [adapter._aus_suchtreffer(p, AUFGEZEICHNET_AM) for p in treffer]
     angebote = [a for a in angebote if a]
     assert angebote, "aus vier echten Treffern muss mindestens einer ein Angebot sein"
     assert all(a.vintage for a in angebote), [a.name for a in angebote if not a.vintage]
@@ -169,7 +175,7 @@ def test_das_gebinde_steht_als_zahl_da(adapter, treffer):
     """
     nach_sku = {}
     for p in treffer:
-        a = adapter._aus_suchtreffer(p)
+        a = adapter._aus_suchtreffer(p, AUFGEZEICHNET_AM)
         if a:
             nach_sku[str(p["sku"])] = a
     sechser = nach_sku.get("1214202")
@@ -181,14 +187,14 @@ def test_das_gebinde_steht_als_zahl_da(adapter, treffer):
 def test_die_adresse_traegt_das_sprachpraefix(adapter, treffer):
     """Ohne ``/de/`` antwortet die Webseite mit 404 — nachgemessen an einem lebenden
     Wein, und der Grund, weshalb 477 Adressen einmal ins Leere führten."""
-    angebot = adapter._aus_suchtreffer(treffer[0])
+    angebot = adapter._aus_suchtreffer(treffer[0], AUFGEZEICHNET_AM)
     assert angebot is not None
     assert angebot.url.startswith("https://www.flaschenpost.ch/de/")
     assert "?" not in angebot.url, "der Query-String der Schnittstelle gehoert nicht dazu"
 
 
 def test_der_preis_kommt_aus_rappen(adapter, treffer):
-    angebot = adapter._aus_suchtreffer(treffer[0])
+    angebot = adapter._aus_suchtreffer(treffer[0], AUFGEZEICHNET_AM)
     roh = treffer[0]["price"]
     assert angebot.price_raw == pytest.approx(roh["discountPrice"]["amount"] / 100)
     assert angebot.reference_price == pytest.approx(roh["initialPrice"]["amount"] / 100)
