@@ -139,3 +139,75 @@ def test_category_comes_from_the_article_group():
     Wein aussieht."""
     assert _category(_item()) == "Vins rouges étrangers"
     assert _category({"article": {}}) == ""
+
+
+# ----------------------------------------------- Seitengrösse und Vollständigkeit
+#
+# Am 21.09.2026 fing der Shop an, ``?limit=192`` mit HTTP 400 abzulehnen. Der Adapter
+# las den Fehlerkörper, fand darin kein Payload und meldete für alle acht Kategorien
+# „keine Daten im HTML" — 201 Positionen wurden zu 0, und die Meldung sah nach einem
+# Strukturbruch aus statt nach einer abgelehnten Anfrage. Aufgefallen ist es nur, weil
+# die Reissleine im Seitenbau die Veröffentlichung stoppte.
+
+import json as _json
+
+import pytest as _pytest
+
+from winecheck.adapters.aligro import SEITENGROESSE
+from winecheck.fetching import Blocked as _Blocked
+
+
+class _Antwort:
+    def __init__(self, text, status=200, url="https://www.aligro.ch/de/aktionen/1711-x"):
+        self.text, self.status_code, self.url = text, status, url
+
+    @property
+    def ok(self):
+        return self.status_code == 200
+
+
+def _seite(gelesen: int, gesamt: int) -> str:
+    nutzlast = {"current_page_number": 1, "items_per_page": SEITENGROESSE,
+                "total_items": gesamt, "items": [{"id": i} for i in range(gelesen)]}
+    return f'<div pagination="{_json.dumps(nutzlast).replace(chr(34), "&quot;")}"></div>'
+
+
+class _Netz:
+    """Erste Anfrage: die Weiterleitung. Zweite: die Kategorieseite."""
+
+    def __init__(self, seite: str, status: int = 200):
+        self.seite, self.status, self.params = seite, status, []
+
+    def get(self, url, params=None, **kw):
+        self.params.append(params)
+        if params is None:
+            return _Antwort("", 200)
+        return _Antwort(self.seite, self.status)
+
+
+def test_die_seitengroesse_ist_die_hoechste_akzeptierte():
+    """96 ist gemessen: 100, 128 und 192 kommen mit HTTP 400 zurück."""
+    assert SEITENGROESSE == 96
+
+
+def test_ein_abgelehnter_status_heisst_nicht_keine_daten(adapter):
+    """Der Statuscode gehört in die Meldung — sonst sucht man den Fehler im HTML."""
+    adapter.fetcher = _Netz("", status=400)
+    with _pytest.raises(_Blocked) as fehler:
+        adapter._category(1711)
+    assert "400" in str(fehler.value)
+
+
+def test_die_abgeschnittene_kategorie_sagt_es(adapter):
+    """Drei Kategorien haben mehr Artikel, als eine Seite fasst, und blättern lässt
+    sich nicht. Das muss in der Meldung stehen statt als Lücke unterzugehen."""
+    adapter.fetcher = _Netz(_seite(gelesen=96, gesamt=243))
+    bericht = adapter.fetch()
+    assert "96 von 243" in bericht.message
+    assert "blättert nicht" in bericht.message
+
+
+def test_eine_vollstaendige_kategorie_meldet_nichts(adapter):
+    adapter.fetcher = _Netz(_seite(gelesen=83, gesamt=83))
+    bericht = adapter.fetch()
+    assert "von 83 Artikeln gelesen" not in bericht.message

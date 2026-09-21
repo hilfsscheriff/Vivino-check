@@ -11,7 +11,7 @@ Die Kategorieseite rendert die Kacheln clientseitig, liefert die Daten aber voll
 mit: in einem Vue-Attribut ``pagination="…"`` steckt HTML-entity-kodiertes JSON mit
 allen Artikeln. Kein Browser nötig, kein Nachladen — ein GET je Kategorie.
 
-``?limit=192`` hebt die Seitengrösse von 48 auf alles. Der Parameter überlebt allerdings
+``?limit=96`` hebt die Seitengrösse von 48 auf das Maximum. Der Parameter überlebt allerdings
 **keine Weiterleitung**: ruft man den französischen Slug auf, leitet Aligro auf den
 deutschen um und verliert die Abfrage. Darum wird der Slug einmal ohne Parameter
 aufgelöst und dann gezielt geholt.
@@ -141,6 +141,18 @@ def _bottles(item: dict[str, Any]) -> int | None:
     return None
 
 
+#: Grösste Seite, die der Shop beantwortet. Genau 96 — 100, 128 und 192 kommen mit
+#: HTTP 400 zurück, und blättern lässt sich nicht: weder ``page``, ``p``, ``offset``,
+#: ``from`` noch ``start`` bewegen die Antwort von Seite 1 weg, und Blätter-Links gibt
+#: es im HTML keine. Der Shop verlinkt selbst ``?limit=96``.
+#:
+#: Damit sind drei Kategorien nicht vollständig lesbar (gemessen am 21.09.2026:
+#: 112, 243 und 99 Artikel). Das steht darum in der Meldung, statt als Lücke
+#: unterzugehen — dieselbe Behandlung wie bei Schuler und Gerstl, wo die robots.txt
+#: die Grenze zieht.
+SEITENGROESSE = 96
+
+
 class AligroAdapter(RetailerAdapter):
     key = "aligro"
 
@@ -167,6 +179,13 @@ class AligroAdapter(RetailerAdapter):
             if payload is None:
                 notes.append(f"Kategorie {cid}: keine Daten im HTML")
                 continue
+            gelesen = len(payload.get("items") or [])
+            gesamt = payload.get("total_items")
+            if isinstance(gesamt, int) and gesamt > gelesen:
+                notes.append(
+                    f"Kategorie {cid}: {gelesen} von {gesamt} Artikeln gelesen — "
+                    f"die Schnittstelle deckelt bei {SEITENGROESSE} und blättert nicht"
+                )
             report.resolved_url = report.resolved_url or url
             for item in payload.get("items") or []:
                 offer = self._offer(item)
@@ -200,7 +219,15 @@ class AligroAdapter(RetailerAdapter):
         first = self.fetcher.get(f"{BASE}/{cid}-x")
         slug = str(first.url).rstrip("/").split("/")[-1].split("?")[0]
         url = f"{BASE}/{slug}"
-        page = self.fetcher.get(url, params={"limit": 192})
+        page = self.fetcher.get(url, params={"limit": SEITENGROESSE})
+        if not page.ok:
+            # Der Status gehört in die Meldung. Am 21.09.2026 fing der Shop an,
+            # ``limit=192`` mit HTTP 400 abzulehnen; der Adapter las den Fehlerkörper,
+            # fand kein Payload darin und meldete "keine Daten im HTML" — was nach
+            # einem Strukturbruch aussah und mich eine halbe Stunde in die falsche
+            # Richtung schickte. Alle acht Kategorien lieferten 0, und die Quelle war
+            # still weg.
+            raise Blocked(f"Aligro HTTP {page.status_code} für {url}", kind="http")
         return url, self._payload(page.text)
 
     @staticmethod
