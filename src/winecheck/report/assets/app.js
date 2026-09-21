@@ -158,6 +158,26 @@ function visible(ausser) {
   });
 }
 
+/* Abstände, in denen die Notenachse beschriftet werden darf. Die Leiter beginnt bei
+   einem Zehntel, weil das die Auflösung der Daten ist. */
+const NOTENSTUFEN = [0.1, 0.2, 0.5, 1];
+
+/* Die Werte der Notenlinien für eine Spanne — als eigene Funktion, damit die Regel
+   ohne Browser prüfbar ist. Jeder Wert muss auf einem Zehntel liegen: dort und nur
+   dort kann ein Punkt sitzen. */
+function notenlinien(y0, y1) {
+  const schritt = NOTENSTUFEN.find(s => (y1 - y0) / s <= 6) ?? 1;
+  const erste = Math.ceil((y0 - 1e-9) / schritt) * schritt;
+  const aus = [];
+  for (let k = 0; erste + k * schritt <= y1 + 1e-9; k++) {
+    // Über Zehntel gerundet: 4.1 + 0.1 ergibt in Fliesskomma 4.199999999999999,
+    // und `toFixed(1)` schriebe zwar «4.2» an, die Linie sässe aber daneben.
+    aus.push(Math.round((erste + k * schritt) * 10) / 10);
+  }
+  return aus;
+}
+
+
 /* ---------------------------------------------------------------- Diagramm */
 function chart(list) {
   const pts = list.filter(w => w.rating != null && w.price > 0);
@@ -197,19 +217,20 @@ function chart(list) {
      damit auf 4.10, 4.175, 4.25, 4.325, 4.40. Angeschrieben stand «4.1, 4.2, 4.3,
      4.3, 4.4»: zweimal 4.3, und keine einzige Linie auf einer Note, die es gibt.
      Gemeldet mit «Notenpunkte sitzen nicht auf den Notenlinien» — und die Punkte
-     sassen richtig, die Beschriftung log.
-     Vivino weist Noten in Zehnteln aus; die Leiter beginnt darum bei 0.05. */
-  /* Nur Schritte, die sich in ihrer eigenen Auflösung exakt anschreiben lassen.
-     0.25 fehlt bewusst: eine Linie auf 4.25 wäre als «4.3» beschriftet — dieselbe
-     gerundete Lüge, nur kleiner. */
-  const NOTENSTUFEN = [0.05, 0.1, 0.2, 0.5, 1];
-  const schritt = NOTENSTUFEN.find(s => (y1 - y0) / s <= 6) ?? 1;
-  const dez = schritt < 0.1 ? 2 : 1;
-  const erste = Math.ceil((y0 - 1e-9) / schritt) * schritt;
-  for (let k = 0; erste + k * schritt <= y1 + 1e-9; k++) {
-    const v = erste + k * schritt;
+     sassen richtig, die Beschriftung log. */
+  /* Die Leiter beginnt bei einem Zehntel, und das ist die Auflösung der Daten selbst:
+     Vivino gibt seine Noten in Zehnteln aus. Von 1682 Werten im Bestand liegt kein
+     einziger dazwischen.
+     0.05 stand hier und ist weg. Bei einer engen Auswahl — etwa nur Noten von 4.2
+     bis 4.3 — zog die Leiter Linien auf 4.15, 4.25 und 4.35, also drei von sieben,
+     auf denen **nie** ein Punkt liegen kann. Das Diagramm sah feiner aufgelöst aus,
+     als die Daten es hergeben, und liess die Punkte wie zufällig zwischen den Linien
+     wirken. Gemeldet mit «0.05er Schritte in den Noten gibt es nicht».
+     0.25 fehlt aus demselben Grund in anderer Richtung: eine Linie auf 4.25 wäre als
+     «4.3» beschriftet — eine gerundete Lüge. */
+  for (const v of notenlinien(y0, y1)) {
     g += `<line class="grid" x1="${L}" y1="${sy(v)}" x2="${L+pw}" y2="${sy(v)}"/>`
-       + `<text class="tick" x="${L-7}" y="${sy(v)+4}" text-anchor="end">${v.toFixed(dez)}</text>`;
+       + `<text class="tick" x="${L-7}" y="${sy(v)+4}" text-anchor="end">${v.toFixed(1)}</text>`;
   }
   /* Trendlinie: die Note, die man für diesen Preis üblicherweise bekommt. Aus dem
      Lauf geschätzt, nicht geraten — dieselbe Regression, aus der der
