@@ -497,6 +497,29 @@ def dedup_key(name: str, vintage: int | None) -> str:
     return f"{core}|{vintage or ''}"
 
 
+#: Jubiläumswörter: viele Häuser nennen eine Sondercuvée so, keines besitzt das Wort.
+#:
+#: Gemeldet am 02.10.2026 an einem Denner-Angebot „Centenario Merlot del Ticino DOC
+#: 2021" für CHF 11.95, das als „gut und günstig" mit „−78 % gegen Markt" auf der
+#: Seite stand. Die Note gehörte zur „Matasci Cent Cuvée del Centenario", der
+#: Jubiläumscuvée eines anderen Hauses für CHF 54.80. Der Händler nennt keinen
+#: Produzenten; sein einziges Namenswort war „centenario" — und das hat genau zehn
+#: Buchstaben, also die Länge, ab der ein einzelnes Wort als starker Markenname gilt
+#: (STRONG_TOKEN_LENGTH). Damit übersprang es die Regel gegen zu dünne Händlernamen,
+#: obwohl die Quelle einen Produzenten mitbrachte, den der Händler gar nicht nennt.
+#:
+#: Die Wörter bleiben im Namen und in der Suchabfrage; sie tragen nur keine Identität
+#: mehr. Gemessen an allen 4264 gespeicherten Zuordnungen kostet das zwei Treffer:
+#: den Centenario — falsch — und ein „Anniversario 62 Primitivo di Manduria Riserva"
+#: ohne Produzentenname, das vermutlich wirklich San Marzanos „62 Anniversario" ist.
+#: Eins zu eins, und der falsche trug das stärkste Kaufsignal der Seite.
+WERBEWOERTER = frozenset({
+    "centenario", "centenaire", "centennial", "centenary",
+    "anniversario", "anniversaire", "anniversary", "aniversario",
+    "jubilaeum", "jubilaum", "giubileo",
+})
+
+
 def is_distinctive(token: str) -> bool:
     """Trägt das Token Produzenten-, Marken- oder Lageninformation?
 
@@ -510,6 +533,7 @@ def is_distinctive(token: str) -> bool:
         and token not in REGION_HINTS
         and token not in COLOUR_TOKENS
         and token not in DISCRIMINATING
+        and token not in WERBEWOERTER
     )
 
 
