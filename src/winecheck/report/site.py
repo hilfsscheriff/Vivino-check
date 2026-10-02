@@ -34,7 +34,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..names import STYLE_LABELS
+from ..names import STYLE_LABELS, normalized_name
 from ..prices import MARKTPLATZ_QUELLEN
 # Die Preis-Leistungs-Rechnung hat einen Besitzer: winecheck.wert. Sie stand hier und
 # in aggregate.compute_scores, zwei verschiedene Formeln unter demselben Namen.
@@ -254,6 +254,12 @@ def _wine_from_snapshot(d: dict[str, Any]) -> dict[str, Any]:
         # Nur die Anzeige wird bereinigt. Gematcht und dedupliziert wurde vorher mit
         # dem Originalnamen, und der Schlüssel bleibt der Originalschlüssel.
         "name": display_name(d.get("name") or ""),
+        # Der Schlüssel der Preisreihe — aus dem **Original**namen, wie ihn
+        # ``_preis_beobachtungen`` beim Schreiben bildet. Aus dem Anzeigenamen gerechnet
+        # könnte er abweichen, und der Verlauf hinge dann an keinem Wein. Bleibt intern:
+        # ``_compact`` gibt nur Felder aus, die in _SHORT_KEYS stehen.
+        "preisschluessel": _reihenschluessel(normalized_name(d.get("name") or ""),
+                                             str(d.get("vintage") or "")),
         "vintage": d.get("vintage") or "",
         "price": d.get("best_price"),
         # Ein Produzenten-Durchschnitt ist nicht die Note *dieses* Weins und darf
@@ -343,6 +349,9 @@ _SHORT_KEYS = {
     # Vergleichen gibt — beim ersten Lauf ist kein Wein "neu", sondern alle sind es,
     # und dann sagt die Kennzeichnung nichts.
     "neu": "nu",
+    # Preisverlauf je Händler, als Wechselpunkte über die Beobachtungstage — siehe
+    # preisverlauf_je_wein().
+    "priceHistory": "pv",
 }
 
 
@@ -362,12 +371,77 @@ def _compact(wine: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _reihenschluessel(name_key: str, jahrgang: str) -> tuple[str, str]:
+    """Der Schlüssel, über den Wein und Preisreihe zusammenfinden — ohne Wortfolge.
+
+    Die Reihe ist über ``normalized_name`` geschrieben, und das behält die Reihenfolge
+    der Wörter. Schubi führte die „Tenuta Ulisse Limited Edition 10 Vendemmie" vom
+    18.9. bis 25.9.2026 als „10 Vendemmie Limited Edition Tenuta Ulisse" — derselbe
+    Wein, dieselben Wörter, andere Folge. Im Verlauf stand dafür eine Woche „nicht im
+    Angebot", die es nie gab.
+
+    Sortiert wird erst hier beim Lesen. Den gespeicherten Schlüssel umzustellen hiesse,
+    zugleich den Bewertungs-Cache umzuschlüsseln, der ``normalized_name`` ebenfalls
+    benutzt — für eine Anzeige zu viel Risiko. Zwei wirklich verschiedene Weine aus
+    genau denselben Wörtern in anderer Folge sind im Bestand nicht zu finden.
+    """
+    return " ".join(sorted(name_key.split())), jahrgang
+
+
+def preisverlauf_je_wein(
+    beobachtungen: list[dict[str, Any]], tage: list[str]
+) -> dict[tuple[str, str], dict[str, list[list[Any]]]]:
+    """Der Preisverlauf jedes Weins je Händler, als Wechselpunkte.
+
+    Gefragt am 02.10.2026 an der „Tenuta Ulisse Limited Edition 10 Vendemmie", die für
+    CHF 30.90 als Aktion bei Vivino stand: „wie war die Preisentwicklung?" Die Antwort
+    stand seit dem 1.9. in der Preisreihe und nirgends auf der Seite — Anfang
+    September hatte derselbe Wein CHF 23.95 gekostet. Die Aktion von heute war 29 %
+    teurer als die von damals.
+
+    Gespeichert werden nur die Stellen, an denen sich etwas ändert:
+    ``[[Tagesindex, Rappen], …]``. Ein Preis, der einen Monat stillsteht, kostet einen
+    Eintrag statt zehn — die Seite trägt zweieinhalbtausend Weine. ``None`` als Betrag
+    heisst: an diesem Tag nicht im Angebot. Das ist eine eigene Auskunft und darf nicht
+    in einer Linie verschwinden, die über die Lücke hinwegzeichnet.
+
+    Vor der ersten Beobachtung steht nichts: der Wein war noch nicht gesehen, nicht
+    „nicht im Angebot".
+    """
+    from collections import defaultdict
+
+    index = {t: i for i, t in enumerate(tage)}
+    roh: dict[tuple[str, str], dict[str, dict[int, int]]] = defaultdict(lambda: defaultdict(dict))
+    for b in beobachtungen:
+        preis = b.get("preis_75cl")
+        i = index.get(b.get("datum"))
+        if preis is None or i is None:
+            continue
+        schluessel = _reihenschluessel(b["name_key"], str(b.get("vintage") or ""))
+        roh[schluessel][b["haendler"]][i] = int(round(preis * 100))
+
+    aus: dict[tuple[str, str], dict[str, list[list[Any]]]] = {}
+    for schluessel, je_haendler in roh.items():
+        aus[schluessel] = {}
+        for haendler, punkte in je_haendler.items():
+            laeufe: list[list[Any]] = []
+            vorher: object = object()
+            for i in range(min(punkte), len(tage)):
+                wert = punkte.get(i)
+                if wert != vorher:
+                    laeufe.append([i, wert])
+                    vorher = wert
+            aus[schluessel][haendler] = laeufe
+    return aus
+
+
 def build(
     runs: list[dict[str, Any]],
     path: Path | str,
     *,
     retailer_info: dict[str, dict] | None = None,
     title: str = "Schweizer Weinaktionen",
+    preisreihe: list[dict[str, Any]] | None = None,
 ) -> Path | None:
     """Baut die Seite.
 
@@ -396,6 +470,20 @@ def build(
     # Je Lauf gerechnet: jeder hat sein eigenes Preisniveau.
     for run in runs:
         _add_value_scores(run["wines"])
+
+    # Preisverlauf, nur für die Händler, bei denen der Wein heute steht: die Zeile
+    # beantwortet „wie hat sich *dieses* Angebot entwickelt", nicht die Geschichte
+    # jedes Ladens, der ihn einmal führte.
+    preistage = sorted({b["datum"] for b in (preisreihe or []) if b.get("datum")})
+    verlauf = preisverlauf_je_wein(preisreihe or [], preistage)
+    for run in runs:
+        for w in run["wines"]:
+            je = verlauf.get(w.get("preisschluessel") or ("", ""))
+            if not je:
+                continue
+            aktuell = {k: v for k, v in je.items() if k in set(w.get("retailers") or [])}
+            if aktuell:
+                w["priceHistory"] = aktuell
 
     info = retailer_info or {}
     retailers = sorted({r for run in runs for w in run["wines"] for r in w["retailers"]})
@@ -465,6 +553,8 @@ def build(
             for m in maturities
         ],
         "good": {"rating": GOOD_RATING_MIN, "price": GOOD_PRICE_MAX},
+        # Die Beobachtungstage der Preisreihe, auf die die Indizes in "pv" zeigen.
+        "preistage": preistage,
         "generated": datetime_ch(),
     }
 

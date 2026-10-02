@@ -462,6 +462,20 @@
             text-decoration:none; font-size:var(--fs-body-sm); }
   .pw-l a.pw-shop { border-color:var(--gold); color:var(--goldtx); }
   .pw-l a:hover { border-color:var(--accent); color:var(--accent); }
+  /* Preisverlauf in den Details: ein kleines Liniendiagramm vor dem Text, je Händler
+     eine Zeile. Die Linie trägt die Farbe des Nebentexts und die Punkte die des
+     Fliesstexts, damit beides in hellem und dunklem Thema lesbar bleibt. Die Punkte
+     sagen, an welchen Tagen beobachtet wurde; wo einer fehlt, war der Wein nicht im
+     Angebot, und die Linie setzt dort aus. */
+  .pv { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+  .pv + .pv { margin-top:4px; }
+  /* Feste Grösse gegen die allgemeine Regel ``svg { width:100% }`` weiter oben, die
+     fürs grosse Diagramm gilt. Ohne das zog die Linie über die ganze Breite und
+     drückte den Text in eine Spalte von einem Wort. */
+  .pvl { flex:none; width:120px; height:22px; display:inline-block; }
+  .pv > span { text-align:right; }
+  .pvl path { fill:none; stroke:var(--muted); stroke-width:1.2; }
+  .pvl circle { fill:var(--ink); }
   footer { color:var(--faint); font-size:var(--fs-body-sm);
            border-top:1px solid var(--line); padding-top:16px; margin-top:32px; }
   footer p { margin:.5em 0; }

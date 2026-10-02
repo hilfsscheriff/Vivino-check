@@ -432,6 +432,101 @@ function linkZiel(w) {
 }
 
 
+/* ------------------------------------------------------ Preisverlauf */
+/* „1.9." — Tag und Monat, wie in der Schweiz üblich und ohne führende Null. Das Jahr
+   fehlt mit Absicht: die Reihe reicht über Wochen, nicht über Jahre, und die Zeile
+   soll in eine Spalte passen. */
+function tagKurz(iso) {
+  const [, m, d] = String(iso).split("-").map(Number);
+  return `${d}.${m}.`;
+}
+
+/* Ein Verlauf aus Wechselpunkten ``[[Tagesindex, Rappen|null], …]`` als Auskunft.
+
+   Gefragt an einer Aktion für CHF 30.90, die Anfang September CHF 23.95 gekostet
+   hatte. Die Zahl von heute allein sagt das nicht, und kein Händler schreibt es an.
+   Darum steht neben „jetzt" das Tief der Reihe, mit den Tagen, an denen es galt.
+
+   ``null`` heisst „an diesem Tag nicht im Angebot" und wird nicht übermalt: weder
+   das Tief noch die Linie springen über eine Lücke hinweg. */
+function preisverlaufAuskunft(laeufe, tage) {
+  const n = tage.length;
+  // Je beobachtetem Tag der Preis, oder null für „nicht im Angebot".
+  const tag = new Array(n).fill(undefined);
+  laeufe.forEach(([i, rappen], k) => {
+    const bis = k + 1 < laeufe.length ? laeufe[k + 1][0] : n;
+    for (let j = i; j < bis; j++) tag[j] = rappen;
+  });
+  const da = tag.map((r, i) => ({ i, r })).filter(x => x.r != null);
+  if (!da.length) return null;
+  const jetzt = tag[n - 1];
+  const tief = Math.min(...da.map(x => x.r));
+  const hoch = Math.max(...da.map(x => x.r));
+  const tiefTage = da.filter(x => x.r === tief).map(x => x.i);
+  return {
+    seit: laeufe[0][0],
+    jetzt: jetzt == null ? null : jetzt / 100,
+    tief: tief / 100,
+    hoch: hoch / 100,
+    tiefVon: tiefTage[0],
+    tiefBis: tiefTage[tiefTage.length - 1],
+    unveraendert: tief === hoch && da.length === n - laeufe[0][0],
+    luecke: da.length < n - laeufe[0][0],
+    tage: tag,
+  };
+}
+
+/* Ein kleines Liniendiagramm über die Beobachtungstage. Nur Zierde neben dem Text,
+   darum aria-hidden — die Auskunft steht vollständig in Worten daneben. */
+function preisverlaufSvg(a) {
+  const W = 120, H = 22, P = 3;
+  const n = a.tage.length;
+  const x = i => P + (n > 1 ? i * (W - 2 * P) / (n - 1) : (W - 2 * P) / 2);
+  const span = (a.hoch - a.tief) || 1;
+  const y = r => H - P - ((r / 100 - a.tief) / span) * (H - 2 * P);
+  let pfad = "", punkte = "", offen = false;
+  a.tage.forEach((r, i) => {
+    if (r == null) { offen = false; return; }
+    pfad += `${offen ? "L" : "M"}${x(i).toFixed(1)} ${(a.hoch === a.tief ? H / 2 : y(r)).toFixed(1)} `;
+    punkte += `<circle cx="${x(i).toFixed(1)}" cy="${(a.hoch === a.tief ? H / 2 : y(r)).toFixed(1)}" r="1.6"/>`;
+    offen = true;
+  });
+  return `<svg class="pvl" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">`
+    + `<path d="${pfad.trim()}"/>${punkte}</svg>`;
+}
+
+function preisverlaufText(a, tage) {
+  const seit = tagKurz(tage[a.seit]);
+  if (a.unveraendert) return `unverändert ${chf(a.jetzt)} seit ${seit}`;
+  const tief = a.tiefVon === a.tiefBis
+    ? tagKurz(tage[a.tiefVon])
+    : `${tagKurz(tage[a.tiefVon])}–${tagKurz(tage[a.tiefBis])}`;
+  let s = a.jetzt == null ? "derzeit nicht im Angebot" : `jetzt ${chf(a.jetzt)}`;
+  if (a.jetzt != null && a.jetzt > a.tief) {
+    const mehr = Math.round((a.jetzt / a.tief - 1) * 100);
+    s += ` · Tief ${chf(a.tief)} am ${tief} (heute +${mehr} %)`;
+  } else if (a.jetzt != null && a.jetzt === a.tief && a.hoch > a.tief) {
+    s += ` · das Tief seit ${seit}, zuvor bis ${chf(a.hoch)}`;
+  }
+  if (a.luecke) s += " · zeitweise nicht im Angebot";
+  return s;
+}
+
+function preisverlaufZeile(p) {
+  const pv = p.priceHistory, tage = D.preistage || [];
+  if (!pv || !tage.length) return "";
+  // Der angezeigte Händler zuerst — er ist der, um den es auf der Karte geht.
+  const reihe = Object.keys(pv).sort((a, b) => (a === p.cheapest ? -1 : b === p.cheapest ? 1 : 0));
+  const zeilen = reihe.map(h => {
+    const a = preisverlaufAuskunft(pv[h], tage);
+    if (!a) return "";
+    const name = reihe.length > 1 ? `${esc(shopName(h))}: ` : "";
+    return `<span class="pv">${preisverlaufSvg(a)}<span>${name}${esc(preisverlaufText(a, tage))}</span></span>`;
+  }).filter(Boolean);
+  return zeilen.length ? zeilen.join("") : "";
+}
+
+
 function detailRows(p) {
   const row = (k, v) => `<div class="r"><span class="k">${k}</span><span>${v}</span></div>`;
   let h = "";
@@ -477,6 +572,8 @@ function detailRows(p) {
     + (valueBezug(p) ? ` <span class="meta">${esc(valueBezug(p))}</span>` : ""));
   h += row("Preis/75cl", chf(p.price));
   if (gebindeText(p)) h += row("Abnahme", `<span class="warn">${esc(gebindeText(p))}</span>`);
+  const verlauf = typeof preisverlaufZeile === "function" ? preisverlaufZeile(p) : "";
+  if (verlauf) h += row("Preisverlauf", verlauf);
   /* Beim Marktplatz gehört die Herkunft des Preises dazu: Vivino vermittelt, verkauft
      wird von Dritten, und der Betrag stammt aus Vivinos Angebotsdaten. In einer
      Stichprobe von zwölf stand er bei vier nicht auf der Verkäuferseite. Hier im

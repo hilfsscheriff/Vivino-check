@@ -702,6 +702,9 @@ def site(
     # Vorgänger, gegen den sich "neu" bestimmen lässt. Der Zusatzlauf wird nur
     # verglichen, nicht ausgeliefert.
     history = cache.all_runs(limit=runs + 1)
+    # Die ganze Reihe: der Verlauf auf der Seite reicht bis zur ersten Beobachtung
+    # zurück, nicht nur über die angezeigten Läufe.
+    preisreihe = cache.preisverlauf()
     cache.close()
 
     if not history:
@@ -796,7 +799,8 @@ def site(
     out.mkdir(parents=True, exist_ok=True)
     # GitHub Pages würde den Ordner sonst durch Jekyll schicben.
     (out / ".nojekyll").write_text("", encoding="utf-8")
-    path = build_site(prepared, out / "index.html", retailer_info=info, title=title)
+    path = build_site(prepared, out / "index.html", retailer_info=info, title=title,
+                      preisreihe=preisreihe)
     if path is None:
         _echo("Keine Weine in den Läufen — nichts zu bauen.", err=True)
         raise typer.Exit(1)
