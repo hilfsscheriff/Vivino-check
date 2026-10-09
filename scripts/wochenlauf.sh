@@ -171,7 +171,24 @@ fi
 # Auch hier der Rueckgabewert: seit es die Seitensperre gibt (SEITE_MIN_ANTEIL), kann
 # 'site' bewusst abbrechen — und dieser Abbruch wurde verschluckt. Der Lauf checkte
 # danach die alte Seite ein und meldete Erfolg.
-if ! uv run wine-check site --out ./docs >>"$PROTOKOLL" 2>&1; then
+# Geprüfte Ausnahme von der Seitensperre: WINECHECK_SEITE_TROTZDEM=1.
+#
+# Die Sperre vergleicht mit der zuletzt ausgelieferten Seite. Stammt die aus einer
+# Ausnahmewoche, haelt sie auch einen Lauf an, an dem alles stimmt — so am 09.10.2026:
+# 2295 Weine gegen 2717, weil Aligros grosse Aktionswoche vom 21.9. vorbei war (Kategorie
+# 1711 von 243 auf 108 Artikel), Aktionis um 07:00 die neuen Aktionen noch nicht
+# eingestellt hatte und Alloboissons nur Getraenke ohne Wein fuehrte. Alles echt,
+# nichts kaputt.
+#
+# Der Schalter ist fuer genau diesen Fall da, und nur nach einer Pruefung je Quelle:
+# er wird von Hand gesetzt, nie vom Zeitplan. Ohne ihn baute man am Skript vorbei von
+# Hand weiter — und verloere dabei Sperre, Export und Protokoll.
+SEITE_ARGS=()
+if [ "${WINECHECK_SEITE_TROTZDEM:-}" = "1" ]; then
+  SEITE_ARGS=(--trotzdem)
+  sage "Seitensperre ausgesetzt (WINECHECK_SEITE_TROTZDEM=1) — nur nach Pruefung je Quelle"
+fi
+if ! uv run wine-check site --out ./docs "${SEITE_ARGS[@]+"${SEITE_ARGS[@]}"}" >>"$PROTOKOLL" 2>&1; then
   sage "FEHLER beim Seitenbau — nichts eingecheckt (siehe Protokoll)"
   exit 1
 fi

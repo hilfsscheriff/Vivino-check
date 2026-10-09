@@ -85,3 +85,37 @@ def test_die_sperre_wird_auch_beim_abbruch_freigegeben(kopie):
     r = _lauf(kopie, WINECHECK_NETZ_PROBE="kein.echter.name.invalid")
     assert r.returncode == 1
     assert not (kopie.parent.parent / "state" / ".lauf.lock").exists()
+
+
+# --------------------------------------------- geprüfte Ausnahme von der Seitensperre
+
+def test_der_schalter_steht_nie_im_zeitplan():
+    """Die Ausnahme wird von Hand gesetzt, nach einer Prüfung je Quelle. Stünde sie im
+    launchd-Auftrag, wäre die Sperre jeden Freitag aus — und mit ihr der Schutz gegen
+    eine Quelle, die still leer liefert."""
+    plist = Path.home() / "Library" / "LaunchAgents" / "ch.winecheck.wochenlauf.plist"
+    if not plist.exists():
+        pytest.skip("kein launchd-Auftrag auf diesem Rechner")
+    assert "WINECHECK_SEITE_TROTZDEM" not in plist.read_text(encoding="utf-8")
+
+
+def test_der_schalter_reicht_genau_trotzdem_durch():
+    """Nur der eine Wert ``1`` schaltet, und nur ``--trotzdem`` wird weitergegeben."""
+    text = SKRIPT.read_text(encoding="utf-8")
+    assert '"${WINECHECK_SEITE_TROTZDEM:-}" = "1"' in text
+    assert "SEITE_ARGS=(--trotzdem)" in text
+    # Ohne Schalter bleibt die Liste leer, und die Sperre greift wie bisher. Die
+    # Schreibweise vermeidet unter "set -u" einen Fehler bei leerer Liste.
+    assert '"${SEITE_ARGS[@]+"${SEITE_ARGS[@]}"}"' in text
+
+
+def test_ohne_schalter_ist_die_liste_leer_auch_unter_set_u():
+    """Ältere bash-Versionen melden bei einer leeren Liste unter "set -u" einen Fehler
+    — der Lauf bräche dann ausgerechnet im Normalfall ab."""
+    probe = (
+        'set -u; SEITE_ARGS=(); '
+        'f() { echo "$#"; }; f "${SEITE_ARGS[@]+"${SEITE_ARGS[@]}"}"'
+    )
+    r = subprocess.run(["/bin/bash", "-c", probe], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "0"
