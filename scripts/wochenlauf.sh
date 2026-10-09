@@ -180,9 +180,13 @@ fi
 # eingestellt hatte und Alloboissons nur Getraenke ohne Wein fuehrte. Alles echt,
 # nichts kaputt.
 #
-# Der Schalter ist fuer genau diesen Fall da, und nur nach einer Pruefung je Quelle:
-# er wird von Hand gesetzt, nie vom Zeitplan. Ohne ihn baute man am Skript vorbei von
-# Hand weiter — und verloere dabei Sperre, Export und Protokoll.
+# Seither prueft die Sperre je Quelle gegen deren eigenen Median (cli._einbrueche),
+# und genau dieser Lauf waere durchgegangen. Der Schalter bleibt fuer den Fall, dass
+# eine grosse Quelle wirklich eine Woche ohne Aktionen hat: dann stoppt die Sperre zu
+# Recht vorsichtig, und ein Mensch entscheidet.
+#
+# Nur nach einer Pruefung je Quelle, von Hand gesetzt, nie vom Zeitplan. Ohne ihn
+# baute man am Skript vorbei weiter — und verloere dabei Sperre, Export und Protokoll.
 SEITE_ARGS=()
 if [ "${WINECHECK_SEITE_TROTZDEM:-}" = "1" ]; then
   SEITE_ARGS=(--trotzdem)

@@ -85,12 +85,19 @@ ADAPTERS: dict[str, type[RetailerAdapter]] = {
 VERGLEICH_MIN_ANTEIL = 0.66
 
 #: So viel kleiner darf eine neu gebaute Seite höchstens sein als die vorhandene,
-#: bevor ``site`` abbricht — als Anteil.
+#: bevor ``site`` abbricht — als Anteil. Gilt nur noch, wenn die ausgelieferte Seite
+#: aus einem **anderen** Klon stammt; siehe _einbrueche für den eigenen.
 #:
-#: 90 %: eine Quelle, die eine Woche ausfällt, kostet selten mehr. Ein Klon mit
-#: veraltetem Cache verliert deutlich mehr — am 21.08. wären es 2206 gegen 2531
-#: Weine gewesen, also 87 %.
+#: 90 %: am 21.08. wollte ein Klon mit veraltetem Cache die Seite von 2531 auf 2206
+#: Weine zurücksetzen, also auf 87 %. Für diesen Fall ist die Schwelle richtig, denn
+#: über eine fremde Seite weiss der eigene Cache nichts — nur ihre Grösse.
 SEITE_MIN_ANTEIL = 0.90
+
+#: Die Sperre für Seiten aus dem eigenen Klon — siehe _einbrueche.
+SPERRE_FENSTER = 5
+SPERRE_QUELLE_MINDEST = 20
+SPERRE_QUELLE_ANTEIL = 0.2
+SPERRE_GESAMT_ANTEIL = 0.75
 
 #: Kennung, die jede gebaute Seite trägt: ``<!-- winecheck lauf=… weine=… -->``.
 _RE_SEITEN_KENNUNG = None  # spät gesetzt, siehe _seiten_kennung
@@ -148,6 +155,64 @@ def _sperre_pruefen(fetcher: Fetcher, cfg: Any) -> tuple[bool, str]:
             f"Quelle prüfen und gegebenenfalls einschalten"
         )
     return True, f"Fühler {heute}: HTTP {res.status_code}"
+
+
+def _einbrueche(laeufe: list[dict[str, Any]]) -> list[str]:
+    """Quellen, die gegenüber ihrem eigenen Normalwert eingebrochen sind.
+
+    ``laeufe[0]`` ist der neue Lauf, danach die vorigen, neuester zuerst. Leer heisst:
+    nichts auffällig.
+
+    Die Sperre schaute vorher nur auf die **Gesamtzahl** gegenüber der zuletzt
+    ausgelieferten Seite. Das war in beide Richtungen falsch:
+
+    * Am 28.08.2026 lieferte Mövenpick 29 statt 301 Positionen, mit Status „ok" und
+      ohne jede Meldung; am Code hatte sich nichts geändert, am 1.9. waren es wieder
+      287. Die Gesamtzahl sank nur um 7 %, die Seite ging mit rund 270 fehlenden
+      Weinen hinaus, und niemand hat es bemerkt.
+    * Am 09.10.2026 hielt sie einen Lauf an, an dem alles stimmte: Aligros grosse
+      Aktionswoche war vorbei, Aktionis hatte um 07:00 die neue Woche noch nicht
+      eingestellt. 2295 gegen 2717 — unter 90 %, obwohl keine Quelle kaputt war.
+
+    Was eine kaputte Quelle von einer kleineren Woche trennt, ist nicht die Summe,
+    sondern ob **eine einzelne Quelle zusammenbricht**. Verglichen wird jede mit ihrem
+    eigenen Median der letzten fünf Läufe; der Median, damit ein einzelner Ausreisser
+    — eine grosse Aktionswoche, ein früherer Ausfall — den Massstab nicht verschiebt.
+
+    Nachgespielt über alle gespeicherten Läufe: die Regel stoppt die drei echten
+    Ausfälle (28.08. Mövenpick 29/301, 11.09. drei Quellen per DNS auf null, 21.09.
+    Aligro 0/263), nennt jeweils die Quelle beim Namen, und lässt den 09.10. durch.
+    Quellen unter 20 Weinen bleiben aussen vor: bei Alloboissons, das in einer Woche
+    nur Getränke ohne Wein in Aktion hatte, ist 15 → 0 eine Woche, kein Ausfall.
+
+    Dazu eine grobe Sicherung über die Summe gegen deren Median, für den Fall, dass
+    viele Quellen zugleich etwas verlieren, ohne dass eine einzelne zusammenbricht.
+    """
+    import statistics
+    from collections import Counter
+
+    if len(laeufe) < 3:
+        # Zu wenig Geschichte für einen Normalwert. Das ist der Anfang eines Caches,
+        # nicht ein Ausfall — und dann gilt die Sperre über die ausgelieferte Seite.
+        return []
+    neu, vorher = laeufe[0], laeufe[1:1 + SPERRE_FENSTER]
+
+    def je_quelle(lauf: dict[str, Any]) -> Counter:
+        return Counter(h for w in lauf.get("wines") or [] for h in set(w.get("retailers") or []))
+
+    heute = je_quelle(neu)
+    frueher = [je_quelle(l) for l in vorher]
+    aus: list[str] = []
+    for quelle in sorted(set().union(*frueher)):
+        basis = statistics.median(f.get(quelle, 0) for f in frueher)
+        if basis >= SPERRE_QUELLE_MINDEST and heute.get(quelle, 0) < basis * SPERRE_QUELLE_ANTEIL:
+            aus.append(f"{quelle} {heute.get(quelle, 0)} statt üblich {basis:.0f}")
+
+    summe = len(neu.get("wines") or [])
+    summe_basis = statistics.median(len(l.get("wines") or []) for l in vorher)
+    if summe < summe_basis * SPERRE_GESAMT_ANTEIL:
+        aus.append(f"insgesamt {summe} Weine statt üblich {summe_basis:.0f}")
+    return aus
 
 
 def _seiten_kennung(pfad: Path) -> tuple[str, int] | None:
@@ -705,6 +770,15 @@ def site(
     # Die ganze Reihe: der Verlauf auf der Seite reicht bis zur ersten Beobachtung
     # zurück, nicht nur über die angezeigten Läufe.
     preisreihe = cache.preisverlauf()
+    # Für die Sperre: die letzten Läufe als Normalwert, und ob die ausgelieferte Seite
+    # aus diesem Cache stammt. Geprüft über Kennung **und** Weinzahl, denn die
+    # Lauf-Kennungen sind je Klon unabhängige Zähler, und dieselbe Zahl kann in einem
+    # anderen Cache einen anderen Lauf bezeichnen.
+    vergleich = cache.all_runs(limit=SPERRE_FENSTER + 1)
+    vorhanden = _seiten_kennung(out / "index.html")
+    aus_diesem_klon = bool(
+        vorhanden and cache.weinzahl_des_laufs(vorhanden[0]) == vorhanden[1]
+    )
     cache.close()
 
     if not history:
@@ -773,25 +847,36 @@ def site(
     # Verglichen wird gegen die Kennung, die die vorhandene Seite selbst trägt.
     # Verweigert wird, wenn der neue Lauf älter ist oder deutlich weniger Weine
     # trägt. ``--trotzdem`` hebt die Sperre auf; sie soll schützen, nicht blockieren.
-    ziel = out / "index.html"
-    vorhanden = _seiten_kennung(ziel)
     if vorhanden and not trotzdem:
         alt_lauf, alt_weine = vorhanden
         neu_lauf = str(history[0].get("id") or "")
         neu_weine = len(history[0].get("wines") or [])
-        aelter = _lauf_aelter(neu_lauf, alt_lauf, cache_path)
-        viel_kleiner = alt_weine and neu_weine < alt_weine * SEITE_MIN_ANTEIL
-        if aelter or viel_kleiner:
-            grund = (
-                f"der Lauf ist älter als der ausgelieferte"
-                if aelter else
-                f"nur {neu_weine} Weine gegen {alt_weine} in der ausgelieferten Seite"
-            )
+        if _lauf_aelter(neu_lauf, alt_lauf, cache_path):
+            _echo("Abgebrochen: der Lauf ist älter als der ausgelieferte.\n"
+                  "  Mit --trotzdem überschreiben, wenn das gewollt ist.", err=True)
+            raise typer.Exit(1)
+        if aus_diesem_klon:
+            # Die ausgelieferte Seite ist von hier: der eigene Verlauf weiss, was
+            # normal ist, und die Prüfung geht je Quelle. Siehe _einbrueche.
+            einbrueche = _einbrueche(vergleich)
+            if einbrueche:
+                _echo(
+                    "Abgebrochen: eingebrochen gegenüber den letzten Läufen —\n"
+                    + "".join(f"    {e}\n" for e in einbrueche)
+                    + "  Ist die Quelle kaputt, erst reparieren. Ist es eine echte Woche,\n"
+                      "  mit --trotzdem bauen (im Wochenlauf: WINECHECK_SEITE_TROTZDEM=1).",
+                    err=True,
+                )
+                raise typer.Exit(1)
+        elif alt_weine and neu_weine < alt_weine * SEITE_MIN_ANTEIL:
+            # Die ausgelieferte Seite ist aus einem anderen Cache. Über sie weiss der
+            # eigene Verlauf nichts, nur ihre Grösse — darum hier die strenge Regel.
             _echo(
-                f"Abgebrochen: {grund}.\n"
-                f"  Die vorhandene Seite stammt aus einem anderen Klon — der Wochenlauf "
-                f"läuft aus ~/winecheck mit eigenem Cache.\n"
-                f"  Dort neu bauen, oder mit --trotzdem überschreiben.",
+                f"Abgebrochen: nur {neu_weine} Weine gegen {alt_weine} in der ausgelieferten "
+                f"Seite, und die stammt nicht aus diesem Cache (Lauf {alt_lauf} ist hier "
+                f"unbekannt oder anders gross).\n"
+                f"  Der Wochenlauf läuft aus ~/winecheck. Dort neu bauen, oder mit "
+                f"--trotzdem überschreiben.",
                 err=True,
             )
             raise typer.Exit(1)

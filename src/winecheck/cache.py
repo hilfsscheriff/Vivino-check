@@ -444,6 +444,25 @@ class Cache:
             )
         }
 
+    def weinzahl_des_laufs(self, lauf_id: str | int) -> int | None:
+        """Wie viele Weine trägt dieser Lauf — oder ``None``, wenn es ihn hier nicht gibt.
+
+        Gezählt in SQLite, ohne den Schnappschuss in Python zu laden: er ist bis zu
+        drei Megabyte gross, und gebraucht wird nur die Länge.
+        """
+        try:
+            lid = int(lauf_id)
+        except (TypeError, ValueError):
+            return None
+        try:
+            row = self.conn.execute(
+                "SELECT json_array_length(snapshot) FROM runs WHERE id=?", (lid,)
+            ).fetchone()
+            return None if row is None else int(row[0] or 0)
+        except sqlite3.OperationalError:
+            row = self.conn.execute("SELECT snapshot FROM runs WHERE id=?", (lid,)).fetchone()
+            return None if row is None else len(json.loads(row[0] or "[]"))
+
     def all_runs(self, *, limit: int = 20) -> list[dict[str, Any]]:
         """Alle gespeicherten Läufe, neuester zuerst — Grundlage für die Webseite."""
         rows = self.conn.execute(
